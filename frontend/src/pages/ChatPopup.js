@@ -1,4 +1,3 @@
-// src/pages/ChatPopup.js
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Typography, IconButton, TextField, Button, Paper, Avatar, Stack
@@ -10,8 +9,8 @@ import StopIcon from '@mui/icons-material/Stop';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
-const botAvatar = 'bot2.jpg'; // bot icon image URL
-const userAvatar = '17360409.png'; // user icon image URL
+const botAvatar = 'bot2.jpg'; // in public/
+const userAvatar = '17360409.png'; // in public/
 
 export default function ChatPopup({ onClose }) {
   const [messages, setMessages] = useState([
@@ -19,16 +18,37 @@ export default function ChatPopup({ onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
-  const recognitionRef = useRef(null);
   const [speaking, setSpeaking] = useState(false);
+  const [preferredVoice, setPreferredVoice] = useState(null);
+  const recognitionRef = useRef(null);
   const utteranceRef = useRef(null);
+
+  // Load voices once available
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const female = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+                     voices.find(v => v.lang.startsWith('en'));
+      if (female) setPreferredVoice(female);
+    };
+
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+      loadVoices();
+    }
+  }, []);
+
+  // Speak welcome message once voice is ready
+  useEffect(() => {
+    if (preferredVoice) {
+      //speakText(messages[0].text);
+    }
+  }, [preferredVoice]);
 
   // Setup speech recognition
   useEffect(() => {
-    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      console.warn('Speech recognition not supported in this browser');
-      return;
-    }
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
@@ -40,33 +60,20 @@ export default function ChatPopup({ onClose }) {
       setInput(transcript);
       setListening(false);
     };
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error', event.error);
-      setListening(false);
-    };
-    recognition.onend = () => {
-      setListening(false);
-    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
 
     recognitionRef.current = recognition;
   }, []);
 
-  // Text-to-speech function
+  // Speak text with female voice
   const speakText = (text) => {
-    if (!window.speechSynthesis) {
-      alert('Speech synthesis not supported');
-      return;
-    }
-    window.speechSynthesis.cancel(); // cancel any existing speech
+    if (!window.speechSynthesis || !preferredVoice) return;
 
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = preferredVoice;
     utterance.lang = 'en-US';
-    // Female voice preference:
-    const voices = window.speechSynthesis.getVoices();
-    const femaleVoice = voices.find(voice => voice.lang.startsWith('en') && voice.name.toLowerCase().includes('female'))
-      || voices.find(voice => voice.lang.startsWith('en'));
-    if (femaleVoice) utterance.voice = femaleVoice;
-
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
@@ -99,7 +106,7 @@ export default function ChatPopup({ onClose }) {
     }
   };
 
-  // Send user message and get bot reply
+  // Send user message
   const sendMessage = async () => {
     if (!input.trim()) return;
 
@@ -114,15 +121,11 @@ export default function ChatPopup({ onClose }) {
         body: JSON.stringify({ message: userMessage })
       });
       const data = await res.json();
-      if (data.reply) {
-        setMessages(prev => [...prev, { from: 'bot', text: data.reply }]);
-       // speakText(data.reply);
-      } else {
-        setMessages(prev => [...prev, { from: 'bot', text: "Sorry, I didn't get that." }]);
-      }
+      const botReply = data.reply || "Sorry, I didn't get that.";
+      setMessages(prev => [...prev, { from: 'bot', text: botReply }]);
     } catch (err) {
-      setMessages(prev => [...prev, { from: 'bot', text: "Sorry, something went wrong." }]);
       console.error(err);
+      setMessages(prev => [...prev, { from: 'bot', text: "Sorry, something went wrong." }]);
     }
   };
 
@@ -142,31 +145,26 @@ export default function ChatPopup({ onClose }) {
     }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, bgcolor: 'primary.main', color: 'white' }}>
-        <Typography variant="h6">🤖  Medina AI </Typography>
-        <IconButton size="small" onClick={() => {
-          stopSpeaking();
-          onClose();
-        }} sx={{ color: 'white' }}>
+        <Typography variant="h6">🤖 Medina AI</Typography>
+        <IconButton onClick={() => { stopSpeaking(); onClose(); }} sx={{ color: 'white' }}>
           <CloseIcon />
         </IconButton>
       </Box>
 
-      {/* Messages list */}
+      {/* Chat messages */}
       <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 1 }}>
         {messages.map((msg, i) => (
           <Stack key={i} direction="row" spacing={1} alignItems="flex-start" mb={1} justifyContent={msg.from === 'user' ? 'flex-end' : 'flex-start'}>
             {msg.from === 'bot' && <Avatar alt="Bot" src={botAvatar} />}
-            <Box
-              sx={{
-                bgcolor: msg.from === 'bot' ? 'grey.300' : 'primary.main',
-                color: msg.from === 'bot' ? 'black' : 'white',
-                borderRadius: 2,
-                p: 1.5,
-                maxWidth: '70%',
-                whiteSpace: 'pre-wrap',
-                fontSize: 14,
-              }}
-            >
+            <Box sx={{
+              bgcolor: msg.from === 'bot' ? 'grey.300' : 'primary.main',
+              color: msg.from === 'bot' ? 'black' : 'white',
+              borderRadius: 2,
+              p: 1.5,
+              maxWidth: '70%',
+              whiteSpace: 'pre-wrap',
+              fontSize: 14,
+            }}>
               {msg.text}
             </Box>
             {msg.from === 'user' && <Avatar alt="User" src={userAvatar} />}
@@ -174,7 +172,7 @@ export default function ChatPopup({ onClose }) {
         ))}
       </Box>
 
-      {/* Controls */}
+      {/* Input and controls */}
       <Box sx={{ p: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
         <IconButton onClick={startListening} color={listening ? 'primary' : 'default'} title="Speak">
           <MicIcon />
@@ -195,9 +193,9 @@ export default function ChatPopup({ onClose }) {
         </Button>
       </Box>
 
-      {/* Speech Controls */}
+      {/* Voice controls */}
       <Box sx={{ p: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-around' }}>
-        <Button onClick={() => speakText(messages[messages.length - 1]?.text)} disabled={speaking} size="small" startIcon={<PlayArrowIcon />}>
+        <Button onClick={() => speakText(messages[messages.length - 1]?.text)} disabled={!preferredVoice} startIcon={<PlayArrowIcon />} size="small">
           Play
         </Button>
         <Button onClick={pauseSpeaking} size="small" disabled={!speaking}>
