@@ -1,3 +1,4 @@
+// src/pages/Registration.js
 import React, { useState } from 'react';
 import {
   Box, Typography, TextField, Button, MenuItem, Select,
@@ -14,17 +15,18 @@ const specialties = [
   "Geriatrician", "Hepatologist"
 ];
 
+const initialForm = {
+  firstName: '', lastName: '', nicNumber: '', gender: '', age: '', photo: null,
+  address: '', contactNumber: '', dateOfBirth: '', password: '', confirmPassword: '', email: '',
+  slmcRegistrationNumber: '', specialty: '', pharmacistId: ''
+};
+
 export default function Registration() {
   const navigate = useNavigate();
-
   const [role, setRole] = useState('');
+  const [formData, setFormData] = useState(initialForm);
+  const [errors, setErrors] = useState({});
   const [alert, setAlert] = useState({ open: false, severity: 'info', message: '' });
-
-  const [formData, setFormData] = useState({
-    firstName: '', lastName: '', nicNumber: '', gender: '', age: '', photo: null,
-    address: '', contactNumber: '', dateOfBirth: '', password: '', email: '',
-    slmcRegistrationNumber: '', specialty: '', pharmacistId: '',
-  });
 
   const showAlert = (severity, message) => {
     setAlert({ open: true, severity, message });
@@ -32,29 +34,66 @@ export default function Registration() {
 
   const handleRoleChange = (e) => {
     setRole(e.target.value);
-    setFormData({
-      firstName: '', lastName: '', nicNumber: '', gender: '', age: '', photo: null,
-      address: '', contactNumber: '', dateOfBirth: '', password: '', email: '',
-      slmcRegistrationNumber: '', specialty: '', pharmacistId: '',
-    });
+    setFormData(initialForm);
+    setErrors({});
   };
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     if (files) {
-      setFormData((prev) => ({ ...prev, [name]: files[0] }));
+      setFormData(prev => ({ ...prev, [name]: files[0] }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
+    setErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    const nameRegex = /^[A-Za-z]+$/;
+    const nicRegexOld = /^\d{9}[vV]$/;
+    const nicRegexNew = /^\d{12}$/;
+    const contactRegex = /^0\d{9}$/;
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&+=!]).{8,}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    // Common validations
+    if (!formData.email || !emailRegex.test(formData.email)) newErrors.email = 'Valid email required';
+    if (!formData.firstName || !nameRegex.test(formData.firstName)) newErrors.firstName = 'Only letters allowed';
+    if (!formData.lastName || !nameRegex.test(formData.lastName) || formData.lastName === formData.firstName)
+      newErrors.lastName = 'Only letters, cannot be same as First Name';
+    if (!formData.nicNumber || (!nicRegexOld.test(formData.nicNumber) && !nicRegexNew.test(formData.nicNumber)))
+      newErrors.nicNumber = 'Invalid NIC format';
+    if (!formData.gender) newErrors.gender = 'Gender required';
+    if (!formData.age || +formData.age < 1 || +formData.age > 120) newErrors.age = 'Age must be between 1-120';
+    if (!formData.address) newErrors.address = 'Address required';
+    if (!contactRegex.test(formData.contactNumber)) newErrors.contactNumber = 'Must be 10 digits, start with 0';
+    if (!formData.dateOfBirth) newErrors.dateOfBirth = 'DOB required';
+    if (!passwordRegex.test(formData.password)) newErrors.password = 'Min 8 chars, 1 uppercase, 1 number, 1 special char';
+    if (formData.confirmPassword !== formData.password) newErrors.confirmPassword = 'Passwords do not match';
+
+    if (role === 'Doctor') {
+      if (!formData.slmcRegistrationNumber || !/^\d{5}$/.test(formData.slmcRegistrationNumber))
+        newErrors.slmcRegistrationNumber = 'Must be 5 digits';
+      if (!formData.specialty) newErrors.specialty = 'Specialty required';
+    }
+
+    if (role === 'Pharmacist' && !formData.pharmacistId)
+      newErrors.pharmacistId = 'Pharmacist ID required';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validate()) return;
+
     try {
       const data = new FormData();
       data.append('role', role);
-      Object.entries(formData).forEach(([key, value]) => {
-        if (value) data.append(key, value);
+      Object.entries(formData).forEach(([key, val]) => {
+        if (val) data.append(key, val);
       });
 
       const res = await axios.post('http://localhost:5000/api/auth/register', data, {
@@ -72,9 +111,7 @@ export default function Registration() {
     <Grid container justifyContent="center" alignItems="center" sx={{ minHeight: '100vh', backgroundColor: '#f4f7fb' }}>
       <Grid item xs={11} md={6} component={Paper} elevation={4} sx={{ p: 4, borderRadius: 3 }}>
         <Box display="flex" flexDirection="column" alignItems="center" mb={3}>
-          <Avatar sx={{ bgcolor: 'primary.main', mb: 1 }}>
-            <PersonAddAlt1 />
-          </Avatar>
+          <Avatar sx={{ bgcolor: 'primary.main', mb: 1 }}><PersonAddAlt1 /></Avatar>
           <Typography variant="h5" fontWeight={600}>Register New Account</Typography>
         </Box>
 
@@ -90,21 +127,39 @@ export default function Registration() {
 
         {role && (
           <Box component="form" onSubmit={handleSubmit} noValidate>
-            <TextField fullWidth required label="Email" name="email" type="email" value={formData.email} onChange={handleChange} sx={{ mb: 2 }} />
-            <TextField fullWidth required label="First Name" name="firstName" value={formData.firstName} onChange={handleChange} sx={{ mb: 2 }} />
-            <TextField fullWidth required label="Last Name" name="lastName" value={formData.lastName} onChange={handleChange} sx={{ mb: 2 }} />
-            <TextField fullWidth required label="NIC Number" name="nicNumber" value={formData.nicNumber} onChange={handleChange} sx={{ mb: 2 }} />
+            {[
+              ['email', 'Email', 'email'],
+              ['firstName', 'First Name'],
+              ['lastName', 'Last Name'],
+              ['nicNumber', 'NIC Number'],
+              ['address', 'Address'],
+              ['contactNumber', 'Contact Number'],
+              ['password', 'Password', 'password'],
+              ['confirmPassword', 'Confirm Password', 'password'],
+            ].map(([name, label, type = 'text']) => (
+              <TextField key={name} fullWidth required label={label} name={name}
+                value={formData[name]} onChange={handleChange}
+                type={type} error={!!errors[name]} helperText={errors[name]} sx={{ mb: 2 }} />
+            ))}
 
-            <FormControl fullWidth required sx={{ mb: 2 }}>
-              <InputLabel id="gender-label">Gender</InputLabel>
-              <Select labelId="gender-label" name="gender" value={formData.gender} onChange={handleChange}>
+            <FormControl fullWidth required sx={{ mb: 2 }} error={!!errors.gender}>
+              <InputLabel>Gender</InputLabel>
+              <Select name="gender" value={formData.gender} onChange={handleChange} label="Gender">
                 <MenuItem value="Male">Male</MenuItem>
                 <MenuItem value="Female">Female</MenuItem>
                 <MenuItem value="Other">Other</MenuItem>
               </Select>
+              <Typography color="error" fontSize={12}>{errors.gender}</Typography>
             </FormControl>
 
-            <TextField fullWidth required label="Age" name="age" type="number" value={formData.age} onChange={handleChange} sx={{ mb: 2 }} />
+            <TextField fullWidth required label="Age" name="age" type="number"
+              value={formData.age} onChange={handleChange}
+              error={!!errors.age} helperText={errors.age} sx={{ mb: 2 }} />
+
+            <TextField fullWidth required type="date" label="Date of Birth"
+              name="dateOfBirth" InputLabelProps={{ shrink: true }}
+              value={formData.dateOfBirth} onChange={handleChange}
+              error={!!errors.dateOfBirth} helperText={errors.dateOfBirth} sx={{ mb: 2 }} />
 
             <Button variant="outlined" component="label" fullWidth sx={{ mb: 2 }}>
               Upload Photo
@@ -114,27 +169,28 @@ export default function Registration() {
               <Typography variant="body2" sx={{ mb: 2 }}>{formData.photo.name}</Typography>
             )}
 
-            <TextField fullWidth required label="Address" name="address" value={formData.address} onChange={handleChange} sx={{ mb: 2 }} />
-            <TextField fullWidth required label="Contact Number" name="contactNumber" value={formData.contactNumber} onChange={handleChange} sx={{ mb: 2 }} />
-            <TextField fullWidth required type="date" label="Date of Birth" name="dateOfBirth" InputLabelProps={{ shrink: true }} value={formData.dateOfBirth} onChange={handleChange} sx={{ mb: 2 }} />
-            <TextField fullWidth required type="password" label="Password" name="password" value={formData.password} onChange={handleChange} sx={{ mb: 2 }} />
-
             {role === 'Doctor' && (
               <>
-                <TextField fullWidth required label="SLMC Registration Number" name="slmcRegistrationNumber" value={formData.slmcRegistrationNumber} onChange={handleChange} sx={{ mb: 2 }} />
-                <FormControl fullWidth required sx={{ mb: 2 }}>
-                  <InputLabel id="specialty-label">Specialty</InputLabel>
-                  <Select labelId="specialty-label" name="specialty" value={formData.specialty} onChange={handleChange}>
-                    {specialties.map((s) => (
-                      <MenuItem key={s} value={s}>{s}</MenuItem>
-                    ))}
+                <TextField fullWidth required label="SLMC Registration Number"
+                  name="slmcRegistrationNumber" value={formData.slmcRegistrationNumber}
+                  onChange={handleChange} error={!!errors.slmcRegistrationNumber}
+                  helperText={errors.slmcRegistrationNumber} sx={{ mb: 2 }} />
+
+                <FormControl fullWidth required sx={{ mb: 2 }} error={!!errors.specialty}>
+                  <InputLabel>Specialty</InputLabel>
+                  <Select name="specialty" value={formData.specialty} onChange={handleChange} label="Specialty">
+                    {specialties.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                   </Select>
+                  <Typography color="error" fontSize={12}>{errors.specialty}</Typography>
                 </FormControl>
               </>
             )}
 
             {role === 'Pharmacist' && (
-              <TextField fullWidth required label="Pharmacist ID" name="pharmacistId" value={formData.pharmacistId} onChange={handleChange} sx={{ mb: 2 }} />
+              <TextField fullWidth required label="Pharmacist ID"
+                name="pharmacistId" value={formData.pharmacistId}
+                onChange={handleChange} error={!!errors.pharmacistId}
+                helperText={errors.pharmacistId} sx={{ mb: 2 }} />
             )}
 
             <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 1 }}>
@@ -145,14 +201,11 @@ export default function Registration() {
             </Button>
           </Box>
         )}
-      </Grid>
 
-      {/* Stylish Alert Box */}
-      <Snackbar open={alert.open} autoHideDuration={4000} onClose={() => setAlert({ ...alert, open: false })}>
-        <Alert severity={alert.severity} variant="filled" sx={{ width: '100%' }}>
-          {alert.message}
-        </Alert>
-      </Snackbar>
+        <Snackbar open={alert.open} autoHideDuration={4000} onClose={() => setAlert({ ...alert, open: false })}>
+          <Alert severity={alert.severity} variant="filled" sx={{ width: '100%' }}>{alert.message}</Alert>
+        </Snackbar>
+      </Grid>
     </Grid>
   );
 }
