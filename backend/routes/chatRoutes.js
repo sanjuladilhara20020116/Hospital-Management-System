@@ -10,7 +10,7 @@ router.post("/", async (req, res) => {
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
-        model: "mistralai/mistral-7b-instruct", // ✅ Replace with available OpenRouter model
+        model: "openai/gpt-4o-mini", // ✅ Replace with available OpenRouter model
         messages: [
           {
             role: "system",
