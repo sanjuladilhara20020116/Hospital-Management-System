@@ -9,8 +9,8 @@ import StopIcon from '@mui/icons-material/Stop';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
-const botAvatar = 'bot2.jpg'; // in public/
-const userAvatar = '17360409.png'; // in public/
+const botAvatar = 'bot2.jpg';
+const userAvatar = '17360409.png';
 
 export default function ChatPopup({ onClose }) {
   const [messages, setMessages] = useState([
@@ -18,65 +18,61 @@ export default function ChatPopup({ onClose }) {
   ]);
   const [input, setInput] = useState('');
   const [listening, setListening] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  const [preferredVoice, setPreferredVoice] = useState(null);
   const recognitionRef = useRef(null);
   const utteranceRef = useRef(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Load voices once available
+  // Get female voice
+  const getFemaleVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    return voices.find(v => v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('samantha')) ||
+           voices.find(v => v.lang.startsWith('en'));
+  };
+
   useEffect(() => {
-    const loadVoices = () => {
-      const voices = window.speechSynthesis.getVoices();
-      const female = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
-                     voices.find(v => v.lang.startsWith('en'));
-      if (female) setPreferredVoice(female);
-    };
-
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.onvoiceschanged = loadVoices;
-      loadVoices();
-    }
-  }, []);
-
-  // Speak welcome message once voice is ready
-  useEffect(() => {
-    if (preferredVoice) {
-      //speakText(messages[0].text);
-    }
-  }, [preferredVoice]);
-
-  // Setup speech recognition
-  useEffect(() => {
-    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return;
-
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('Speech recognition not supported');
+      return;
+    }
+
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
     recognition.interimResults = false;
     recognition.continuous = false;
 
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
+    recognition.onresult = e => {
+      setInput(e.results[0][0].transcript);
       setListening(false);
     };
     recognition.onerror = () => setListening(false);
     recognition.onend = () => setListening(false);
 
     recognitionRef.current = recognition;
+
+    window.speechSynthesis.onvoiceschanged = () => getFemaleVoice(); // preload voices
   }, []);
 
-  // Speak text with female voice
   const speakText = (text) => {
-    if (!window.speechSynthesis || !preferredVoice) return;
+    window.speechSynthesis.cancel(); // Stop any current speech
 
-    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = preferredVoice;
     utterance.lang = 'en-US';
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    utterance.voice = getFemaleVoice();
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setIsPaused(false);
+    };
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setIsPaused(false);
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setIsPaused(false);
+    };
 
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
@@ -84,18 +80,21 @@ export default function ChatPopup({ onClose }) {
 
   const stopSpeaking = () => {
     window.speechSynthesis.cancel();
-    setSpeaking(false);
+    setIsSpeaking(false);
+    setIsPaused(false);
   };
 
   const pauseSpeaking = () => {
     if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
       window.speechSynthesis.pause();
+      setIsPaused(true);
     }
   };
 
   const resumeSpeaking = () => {
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
+      setIsPaused(false);
     }
   };
 
@@ -106,10 +105,8 @@ export default function ChatPopup({ onClose }) {
     }
   };
 
-  // Send user message
   const sendMessage = async () => {
     if (!input.trim()) return;
-
     const userMessage = input.trim();
     setMessages(prev => [...prev, { from: 'user', text: userMessage }]);
     setInput('');
@@ -121,8 +118,11 @@ export default function ChatPopup({ onClose }) {
         body: JSON.stringify({ message: userMessage })
       });
       const data = await res.json();
-      const botReply = data.reply || "Sorry, I didn't get that.";
-      setMessages(prev => [...prev, { from: 'bot', text: botReply }]);
+      if (data.reply) {
+        setMessages(prev => [...prev, { from: 'bot', text: data.reply }]);
+      } else {
+        setMessages(prev => [...prev, { from: 'bot', text: "Sorry, I didn't get that." }]);
+      }
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, { from: 'bot', text: "Sorry, something went wrong." }]);
@@ -131,82 +131,54 @@ export default function ChatPopup({ onClose }) {
 
   return (
     <Paper elevation={6} sx={{
-      position: 'fixed',
-      bottom: 72,
-      right: 16,
-      width: 600,
-      height: 850,
-      display: 'flex',
-      flexDirection: 'column',
-      zIndex: 1200,
-      borderRadius: 2,
-      overflow: 'hidden',
-      bgcolor: 'background.paper',
+      position: 'fixed', bottom: 72, right: 16,
+      width: 600, height: 850, display: 'flex', flexDirection: 'column',
+      zIndex: 1200, borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper'
     }}>
-      {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, bgcolor: 'primary.main', color: 'white' }}>
         <Typography variant="h6">🤖 Medina AI</Typography>
-        <IconButton onClick={() => { stopSpeaking(); onClose(); }} sx={{ color: 'white' }}>
+        <IconButton size="small" onClick={() => { stopSpeaking(); onClose(); }} sx={{ color: 'white' }}>
           <CloseIcon />
         </IconButton>
       </Box>
 
-      {/* Chat messages */}
       <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 1 }}>
         {messages.map((msg, i) => (
           <Stack key={i} direction="row" spacing={1} alignItems="flex-start" mb={1} justifyContent={msg.from === 'user' ? 'flex-end' : 'flex-start'}>
-            {msg.from === 'bot' && <Avatar alt="Bot" src={botAvatar} />}
+            {msg.from === 'bot' && <Avatar src={botAvatar} alt="Bot" />}
             <Box sx={{
               bgcolor: msg.from === 'bot' ? 'grey.300' : 'primary.main',
               color: msg.from === 'bot' ? 'black' : 'white',
-              borderRadius: 2,
-              p: 1.5,
-              maxWidth: '70%',
-              whiteSpace: 'pre-wrap',
-              fontSize: 14,
+              borderRadius: 2, p: 1.5, maxWidth: '70%',
+              whiteSpace: 'pre-wrap', fontSize: 14
             }}>
               {msg.text}
             </Box>
-            {msg.from === 'user' && <Avatar alt="User" src={userAvatar} />}
+            {msg.from === 'user' && <Avatar src={userAvatar} alt="User" />}
           </Stack>
         ))}
       </Box>
 
-      {/* Input and controls */}
       <Box sx={{ p: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
-        <IconButton onClick={startListening} color={listening ? 'primary' : 'default'} title="Speak">
+        <IconButton onClick={startListening} color={listening ? 'primary' : 'default'}>
           <MicIcon />
         </IconButton>
-
         <TextField
-          variant="outlined"
-          size="small"
-          placeholder="Type your message..."
-          value={input}
+          fullWidth size="small" placeholder="Type your message..." value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }}
-          sx={{ flexGrow: 1, mx: 1 }}
+          sx={{ mx: 1 }}
         />
-
-        <Button variant="contained" onClick={sendMessage} disabled={!input.trim()} endIcon={<SendIcon />}>
+        <Button variant="contained" endIcon={<SendIcon />} onClick={sendMessage} disabled={!input.trim()}>
           Send
         </Button>
       </Box>
 
-      {/* Voice controls */}
       <Box sx={{ p: 1, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-around' }}>
-        <Button onClick={() => speakText(messages[messages.length - 1]?.text)} disabled={!preferredVoice} startIcon={<PlayArrowIcon />} size="small">
-          Play
-        </Button>
-        <Button onClick={pauseSpeaking} size="small" disabled={!speaking}>
-          Pause
-        </Button>
-        <Button onClick={resumeSpeaking} size="small" disabled={!speaking}>
-          Resume
-        </Button>
-        <Button onClick={stopSpeaking} size="small" disabled={!speaking} startIcon={<StopIcon />}>
-          Stop
-        </Button>
+        <Button onClick={() => speakText(messages[messages.length - 1]?.text)} disabled={isSpeaking} startIcon={<PlayArrowIcon />}>Play</Button>
+        <Button onClick={pauseSpeaking} disabled={!isSpeaking || isPaused} startIcon={<PauseIcon />}>Pause</Button>
+        <Button onClick={resumeSpeaking} disabled={!isPaused} startIcon={<PlayArrowIcon />}>Resume</Button>
+        <Button onClick={stopSpeaking} disabled={!isSpeaking && !isPaused} startIcon={<StopIcon />}>Stop</Button>
       </Box>
     </Paper>
   );
