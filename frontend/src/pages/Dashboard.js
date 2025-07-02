@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import DoctorDashboard from './DoctorDashboard';
 import PatientDashboard from './PatientDashboard';
 import PharmacistDashboard from './PharmacistDashboard';
+import HospitalManagerDashboard from './HospitalManagerDashboard'; // import your manager dashboard
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -34,6 +35,8 @@ export default function Dashboard() {
       return <PatientDashboard userId={user.userId} />;
     case 'Pharmacist':
       return <PharmacistDashboard userId={user.userId} />;
+    case 'HospitalManager':  // handle manager role
+     return <HospitalManagerDashboard userId={user.userId} />;
     default:
       return <div>🚫 Unauthorized Role</div>;
   }
