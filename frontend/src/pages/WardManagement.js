@@ -1,264 +1,256 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Box, Typography, TextField, Button, Snackbar, Alert,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Grid, Paper
+  Box, Typography, TextField, Button, Grid, Paper, Snackbar, Alert, Chip, Autocomplete
 } from '@mui/material';
 import axios from 'axios';
 
-export default function WardManagement() {
-  const [wards, setWards] = useState([]);
-  const [loading, setLoading] = useState(true);
+// 🔍 Doctor Search & Assign Component
+function DoctorSearchAssign({ wardId, onAssign }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [options, setOptions] = useState([]);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
 
-  const [newWard, setNewWard] = useState({ wardName: '', wardType: '', capacity: '' });
-  const [editingWard, setEditingWard] = useState(null);
-  const [deletingWard, setDeletingWard] = useState(null);
+  useEffect(() => {
+    if (searchQuery.trim().length > 1) {
+      axios.get(`http://localhost:5000/api/users/search-doctors?query=${searchQuery}`)
+        .then(res => setOptions(res.data))
+        .catch(err => console.error(err));
+    } else {
+      setOptions([]);
+    }
+  }, [searchQuery]);
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-
-  const [alert, setAlert] = useState({ open: false, severity: '', message: '' });
-
-  // Fetch wards
-  const fetchWards = async () => {
+  const handleAssign = async () => {
+    if (!selectedDoctor) return;
     try {
-      setLoading(true);
-      const res = await axios.get('http://localhost:5000/api/wards');
-      setWards(res.data);
+      await axios.post(`http://localhost:5000/api/wards/${wardId}/assign-doctor`, {
+        doctorId: selectedDoctor._id
+      });
+      onAssign(); // refresh
+      setSelectedDoctor(null);
+      setSearchQuery('');
     } catch (err) {
-      showAlert('error', 'Failed to fetch wards');
-    } finally {
-      setLoading(false);
+      console.error('Assign error:', err);
     }
   };
 
+  return (
+    <Box mt={1}>
+      <Typography variant="subtitle1">Assign Doctor</Typography>
+      <Autocomplete
+        options={options}
+        getOptionLabel={(option) => `${option.userId} - ${option.firstName} ${option.lastName}`}
+        inputValue={searchQuery}
+        onInputChange={(e, newInput) => setSearchQuery(newInput)}
+        value={selectedDoctor}
+        onChange={(e, value) => setSelectedDoctor(value)}
+        renderInput={(params) => <TextField {...params} label="Search Doctor ID or Name" size="small" />}
+        sx={{ mb: 1 }}
+      />
+      <Button variant="contained" onClick={handleAssign} disabled={!selectedDoctor} fullWidth>
+        Assign
+      </Button>
+    </Box>
+  );
+}
+
+export default function WardManagement() {
+  const [wards, setWards] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [wardData, setWardData] = useState({ wardName: '', wardType: '', capacity: '' });
+  const [selectedDoctors, setSelectedDoctors] = useState([]);
+  const [alert, setAlert] = useState({ open: false, severity: 'info', message: '' });
+
   useEffect(() => {
     fetchWards();
+    fetchDoctors();
   }, []);
+
+  const fetchWards = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/wards');
+      setWards(res.data.map(w => ({ ...w, _editing: false })));
+    } catch (err) {
+      console.error('Error fetching wards', err);
+    }
+  };
+
+  const fetchDoctors = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/users/doctors');
+      setDoctors(res.data);
+    } catch (err) {
+      console.error('Error fetching doctors', err);
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setWardData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddWard = async () => {
+    const { wardName, wardType, capacity } = wardData;
+    if (!wardName || !wardType || !capacity) {
+      showAlert('error', 'Please fill all ward fields');
+      return;
+    }
+
+    try {
+      await axios.post('http://localhost:5000/api/wards', {
+        ...wardData,
+        assignedDoctors: selectedDoctors.map(doc => doc._id),
+      });
+      showAlert('success', 'Ward added successfully');
+      fetchWards();
+      setWardData({ wardName: '', wardType: '', capacity: '' });
+      setSelectedDoctors([]);
+    } catch (err) {
+      console.error(err);
+      showAlert('error', 'Failed to add ward');
+    }
+  };
+
+  const handleRemoveDoctor = async (wardId, doctorId) => {
+    try {
+      await axios.post(`http://localhost:5000/api/wards/${wardId}/remove-doctor`, { doctorId });
+      showAlert('info', 'Doctor removed');
+      fetchWards();
+    } catch (err) {
+      console.error(err);
+      showAlert('error', 'Failed to remove doctor');
+    }
+  };
+
+  const handleUpdateWard = async (id, updatedWard) => {
+    try {
+      await axios.put(`http://localhost:5000/api/wards/${id}`, {
+        wardName: updatedWard.wardName,
+        wardType: updatedWard.wardType,
+        capacity: updatedWard.capacity
+      });
+      showAlert('success', 'Ward updated');
+      fetchWards();
+    } catch (err) {
+      console.error(err);
+      showAlert('error', 'Failed to update ward');
+    }
+  };
+
+  const handleDeleteWard = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this ward?')) return;
+    try {
+      await axios.delete(`http://localhost:5000/api/wards/${id}`);
+      showAlert('info', 'Ward deleted');
+      fetchWards();
+    } catch (err) {
+      console.error(err);
+      showAlert('error', 'Failed to delete ward');
+    }
+  };
+
+  const enableEditWard = (id) => {
+    setWards(prev =>
+      prev.map(w => w._id === id ? { ...w, _editing: true } : w)
+    );
+  };
+
+  const cancelEditWard = () => fetchWards();
 
   const showAlert = (severity, message) => {
     setAlert({ open: true, severity, message });
   };
 
-  // Handle new ward input change
-  const handleNewWardChange = (e) => {
-    const { name, value } = e.target;
-    setNewWard(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Add new ward
-  const handleAddWard = async () => {
-    if (!newWard.wardName.trim() || !newWard.wardType.trim() || !newWard.capacity || newWard.capacity <= 0) {
-      showAlert('warning', 'Please fill all fields with valid data to add a ward');
-      return;
-    }
-    try {
-      await axios.post('http://localhost:5000/api/wards', newWard);
-      showAlert('success', 'Ward added successfully');
-      setNewWard({ wardName: '', wardType: '', capacity: '' });
-      fetchWards();
-    } catch (err) {
-      showAlert('error', 'Failed to add ward');
-    }
-  };
-
-  // Open Edit Dialog
-  const openEditDialog = (ward) => {
-    setEditingWard({ ...ward });
-    setEditOpen(true);
-  };
-
-  // Edit ward input change
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditingWard(prev => ({ ...prev, [name]: value }));
-  };
-
-  // Save edited ward
-  const handleEditWard = async () => {
-    if (!editingWard.wardName.trim() || !editingWard.wardType.trim() || !editingWard.capacity || editingWard.capacity <= 0) {
-      showAlert('warning', 'Please fill all fields with valid data to update the ward');
-      return;
-    }
-    try {
-      await axios.put(`http://localhost:5000/api/wards/${editingWard._id}`, editingWard);
-      showAlert('success', 'Ward updated successfully');
-      setEditOpen(false);
-      setEditingWard(null);
-      fetchWards();
-    } catch (err) {
-      showAlert('error', 'Failed to update ward');
-    }
-  };
-
-  // Open delete confirmation dialog
-  const openDeleteDialog = (ward) => {
-    setDeletingWard(ward);
-    setDeleteOpen(true);
-  };
-
-  // Delete ward handler
-  const handleDeleteWard = async () => {
-    try {
-      await axios.delete(`http://localhost:5000/api/wards/${deletingWard._id}`);
-      showAlert('success', 'Ward deleted successfully');
-      setDeleteOpen(false);
-      setDeletingWard(null);
-      fetchWards();
-    } catch (err) {
-      showAlert('error', 'Failed to delete ward');
-    }
-  };
-
   return (
-    <Grid container justifyContent="center" sx={{ p: 2 }}>
-      <Grid item xs={12} md={8} component={Paper} sx={{ p: 3, borderRadius: 2 }}>
-        <Typography variant="h5" gutterBottom>Ward Management</Typography>
+    <Box p={4}>
+      <Typography variant="h5" mb={3}>🏥 Ward Management</Typography>
 
-        {/* Add New Ward */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h6" gutterBottom>Add New Ward</Typography>
-          <Box display="flex" gap={2} flexWrap="wrap">
-            <TextField
-              label="Ward Name"
-              name="wardName"
-              value={newWard.wardName}
-              onChange={handleNewWardChange}
-              sx={{ flex: 1, minWidth: 150 }}
-              required
-            />
-            <TextField
-              label="Ward Type"
-              name="wardType"
-              value={newWard.wardType}
-              onChange={handleNewWardChange}
-              sx={{ flex: 1, minWidth: 150 }}
-              required
-            />
-            <TextField
-              label="Capacity"
-              name="capacity"
-              type="number"
-              value={newWard.capacity}
-              onChange={handleNewWardChange}
-              sx={{ width: 100 }}
-              inputProps={{ min: 1 }}
-              required
-            />
-            <Button variant="contained" onClick={handleAddWard} sx={{ minWidth: 100 }}>
-              Add
-            </Button>
+      <Grid container spacing={2}>
+        {/* ➕ Add Ward Section */}
+        <Grid item xs={12} md={6}>
+          <TextField fullWidth label="Ward Name" name="wardName" value={wardData.wardName} onChange={handleChange} sx={{ mb: 2 }} />
+          <TextField fullWidth label="Ward Type" name="wardType" value={wardData.wardType} onChange={handleChange} sx={{ mb: 2 }} />
+          <TextField fullWidth label="Capacity" name="capacity" type="number" value={wardData.capacity} onChange={handleChange} sx={{ mb: 2 }} />
+
+          <Autocomplete
+            multiple
+            options={doctors}
+            getOptionLabel={(option) => `${option.firstName} ${option.lastName} (${option.userId})`}
+            value={selectedDoctors}
+            onChange={(e, value) => setSelectedDoctors(value)}
+            renderInput={(params) => (
+              <TextField {...params} label="Assign Doctors" placeholder="Search doctor by ID or name" sx={{ mb: 2 }} />
+            )}
+          />
+
+          <Button variant="contained" color="primary" onClick={handleAddWard}>
+            ➕ Add Ward
+          </Button>
+        </Grid>
+
+        {/* 🗂 Horizontal Ward Cards */}
+        <Grid item xs={12}>
+          <Typography variant="h6" mb={2}>🗂 Existing Wards</Typography>
+          <Box sx={{
+            display: 'flex',
+            overflowX: 'auto',
+            gap: 2,
+            pb: 2,
+            '&::-webkit-scrollbar': { height: 8 },
+            '&::-webkit-scrollbar-thumb': { backgroundColor: '#888', borderRadius: 4 },
+            '&::-webkit-scrollbar-thumb:hover': { backgroundColor: '#555' }
+          }}>
+            {wards.map(ward => (
+              <Paper key={ward._id} sx={{ minWidth: 320, p: 2, flexShrink: 0 }}>
+                {ward._editing ? (
+                  <>
+                    <TextField fullWidth label="Ward Name" value={ward.wardName} onChange={(e) =>
+                      setWards(prev => prev.map(w => w._id === ward._id ? { ...w, wardName: e.target.value } : w))
+                    } sx={{ mb: 1 }} />
+                    <TextField fullWidth label="Ward Type" value={ward.wardType} onChange={(e) =>
+                      setWards(prev => prev.map(w => w._id === ward._id ? { ...w, wardType: e.target.value } : w))
+                    } sx={{ mb: 1 }} />
+                    <TextField fullWidth label="Capacity" type="number" value={ward.capacity} onChange={(e) =>
+                      setWards(prev => prev.map(w => w._id === ward._id ? { ...w, capacity: e.target.value } : w))
+                    } sx={{ mb: 1 }} />
+                    <Button variant="contained" onClick={() => handleUpdateWard(ward._id, ward)}>Save</Button>
+                    <Button onClick={cancelEditWard} sx={{ ml: 1 }}>Cancel</Button>
+                  </>
+                ) : (
+                  <>
+                    <Typography><strong>{ward.wardName}</strong> ({ward.wardType})</Typography>
+                    <Typography>Capacity: {ward.capacity}</Typography>
+                    <Typography sx={{ mt: 1 }}>Doctors:</Typography>
+                    {ward.assignedDoctors?.length > 0 ? (
+                      ward.assignedDoctors.map(doc => (
+                        <Chip
+                          key={doc._id}
+                          label={`${doc.firstName} ${doc.lastName}`}
+                          onDelete={() => handleRemoveDoctor(ward._id, doc._id)}
+                          sx={{ mr: 1, mb: 1 }}
+                        />
+                      ))
+                    ) : (
+                      <Typography>No doctors assigned</Typography>
+                    )}
+
+                    <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                      <Button variant="outlined" onClick={() => enableEditWard(ward._id)}>✏️ Edit</Button>
+                      <Button variant="outlined" color="error" onClick={() => handleDeleteWard(ward._id)}>🗑 Delete</Button>
+                    </Box>
+
+                    <DoctorSearchAssign wardId={ward._id} onAssign={fetchWards} />
+                  </>
+                )}
+              </Paper>
+            ))}
           </Box>
-        </Box>
-
-        {/* Ward List */}
-        <Typography variant="h6" gutterBottom>Existing Wards</Typography>
-        {loading ? (
-          <Typography>Loading wards...</Typography>
-        ) : wards.length === 0 ? (
-          <Typography>No wards found.</Typography>
-        ) : (
-          wards.map((ward) => (
-            <Box
-              key={ward._id}
-              sx={{
-                p: 2, mb: 2, border: '1px solid #ccc', borderRadius: 2,
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-              }}
-            >
-              <Box>
-                <Typography variant="subtitle1" fontWeight="bold">{ward.wardName}</Typography>
-                <Typography>Type: {ward.wardType}</Typography>
-                <Typography>Capacity: {ward.capacity}</Typography>
-              </Box>
-              <Box>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  sx={{ mr: 1 }}
-                  onClick={() => openEditDialog(ward)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="error"
-                  onClick={() => openDeleteDialog(ward)}
-                >
-                  Delete
-                </Button>
-              </Box>
-            </Box>
-          ))
-        )}
-
-        {/* Edit Ward Dialog */}
-        <Dialog open={editOpen} onClose={() => setEditOpen(false)}>
-          <DialogTitle>Edit Ward</DialogTitle>
-          <DialogContent>
-            <TextField
-              label="Ward Name"
-              name="wardName"
-              fullWidth
-              value={editingWard?.wardName || ''}
-              onChange={handleEditChange}
-              sx={{ mt: 2 }}
-              required
-            />
-            <TextField
-              label="Ward Type"
-              name="wardType"
-              fullWidth
-              value={editingWard?.wardType || ''}
-              onChange={handleEditChange}
-              sx={{ mt: 2 }}
-              required
-            />
-            <TextField
-              label="Capacity"
-              name="capacity"
-              type="number"
-              fullWidth
-              value={editingWard?.capacity || ''}
-              onChange={handleEditChange}
-              sx={{ mt: 2 }}
-              inputProps={{ min: 1 }}
-              required
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button variant="contained" onClick={handleEditWard}>Save</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)}>
-          <DialogTitle>Confirm Delete</DialogTitle>
-          <DialogContent>
-            <Typography>
-              Are you sure you want to delete the ward <b>{deletingWard?.wardName}</b>?
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
-            <Button variant="contained" color="error" onClick={handleDeleteWard}>Delete</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Alert Snackbar */}
-        <Snackbar
-          open={alert.open}
-          autoHideDuration={4000}
-          onClose={() => setAlert(prev => ({ ...prev, open: false }))}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert severity={alert.severity} variant="filled" sx={{ width: '100%' }}>
-            {alert.message}
-          </Alert>
-        </Snackbar>
+        </Grid>
       </Grid>
-    </Grid>
+
+      <Snackbar open={alert.open} autoHideDuration={4000} onClose={() => setAlert({ ...alert, open: false })}>
+        <Alert severity={alert.severity} variant="filled" sx={{ width: '100%' }}>{alert.message}</Alert>
+      </Snackbar>
+    </Box>
   );
 }

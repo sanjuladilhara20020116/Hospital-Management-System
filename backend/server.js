@@ -23,12 +23,16 @@ const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const chatRoutes = require("./routes/chatRoutes"); // Optional
 const wardRoutes = require("./routes/wardRoutes");
+const departmentRoutes = require('./routes/departmentRoutes');
+
+
+
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);       // ⬅️ AI chat (optional)
 app.use("/api/wards", wardRoutes);      // ⬅️ Ward Management
-
+app.use('/api/departments', departmentRoutes); //  Register department route
 // ✅ Connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URI, {
