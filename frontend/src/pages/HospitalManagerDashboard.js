@@ -24,7 +24,7 @@ export default function HospitalManagerDashboard() {
                 Ward Management
               </Typography>
               <Typography variant="body2" gutterBottom>
-                View, create, and manage hospital wards and assign patients to available beds.
+                
               </Typography>
               <Button
                 variant="contained"
@@ -44,7 +44,7 @@ export default function HospitalManagerDashboard() {
                 Department Management
               </Typography>
               <Typography variant="body2" gutterBottom>
-                Add, update, and organize departments within your hospital.
+                
               </Typography>
               <Button
                 variant="contained"
@@ -57,7 +57,25 @@ export default function HospitalManagerDashboard() {
             </Paper>
           </Grid>
 
-          {/* You can add more manager-specific features below */}
+          {/* Supplier Management Section */}
+          <Grid item xs={12} md={6}>
+            <Paper elevation={4} sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Supplier Management
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+               
+              </Typography>
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => navigate('/supplier-management')}
+                sx={{ mt: 2 }}
+              >
+                Go to Supplier Management
+              </Button>
+            </Paper>
+          </Grid>
         </Grid>
       </Box>
     </Box>
