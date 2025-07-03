@@ -25,6 +25,8 @@ const chatRoutes = require("./routes/chatRoutes"); // Optional
 const wardRoutes = require("./routes/wardRoutes");
 const departmentRoutes = require('./routes/departmentRoutes');
 
+const supplierRoutes = require('./routes/supplierRoutes');
+
 
 
 
@@ -33,6 +35,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);       // ⬅️ AI chat (optional)
 app.use("/api/wards", wardRoutes);      // ⬅️ Ward Management
 app.use('/api/departments', departmentRoutes); //  Register department route
+app.use('/api/suppliers', supplierRoutes);
 // ✅ Connect to MongoDB
 mongoose
   .connect(process.env.MONGO_URI, {
