@@ -132,7 +132,7 @@ export default function ChatPopup({ onClose }) {
   return (
     <Paper elevation={6} sx={{
       position: 'fixed', bottom: 72, right: 16,
-      width: 600, height: 850, display: 'flex', flexDirection: 'column',
+      width: 500, height: 650, display: 'flex', flexDirection: 'column',
       zIndex: 1200, borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper'
     }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, bgcolor: 'primary.main', color: 'white' }}>
