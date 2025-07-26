@@ -61,7 +61,7 @@ export default function HospitalManagerDashboard() {
           <Grid item xs={12} md={6}>
             <Paper elevation={4} sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>
-                Supplier Management
+                Health Care Inventory Management
               </Typography>
               <Typography variant="body2" gutterBottom>
                
@@ -72,7 +72,7 @@ export default function HospitalManagerDashboard() {
                 onClick={() => navigate('/supplier-management')}
                 sx={{ mt: 2 }}
               >
-                Go to Supplier Management
+                Go to Health Care Inventory Management
               </Button>
             </Paper>
           </Grid>
