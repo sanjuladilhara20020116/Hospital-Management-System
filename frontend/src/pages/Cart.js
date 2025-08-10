@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const API_BASE = 'http://localhost:5000';
-const USER_ID = 'demo-user-1'; // must match HealthcarePackages + CartButton + MyBookings
+const USER_ID = 'demo-user-1'; // keep consistent with other pages
 
 export default function Cart() {
   const navigate = useNavigate();
@@ -16,6 +16,13 @@ export default function Cart() {
   const [patientName, setPatientName] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('COD'); // 'COD' or 'ONLINE'
+
+  // Card fields (client-side only)
+  const [cardBrand, setCardBrand] = useState('VISA'); // VISA, MASTERCARD, AMEX
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExp, setCardExp] = useState(''); // MM/YY
+  const [cardCvv, setCardCvv] = useState('');
 
   const load = async () => {
     setStatus('Loading cart…');
@@ -57,6 +64,43 @@ export default function Cart() {
     }
   };
 
+  // --- Card helpers (client-side validation) ---
+  const onlyDigits = (s) => (s || '').replace(/\D/g, '');
+  const luhn = (num) => {
+    const s = onlyDigits(num);
+    let sum = 0, alt = false;
+    for (let i = s.length - 1; i >= 0; i--) {
+      let n = parseInt(s[i], 10);
+      if (alt) { n *= 2; if (n > 9) n -= 9; }
+      sum += n; alt = !alt;
+    }
+    return s.length >= 12 && (sum % 10 === 0);
+  };
+  const parseExp = (mmYY) => {
+    const m = (mmYY || '').trim();
+    const m2 = m.includes('/') ? m : (m.length === 4 ? `${m.slice(0,2)}/${m.slice(2)}` : m);
+    const match = /^(\d{2})\/(\d{2})$/.test(m2) ? m2.match(/^(\d{2})\/(\d{2})$/) : null;
+    if (!match) return null;
+    const mm = parseInt(match[1], 10), yy = parseInt(`20${match[2]}`, 10);
+    if (mm < 1 || mm > 12) return null;
+    const expDate = new Date(yy, mm, 0, 23, 59, 59);
+    const now = new Date();
+    if (expDate < now) return null;
+    return { expMonth: mm, expYear: yy };
+  };
+  const cvvLenByBrand = (brand) => (brand === 'AMEX' ? 4 : 3);
+
+  const validateCard = () => {
+    if (!cardName.trim()) { alert('Card holder name is required'); return false; }
+    if (!luhn(cardNumber)) { alert('Invalid card number'); return false; }
+    const exp = parseExp(cardExp);
+    if (!exp) { alert('Invalid expiry (use MM/YY)'); return false; }
+    if (!/^\d+$/.test(cardCvv) || cardCvv.length !== cvvLenByBrand(cardBrand)) {
+      alert(`Invalid CVV (must be ${cvvLenByBrand(cardBrand)} digits)`); return false;
+    }
+    return true;
+  };
+
   const checkout = async () => {
     if (!patientEmail || !appointmentDate) {
       alert('Please enter patient email and select date & time');
@@ -66,23 +110,38 @@ export default function Cart() {
       alert('Cart is empty');
       return;
     }
+
+    // If online, validate card on the client and only send safe fields
+    let cardPayload = undefined;
+    if (paymentMethod === 'ONLINE') {
+      if (!validateCard()) return;
+      const exp = parseExp(cardExp);
+      cardPayload = {
+        brand: cardBrand,
+        holder: cardName.trim(),
+        last4: onlyDigits(cardNumber).slice(-4),
+        expMonth: exp.expMonth,
+        expYear: exp.expYear
+      };
+      // DO NOT send number or CVV to our server in this demo
+    }
+
     setStatus('Booking...');
     const res = await fetch(`${API_BASE}/api/bookings/checkout`, {
       method: 'POST',
       headers: hdrs,
-      body: JSON.stringify({ patientEmail, patientName, appointmentDate, paymentMethod })
+      body: JSON.stringify({ patientEmail, patientName, appointmentDate, paymentMethod, card: cardPayload })
     });
     let data;
     try { data = await res.json(); } catch { data = { message: await res.text() }; }
 
     if (res.ok) {
-      // Show accurate message from server (reflects whether email actually sent)
       setStatus(data.message || 'Booked!');
-      // clear UI cart
       setCart({ items: [], total: 0 });
       window.dispatchEvent(new Event('cart:updated'));
       // reset form
       setPatientEmail(''); setPatientName(''); setAppointmentDate(''); setPaymentMethod('COD');
+      setCardBrand('VISA'); setCardName(''); setCardNumber(''); setCardExp(''); setCardCvv('');
     } else {
       setStatus('');
       alert(data.message || 'Booking failed');
@@ -93,11 +152,8 @@ export default function Cart() {
     <div style={{ padding: 20 }}>
       <h2>Your Cart</h2>
 
-      {/* Quick access to user's bookings */}
       <div style={{ margin: '8px 0 16px' }}>
-        <button onClick={() => navigate('/my-bookings')}>
-          View My Health Packages
-        </button>
+        <button onClick={() => navigate('/my-bookings')}>View My Health Packages</button>
       </div>
 
       {status && <div style={{ marginBottom: 10, color: '#555' }}>{status}</div>}
@@ -147,12 +203,58 @@ export default function Cart() {
             value={appointmentDate}
             onChange={e => setAppointmentDate(e.target.value)}
           />
+
+          {/* Payment choice */}
           <div>
             Payment:&nbsp;
             <label><input type="radio" checked={paymentMethod === 'COD'} onChange={() => setPaymentMethod('COD')} /> Pay at center</label>
             &nbsp;&nbsp;
-            <label><input type="radio" checked={paymentMethod === 'ONLINE'} onChange={() => setPaymentMethod('ONLINE')} /> Online (coming soon)</label>
+            <label><input type="radio" checked={paymentMethod === 'ONLINE'} onChange={() => setPaymentMethod('ONLINE')} /> Online (card)</label>
           </div>
+
+          {/* Card fields when online */}
+          {paymentMethod === 'ONLINE' && (
+            <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, display: 'grid', gap: 8 }}>
+              <div>
+                <label><strong>Card type</strong>&nbsp;</label>
+                <select value={cardBrand} onChange={e => setCardBrand(e.target.value)}>
+                  <option value="VISA">Visa</option>
+                  <option value="MASTERCARD">Mastercard</option>
+                  <option value="AMEX">American Express</option>
+                </select>
+              </div>
+              <input
+                placeholder="Name on card"
+                value={cardName}
+                onChange={e => setCardName(e.target.value)}
+              />
+              <input
+                placeholder="Card number"
+                inputMode="numeric"
+                value={cardNumber}
+                onChange={e => setCardNumber(e.target.value.replace(/[^\d ]+/g, ''))}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  placeholder="MM/YY"
+                  value={cardExp}
+                  onChange={e => setCardExp(e.target.value.replace(/[^\d/]/g, '').slice(0, 5))}
+                  style={{ flex: 1 }}
+                />
+                <input
+                  placeholder={cardBrand === 'AMEX' ? 'CVV (4)' : 'CVV (3)'}
+                  inputMode="numeric"
+                  value={cardCvv}
+                  onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, cvvLenByBrand(cardBrand)))}
+                  style={{ flex: 1 }}
+                />
+              </div>
+              <div style={{ fontSize: 12, color: '#777' }}>
+                We do not store your full card number or CVV.
+              </div>
+            </div>
+          )}
+
           <button onClick={checkout} disabled={!cart.items || !cart.items.length}>Proceed & Book</button>
         </div>
       </div>
