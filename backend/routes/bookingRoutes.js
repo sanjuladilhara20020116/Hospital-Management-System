@@ -10,12 +10,7 @@ function getUserId(req) {
   return req.headers['x-user-id'] || null;
 }
 
-/** Build Nodemailer transport only if SMTP is configured.
- *  Env supported:
- *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
- *   SMTP_SECURE (true only for port 465)
- *   SMTP_TLS_REJECT_UNAUTHORIZED (set to false for dev behind SSL interception)
- */
+/** Build Nodemailer transport only if SMTP is configured. */
 function buildTransport() {
   const {
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS,
@@ -38,7 +33,7 @@ function buildTransport() {
 
 const transport = buildTransport();
 
-/** Helper: parse datetime-local value "YYYY-MM-DDTHH:mm" (adds :00 seconds) */
+/** Helpers */
 function parseAppt(input) {
   if (!input) return null;
   const val = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input) ? `${input}:00` : input;
@@ -46,8 +41,22 @@ function parseAppt(input) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function sanitizeCard(card) {
+  // Only keep non-sensitive metadata
+  if (!card || typeof card !== 'object') return undefined;
+  const safe = {
+    brand: typeof card.brand === 'string' ? card.brand.toUpperCase() : undefined,
+    holder: typeof card.holder === 'string' ? card.holder : undefined,
+    last4: typeof card.last4 === 'string' ? card.last4.replace(/\D/g, '').slice(-4) : undefined,
+    expMonth: Number(card.expMonth),
+    expYear: Number(card.expYear),
+  };
+  if (!safe.brand || !safe.last4 || !safe.expMonth || !safe.expYear) return undefined;
+  return safe;
+}
+
 /** POST /api/bookings/checkout
- *  Body: { patientEmail, patientName?, appointmentDate, paymentMethod? }
+ *  Body: { patientEmail, patientName?, appointmentDate, paymentMethod?, card? }
  *  Header: x-user-id
  */
 router.post('/checkout', async (req, res) => {
@@ -59,7 +68,8 @@ router.post('/checkout', async (req, res) => {
       patientEmail,
       patientName = '',
       appointmentDate,
-      paymentMethod = 'COD'
+      paymentMethod = 'COD',
+      card
     } = req.body || {};
 
     if (!patientEmail) return res.status(400).json({ message: 'patientEmail is required' });
@@ -71,6 +81,9 @@ router.post('/checkout', async (req, res) => {
     if (!cart || !cart.items || !cart.items.length) {
       return res.status(400).json({ message: 'Cart is empty' });
     }
+
+    // Keep only safe card metadata (if ONLINE selected)
+    const safeCard = paymentMethod === 'ONLINE' ? sanitizeCard(card) : undefined;
 
     // Create booking
     const booking = await PackageBooking.create({
@@ -88,7 +101,13 @@ router.post('/checkout', async (req, res) => {
       payment: {
         method: paymentMethod,
         status: paymentMethod === 'ONLINE' ? 'PAID' : 'PENDING',
-        transactionId: undefined
+        transactionId: undefined,
+        // Optional, safe metadata only:
+        cardBrand: safeCard?.brand,
+        cardLast4: safeCard?.last4,
+        cardExpMonth: safeCard?.expMonth,
+        cardExpYear: safeCard?.expYear,
+        cardHolder: safeCard?.holder
       },
       status: 'CONFIRMED'
     });
@@ -102,6 +121,10 @@ router.post('/checkout', async (req, res) => {
 
     if (!skipEmail && transport) {
       try {
+        const payLine = booking.payment?.method === 'ONLINE'
+          ? `<p><strong>Payment:</strong> Card (${booking.payment?.cardBrand || 'Card'}) •••• ${booking.payment?.cardLast4 || '****'}</p>`
+          : `<p><strong>Payment:</strong> Pay at center</p>`;
+
         const html = `
           <div style="font-family:Arial,Helvetica,sans-serif">
             <h2>Health Check Booking Confirmed</h2>
@@ -111,6 +134,7 @@ router.post('/checkout', async (req, res) => {
             <h3>Packages</h3>
             <ul>${booking.items.map(i => `<li>${i.packageName} × ${i.quantity} — Rs. ${i.unitPrice.toFixed(2)}</li>`).join('')}</ul>
             <p><strong>Total:</strong> Rs. ${booking.totalAmount.toFixed(2)}</p>
+            ${payLine}
             <h3>Preparation Instructions</h3>
             <ul>
               <li>Fast 10–12 hours before blood tests (water allowed).</li>

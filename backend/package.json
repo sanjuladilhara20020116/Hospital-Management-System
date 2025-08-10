@@ -22,6 +22,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.5",
     "pdfkit": "^0.17.1",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "stripe": "^18.4.0"
   }
 }
