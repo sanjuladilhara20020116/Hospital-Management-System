@@ -1,3 +1,4 @@
+// src/pages/PatientDashboard.js
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, CardActions, Button,
@@ -5,9 +6,11 @@ import {
 } from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
 import axios from 'axios';
-import ChatPopup from './ChatPopup'; // Make sure ChatPopup.js exists in the same folder
+import ChatPopup from './ChatPopup'; 
+import { useNavigate } from 'react-router-dom'; // ✅ Added for navigation
 
 export default function PatientDashboard({ userId }) {
+  const navigate = useNavigate(); // ✅ navigation hook
   const [profile, setProfile] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
@@ -64,7 +67,6 @@ export default function PatientDashboard({ userId }) {
       showAlert('success', 'Profile updated successfully');
       setEditMode(false);
 
-      // Refresh profile
       const res = await axios.get(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);
       setProfile(res.data);
       setFormData(res.data);
@@ -145,6 +147,15 @@ export default function PatientDashboard({ userId }) {
               <>
                 <Button variant="contained" onClick={() => setEditMode(true)}>Edit</Button>
                 <Button variant="outlined" color="error" onClick={() => setDeleteDialogOpen(true)}>Delete</Button>
+
+                {/* ✅ New button for viewing & booking packages */}
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={() => navigate('/packages')}
+                >
+                  View & Book Health Care Packages
+                </Button>
               </>
             )}
           </CardActions>

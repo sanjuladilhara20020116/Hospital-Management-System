@@ -23,9 +23,6 @@ export default function HospitalManagerDashboard() {
               <Typography variant="h6" gutterBottom>
                 Ward Management
               </Typography>
-              <Typography variant="body2" gutterBottom>
-                
-              </Typography>
               <Button
                 variant="contained"
                 color="primary"
@@ -42,9 +39,6 @@ export default function HospitalManagerDashboard() {
             <Paper elevation={4} sx={{ p: 3 }}>
               <Typography variant="h6" gutterBottom>
                 Department Management
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                
               </Typography>
               <Button
                 variant="contained"
@@ -63,9 +57,6 @@ export default function HospitalManagerDashboard() {
               <Typography variant="h6" gutterBottom>
                 Health Care Inventory Management
               </Typography>
-              <Typography variant="body2" gutterBottom>
-               
-              </Typography>
               <Button
                 variant="contained"
                 color="success"
@@ -73,6 +64,26 @@ export default function HospitalManagerDashboard() {
                 sx={{ mt: 2 }}
               >
                 Go to Health Care Inventory Management
+              </Button>
+            </Paper>
+          </Grid>
+
+          {/* Health Care Packages Management Section */}
+          <Grid item xs={12} md={6}>
+            <Paper elevation={4} sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Health Care Packages Management
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                Add, update, or delete medical check-up packages offered by the hospital.
+              </Typography>
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={() => navigate('/manager-packages')}
+                sx={{ mt: 2 }}
+              >
+                Manage Health Care Packages
               </Button>
             </Paper>
           </Grid>

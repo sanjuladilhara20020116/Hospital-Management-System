@@ -6,6 +6,9 @@ const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 
+// NEW: inventory sync
+const Medicine = require('../models/Medicine');
+
 // Get all suppliers
 router.get('/', async (req, res) => {
   try {
@@ -16,16 +19,50 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Create supplier
+// Create supplier (+ push to inventory as batches)
 router.post('/', async (req, res) => {
   try {
     const supplier = new Supplier(req.body);
-    // Calculate price and totalPrice
     supplier.items.forEach(item => {
       item.price = item.quantity * item.unitPrice;
     });
     supplier.totalPrice = supplier.items.reduce((sum, i) => sum + i.price, 0);
     await supplier.save();
+
+    // 🔗 Merge supplier items into Medicine inventory
+    for (const item of supplier.items) {
+      if (!item.code) continue;
+      const med = await Medicine.findOne({ code: item.code }) || new Medicine({
+        code: item.code,
+        name: item.description || item.code
+      });
+
+      // ensure future expiry
+      const expiry = item.expiryDate ? new Date(item.expiryDate) : null;
+      if (!expiry || expiry <= new Date()) {
+        // skip expired lines silently or handle as needed
+        continue;
+      }
+
+      const existingBatch = med.batches.find(b => b.batchNo === item.batchNo);
+      if (existingBatch) {
+        existingBatch.qty += item.quantity;
+        existingBatch.unitPrice = item.unitPrice ?? existingBatch.unitPrice;
+        existingBatch.expiryDate = expiry;
+        existingBatch.supplierName = supplier.name;
+      } else {
+        med.batches.push({
+          batchNo: item.batchNo,
+          qty: item.quantity,
+          unit: 'units',
+          unitPrice: item.unitPrice,
+          expiryDate: expiry,
+          supplierName: supplier.name
+        });
+      }
+      await med.save();
+    }
+
     res.status(201).json({ message: 'Supplier added', supplier });
   } catch (err) {
     res.status(400).json({ message: 'Failed to create supplier' });
@@ -54,7 +91,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Generate PDF Invoice
+// Generate PDF Invoice (unchanged except for your file)
 router.get('/:id/pdf', async (req, res) => {
   try {
     const supplier = await Supplier.findById(req.params.id);
@@ -69,20 +106,15 @@ router.get('/:id/pdf', async (req, res) => {
     const pageHeight = doc.page.height;
     const margin = 50;
 
-    // Add Hospital Logo at the top-left if exists
     const logoPath = path.join(__dirname, '../assets/hospital_logo.png');
     if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, margin, 30, { width: 100 }); // Adjust size and position if needed
+      doc.image(logoPath, margin, 30, { width: 100 });
     }
 
-    // Move down after logo to avoid overlap with title
     doc.moveDown(4);
-
-    // Title
     doc.fillColor('black').fontSize(18).text('Medical Supply Invoice', { align: 'center' });
     doc.moveDown();
 
-    // Supplier Info
     doc.fillColor('black').fontSize(12);
     doc.text(`Supplier Name: ${supplier.name}`);
     doc.text(`Contact Person: ${supplier.contactPerson}`);
@@ -91,13 +123,14 @@ router.get('/:id/pdf', async (req, res) => {
     doc.text(`Address: ${supplier.address}`);
     doc.moveDown();
 
-    // Table setup
     const tableTop = doc.y + 20;
     const rowHeight = 25;
 
     const columns = [
       { header: 'Code', key: 'code', width: 60 },
-      { header: 'Description', key: 'description', width: 180 },
+      { header: 'Description', key: 'description', width: 150 },
+      { header: 'Batch', key: 'batchNo', width: 70 },       // NEW
+      { header: 'Expiry', key: 'expiryDate', width: 80 },   // NEW
       { header: 'Qty', key: 'quantity', width: 50 },
       { header: 'Unit Price', key: 'unitPrice', width: 70 },
       { header: 'Price', key: 'price', width: 70 },
@@ -105,32 +138,18 @@ router.get('/:id/pdf', async (req, res) => {
     ];
 
     let startX = margin;
-    columns.forEach(col => {
-      col.x = startX;
-      startX += col.width;
-    });
+    columns.forEach(col => { col.x = startX; startX += col.width; });
 
-    // Draw table header
     doc.fillColor('black').font('Helvetica-Bold').fontSize(12);
     columns.forEach(col => {
-      doc.text(col.header, col.x + 5, tableTop + 5, {
-        width: col.width - 10,
-        align: 'left',
-      });
+      doc.text(col.header, col.x + 5, tableTop + 5, { width: col.width - 10, align: 'left' });
     });
 
-    doc.lineWidth(1)
-      .rect(margin, tableTop, startX - margin, rowHeight)
-      .stroke();
-
+    doc.lineWidth(1).rect(margin, tableTop, startX - margin, rowHeight).stroke();
     let lineX = margin;
-    columns.forEach(col => {
-      doc.moveTo(lineX, tableTop).lineTo(lineX, tableTop + rowHeight).stroke();
-      lineX += col.width;
-    });
+    columns.forEach(col => { doc.moveTo(lineX, tableTop).lineTo(lineX, tableTop + rowHeight).stroke(); lineX += col.width; });
     doc.moveTo(lineX, tableTop).lineTo(lineX, tableTop + rowHeight).stroke();
 
-    // Prepare rows
     doc.fillColor('black').font('Helvetica').fontSize(11);
     let y = tableTop + rowHeight;
 
@@ -140,24 +159,12 @@ router.get('/:id/pdf', async (req, res) => {
       if (i > 0 && i % maxRowsPerPage === 0) {
         doc.addPage();
         y = margin;
-
-        // Redraw table header on new page
         doc.fillColor('black').font('Helvetica-Bold').fontSize(12);
-        columns.forEach(col => {
-          doc.text(col.header, col.x + 5, y + 5, {
-            width: col.width - 10,
-            align: 'left',
-          });
-        });
-        doc.lineWidth(1)
-          .rect(margin, y, startX - margin, rowHeight)
-          .stroke();
-        let lineX = margin;
-        columns.forEach(col => {
-          doc.moveTo(lineX, y).lineTo(lineX, y + rowHeight).stroke();
-          lineX += col.width;
-        });
-        doc.moveTo(lineX, y).lineTo(lineX, y + rowHeight).stroke();
+        columns.forEach(col => { doc.text(col.header, col.x + 5, y + 5, { width: col.width - 10, align: 'left' }); });
+        doc.lineWidth(1).rect(margin, y, startX - margin, rowHeight).stroke();
+        let lx = margin;
+        columns.forEach(col => { doc.moveTo(lx, y).lineTo(lx, y + rowHeight).stroke(); lx += col.width; });
+        doc.moveTo(lx, y).lineTo(lx, y + rowHeight).stroke();
 
         y += rowHeight;
         doc.fillColor('black').font('Helvetica').fontSize(11);
@@ -166,79 +173,64 @@ router.get('/:id/pdf', async (req, res) => {
       const item = supplier.items[i];
       const price = item.quantity * item.unitPrice;
 
-      // Alternate row background
       if (i % 2 === 0) {
         doc.fillOpacity(0.1).fill('#eeeeee').fillOpacity(1);
         doc.rect(margin, y - 3, startX - margin, rowHeight).fill();
       }
 
-      // Draw vertical lines for columns
-      let lineX = margin;
+      let lx = margin;
       columns.forEach(col => {
         doc.strokeColor('black').lineWidth(0.5);
-        doc.moveTo(lineX, y).lineTo(lineX, y + rowHeight).stroke();
-        lineX += col.width;
+        doc.moveTo(lx, y).lineTo(lx, y + rowHeight).stroke();
+        lx += col.width;
       });
-      doc.moveTo(lineX, y).lineTo(lineX, y + rowHeight).stroke();
+      doc.moveTo(lx, y).lineTo(lx, y + rowHeight).stroke();
 
-      // Draw text with black fill color
       columns.forEach(col => {
-        doc.fillColor('black');  // make sure text is black
+        doc.fillColor('black');
         let text = '';
         switch (col.key) {
           case 'code': text = item.code || ''; break;
           case 'description':
             text = item.description || '';
-            if (text.length > 35) text = text.substring(0, 32) + '...';
+            if (text.length > 30) text = text.substring(0, 27) + '...';
             break;
-          case 'quantity': text = item.quantity.toString(); break;
-          case 'unitPrice': text = item.unitPrice.toFixed(2); break;
+          case 'batchNo': text = item.batchNo || ''; break;
+          case 'expiryDate': text = item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : ''; break;
+          case 'quantity': text = String(item.quantity || ''); break;
+          case 'unitPrice': text = (item.unitPrice ?? 0).toFixed(2); break;
           case 'price': text = price.toFixed(2); break;
-          case 'date': text = new Date(item.date).toLocaleDateString(); break;
+          case 'date': text = item.date ? new Date(item.date).toLocaleDateString() : ''; break;
         }
-        doc.text(text, col.x + 5, y + 7, {
-          width: col.width - 10,
-          align: 'left',
-          ellipsis: true,
-        });
+        doc.text(text, col.x + 5, y + 7, { width: col.width - 10, align: 'left', ellipsis: true });
       });
 
-      // Draw bottom line for row
       doc.strokeColor('black').lineWidth(0.5);
       doc.moveTo(margin, y + rowHeight).lineTo(startX, y + rowHeight).stroke();
 
       y += rowHeight;
     }
 
-    // Draw bottom border line for table
     doc.moveTo(margin, y).lineTo(startX, y).stroke();
 
-    // Total Price
     doc.moveDown(2);
-    if (y + 50 > pageHeight - margin) {
-      doc.addPage();
-      y = margin;
-    }
+    if (y + 50 > pageHeight - margin) { doc.addPage(); y = margin; }
     doc.fillColor('black').font('Helvetica-Bold').fontSize(14);
     doc.text(`Total Price: Rs. ${supplier.totalPrice.toFixed(2)}`, margin, y + 20, { align: 'right' });
 
-    // Signature
     const signaturePath = path.join(__dirname, '../assets/signature.png');
     if (fs.existsSync(signaturePath)) {
       const sigWidth = 120;
       const sigHeight = 60;
       const sigX = pageWidth - margin - sigWidth;
       const sigY = y + 50;
-
       doc.image(signaturePath, sigX, sigY, { width: sigWidth, height: sigHeight });
       doc.text('Authorized Signature', sigX, sigY + sigHeight + 5, { width: sigWidth, align: 'center' });
     }
 
-    // QR code generation
     const qrData = `Supplier ID: ${supplier._id}`;
     const qrImage = await QRCode.toDataURL(qrData);
     const qrBuffer = Buffer.from(qrImage.split(',')[1], 'base64');
-
     const qrX = margin;
     const qrY = y + 60;
     const qrSize = 100;
