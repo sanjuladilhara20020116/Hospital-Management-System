@@ -1,15 +1,40 @@
 // src/pages/Cart.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+// MUI
+import {
+  Box, Container, Grid, Paper, Typography, Button, Divider, Chip, Stack,
+  Table, TableHead, TableRow, TableCell, TableBody, TextField, IconButton,
+  RadioGroup, Radio, FormControlLabel, Select, MenuItem, InputLabel, FormControl,
+  Snackbar, Alert, Tooltip, Card, CardContent, Skeleton, InputAdornment, useMediaQuery,
+  useTheme
+} from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
+import EventIcon from '@mui/icons-material/Event';
+import CreditCardIcon from '@mui/icons-material/CreditCard';
+import LocalAtmIcon from '@mui/icons-material/LocalAtm';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import PaymentIcon from '@mui/icons-material/Payment';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import PersonIcon from '@mui/icons-material/Person';
+import EmailIcon from '@mui/icons-material/Email';
 
 const API_BASE = 'http://localhost:5000';
 const USER_ID = 'demo-user-1'; // keep consistent with other pages
 
 export default function Cart() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isSm = useMediaQuery(theme.breakpoints.down('md'));
   const hdrs = { 'Content-Type': 'application/json', 'x-user-id': USER_ID };
+
   const [cart, setCart] = useState({ items: [], total: 0 });
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('Loading cart…');
+  const [loading, setLoading] = useState(true);
 
   // Booking form
   const [patientEmail, setPatientEmail] = useState('');
@@ -24,16 +49,33 @@ export default function Cart() {
   const [cardExp, setCardExp] = useState(''); // MM/YY
   const [cardCvv, setCardCvv] = useState('');
 
+  // Inline errors
+  const [errors, setErrors] = useState({});
+
+  // UI
+  const [toast, setToast] = useState({ open: false, severity: 'info', message: '' });
+  const bookingInProgress = status === 'Booking...';
+
+  const showToast = (severity, message) => setToast({ open: true, severity, message });
+
   const load = async () => {
-    setStatus('Loading cart…');
-    const res = await fetch(`${API_BASE}/api/cart`, { headers: hdrs });
-    let data;
-    try { data = await res.json(); } catch { data = { items: [], total: 0 }; }
-    setCart(data || { items: [], total: 0 });
-    setStatus('');
+    try {
+      setLoading(true);
+      setStatus('Loading cart…');
+      const res = await fetch(`${API_BASE}/api/cart`, { headers: hdrs });
+      let data;
+      try { data = await res.json(); } catch { data = { items: [], total: 0 }; }
+      setCart(data || { items: [], total: 0 });
+      setStatus('');
+    } catch {
+      setStatus('Failed to load cart');
+      showToast('error', 'Network error while loading cart');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const qty = async (itemId, q) => {
     const res = await fetch(`${API_BASE}/api/cart/item/${itemId}`, {
@@ -45,8 +87,9 @@ export default function Cart() {
     if (res.ok) {
       setCart(data.cart);
       window.dispatchEvent(new Event('cart:updated'));
+      showToast('success', 'Quantity updated');
     } else {
-      alert(data.message || 'Failed to update quantity');
+      showToast('error', data.message || 'Failed to update quantity');
     }
   };
 
@@ -59,8 +102,9 @@ export default function Cart() {
     if (res.ok) {
       setCart(data.cart);
       window.dispatchEvent(new Event('cart:updated'));
+      showToast('success', 'Item removed');
     } else {
-      alert(data.message || 'Failed to remove item');
+      showToast('error', data.message || 'Failed to remove item');
     }
   };
 
@@ -90,40 +134,59 @@ export default function Cart() {
   };
   const cvvLenByBrand = (brand) => (brand === 'AMEX' ? 4 : 3);
 
-  const validateCard = () => {
-    if (!cardName.trim()) { alert('Card holder name is required'); return false; }
-    if (!luhn(cardNumber)) { alert('Invalid card number'); return false; }
-    const exp = parseExp(cardExp);
-    if (!exp) { alert('Invalid expiry (use MM/YY)'); return false; }
-    if (!/^\d+$/.test(cardCvv) || cardCvv.length !== cvvLenByBrand(cardBrand)) {
-      alert(`Invalid CVV (must be ${cvvLenByBrand(cardBrand)} digits)`); return false;
+  // Pretty card number format (#### #### #### #### or Amex 4-6-5)
+  const formatCardNumber = (raw, brand) => {
+    const d = onlyDigits(raw);
+    if (brand === 'AMEX') {
+      const p1 = d.slice(0, 4);
+      const p2 = d.slice(4, 10);
+      const p3 = d.slice(10, 15);
+      return [p1, p2, p3].filter(Boolean).join(' ');
     }
-    return true;
+    return d.replace(/(.{4})/g, '$1 ').trim();
+  };
+
+  // Brand hint based on number prefix
+  const detectedBrand = useMemo(() => {
+    const d = onlyDigits(cardNumber);
+    if (/^3[47]/.test(d)) return 'AMEX';
+    if (/^5[1-5]/.test(d)) return 'MASTERCARD';
+    if (/^4/.test(d)) return 'VISA';
+    return cardBrand;
+  }, [cardNumber, cardBrand]);
+
+  // Inline field validation
+  const validateFields = () => {
+    const e = {};
+    if (!patientEmail) e.patientEmail = 'Email is required';
+    if (!appointmentDate) e.appointmentDate = 'Choose date & time';
+    if (paymentMethod === 'ONLINE') {
+      if (!cardName.trim()) e.cardName = 'Name on card is required';
+      if (!luhn(cardNumber)) e.cardNumber = 'Invalid card number';
+      const exp = parseExp(cardExp);
+      if (!exp) e.cardExp = 'Invalid expiry (use MM/YY)';
+      if (!/^\d+$/.test(cardCvv) || cardCvv.length !== cvvLenByBrand(detectedBrand)) {
+        e.cardCvv = `CVV must be ${cvvLenByBrand(detectedBrand)} digits`;
+      }
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const checkout = async () => {
-    if (!patientEmail || !appointmentDate) {
-      alert('Please enter patient email and select date & time');
-      return;
-    }
-    if (!cart.items || !cart.items.length) {
-      alert('Cart is empty');
-      return;
-    }
+    if (!validateFields()) return;
 
-    // If online, validate card on the client and only send safe fields
+    // If online, only send safe metadata (your backend also supports full validation if you switch later)
     let cardPayload = undefined;
     if (paymentMethod === 'ONLINE') {
-      if (!validateCard()) return;
       const exp = parseExp(cardExp);
       cardPayload = {
-        brand: cardBrand,
+        brand: detectedBrand,
         holder: cardName.trim(),
         last4: onlyDigits(cardNumber).slice(-4),
         expMonth: exp.expMonth,
         expYear: exp.expYear
       };
-      // DO NOT send number or CVV to our server in this demo
     }
 
     setStatus('Booking...');
@@ -142,122 +205,614 @@ export default function Cart() {
       // reset form
       setPatientEmail(''); setPatientName(''); setAppointmentDate(''); setPaymentMethod('COD');
       setCardBrand('VISA'); setCardName(''); setCardNumber(''); setCardExp(''); setCardCvv('');
+      setErrors({});
+      showToast('success', data.message || 'Booked!');
     } else {
       setStatus('');
-      alert(data.message || 'Booking failed');
+      showToast('error', data.message || 'Booking failed');
     }
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Your Cart</h2>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* style tweaks just for this page */}
+      <Box component="style">{`
+        .soft-gradient{
+          background:
+            radial-gradient(800px 400px at 100% 0%, rgba(99,102,241,0.09), transparent 60%),
+            radial-gradient(600px 360px at 0% 20%, rgba(16,185,129,0.08), transparent 55%);
+        }
+        .ring-focus:focus-within{
+          box-shadow: 0 0 0 4px ${theme.palette.primary.main}22;
+          border-color: ${theme.palette.primary.main};
+        }
+        .striped tbody tr:nth-of-type(odd){ background: ${theme.palette.action.hover}; }
+      `}</Box>
 
-      <div style={{ margin: '8px 0 16px' }}>
-        <button onClick={() => navigate('/my-bookings')}>View My Health Packages</button>
-      </div>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        alignItems={{ xs: 'flex-start', sm: 'center' }}
+        justifyContent="space-between"
+        sx={{ mb: 4, gap: 2 }}
+      >
+        <Typography
+          variant="h4"
+          fontWeight={800}
+          sx={{
+            display: 'flex', alignItems: 'center', gap: 1.5,
+            backgroundImage: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.success.main})`,
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            color: 'transparent',
+            letterSpacing: '.3px'
+          }}
+        >
+          <ShoppingCartCheckoutIcon fontSize="large" />
+          Your Health Package Cart
+        </Typography>
 
-      {status && <div style={{ marginBottom: 10, color: '#555' }}>{status}</div>}
+        <Button
+          variant="outlined"
+          color="secondary"
+          endIcon={<ArrowForwardIcon />}
+          onClick={() => navigate('/my-bookings')}
+          sx={{
+            px: 3, py: 1, borderRadius: 2, textTransform: 'none', fontWeight: 700,
+            borderWidth: 2
+          }}
+        >
+          View My Bookings
+        </Button>
+      </Stack>
 
-      <table border="1" cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
-        <thead><tr><th>Package</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr></thead>
-        <tbody>
-          {(cart.items || []).map(it => (
-            <tr key={it._id}>
-              <td>{it.packageName}</td>
-              <td>Rs. {Number(it.unitPrice).toFixed(2)}</td>
-              <td>
-                <input
-                  type="number"
-                  min="1"
-                  value={it.quantity}
-                  onChange={e => qty(it._id, Math.max(1, Number(e.target.value || 1)))}
-                  style={{ width: 70 }}
-                />
-              </td>
-              <td>Rs. {Number(it.unitPrice * it.quantity).toFixed(2)}</td>
-              <td><button onClick={() => removeItem(it._id)}>Remove</button></td>
-            </tr>
-          ))}
-          {(!cart.items || !cart.items.length) && <tr><td colSpan="5">Cart is empty</td></tr>}
-        </tbody>
-      </table>
+      {!!status && status !== 'Loading cart…' && (
+        <Box sx={{ mb: 3 }}>
+          <Alert
+            severity={status.startsWith('Booked') ? 'success' : 'info'}
+            sx={{
+              borderRadius: 2,
+              boxShadow: theme.shadows[2],
+              '& .MuiAlert-icon': { alignItems: 'center' }
+            }}
+          >
+            {status}
+          </Alert>
+        </Box>
+      )}
 
-      <div style={{ marginBottom: 16 }}><strong>Total:</strong> Rs. {Number(cart.total || 0).toFixed(2)}</div>
-
-      {/* Booking form */}
-      <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 16, maxWidth: 520 }}>
-        <h3>Schedule & Payment</h3>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <input
-            placeholder="Patient name (optional)"
-            value={patientName}
-            onChange={e => setPatientName(e.target.value)}
-          />
-          <input
-            placeholder="Patient email"
-            value={patientEmail}
-            onChange={e => setPatientEmail(e.target.value)}
-          />
-          <input
-            type="datetime-local"
-            value={appointmentDate}
-            onChange={e => setAppointmentDate(e.target.value)}
-          />
-
-          {/* Payment choice */}
-          <div>
-            Payment:&nbsp;
-            <label><input type="radio" checked={paymentMethod === 'COD'} onChange={() => setPaymentMethod('COD')} /> Pay at center</label>
-            &nbsp;&nbsp;
-            <label><input type="radio" checked={paymentMethod === 'ONLINE'} onChange={() => setPaymentMethod('ONLINE')} /> Online (card)</label>
-          </div>
-
-          {/* Card fields when online */}
-          {paymentMethod === 'ONLINE' && (
-            <div style={{ border: '1px solid #eee', borderRadius: 6, padding: 12, display: 'grid', gap: 8 }}>
-              <div>
-                <label><strong>Card type</strong>&nbsp;</label>
-                <select value={cardBrand} onChange={e => setCardBrand(e.target.value)}>
-                  <option value="VISA">Visa</option>
-                  <option value="MASTERCARD">Mastercard</option>
-                  <option value="AMEX">American Express</option>
-                </select>
-              </div>
-              <input
-                placeholder="Name on card"
-                value={cardName}
-                onChange={e => setCardName(e.target.value)}
+      <Grid container spacing={3}>
+        {/* Left: Cart items */}
+        <Grid item xs={12} md={7}>
+          <Paper
+            elevation={0}
+            className="soft-gradient"
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              border: `1px solid ${theme.palette.divider}`,
+              backgroundColor: theme.palette.background.paper,
+              boxShadow: '0 8px 30px rgba(2,6,23,.06)'
+            }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+              <ReceiptIcon color="primary" />
+              <Typography variant="h6" fontWeight={700}>Selected Packages</Typography>
+              <Chip
+                label={`${cart.items?.length || 0} item${cart.items?.length !== 1 ? 's' : ''}`}
+                size="small"
+                sx={{
+                  ml: 'auto',
+                  fontWeight: 700,
+                  bgcolor: theme.palette.primary.light,
+                  color: theme.palette.primary.contrastText
+                }}
               />
-              <input
-                placeholder="Card number"
-                inputMode="numeric"
-                value={cardNumber}
-                onChange={e => setCardNumber(e.target.value.replace(/[^\d ]+/g, ''))}
-              />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  placeholder="MM/YY"
-                  value={cardExp}
-                  onChange={e => setCardExp(e.target.value.replace(/[^\d/]/g, '').slice(0, 5))}
-                  style={{ flex: 1 }}
-                />
-                <input
-                  placeholder={cardBrand === 'AMEX' ? 'CVV (4)' : 'CVV (3)'}
-                  inputMode="numeric"
-                  value={cardCvv}
-                  onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, cvvLenByBrand(cardBrand)))}
-                  style={{ flex: 1 }}
-                />
-              </div>
-              <div style={{ fontSize: 12, color: '#777' }}>
-                We do not store your full card number or CVV.
-              </div>
-            </div>
-          )}
+            </Stack>
+            <Divider sx={{ mb: 3, borderColor: theme.palette.divider }} />
 
-          <button onClick={checkout} disabled={!cart.items || !cart.items.length}>Proceed & Book</button>
-        </div>
-      </div>
-    </div>
+            {loading ? (
+              <Stack spacing={2}>
+                {[1, 2, 3].map((i) => (
+                  <Paper key={i} elevation={0} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default' }}>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Skeleton variant="rectangular" width={60} height={60} sx={{ borderRadius: 1 }} />
+                      <Box sx={{ flex: 1 }}>
+                        <Skeleton width="60%" height={24} />
+                        <Skeleton width="40%" height={20} sx={{ mt: 1 }} />
+                      </Box>
+                      <Skeleton width={80} height={40} />
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            ) : (
+              <Box sx={{ overflowX: 'auto' }}>
+                <Table size="small" stickyHeader className="striped"
+                  sx={{
+                    '& thead th': {
+                      backgroundColor: theme.palette.grey[50],
+                      fontWeight: 700,
+                      color: theme.palette.text.secondary,
+                      borderBottom: `2px solid ${theme.palette.divider}`,
+                    },
+                    '& tbody td': { borderBottom: `1px solid ${theme.palette.divider}` }
+                  }}
+                >
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Package</TableCell>
+                      <TableCell align="right">Price (Rs.)</TableCell>
+                      <TableCell align="center" width={120}>Quantity</TableCell>
+                      <TableCell align="right">Subtotal (Rs.)</TableCell>
+                      <TableCell align="center" width={80}></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {(cart.items || []).map(it => (
+                      <TableRow
+                        key={it._id}
+                        hover
+                        sx={{
+                          '&:hover': { backgroundColor: theme.palette.action.hover }
+                        }}
+                      >
+                        <TableCell>
+                          <Typography fontWeight={700}>{it.packageName}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Includes {it.testsCount || 0} tests
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography fontWeight={600}>
+                            {Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <TextField
+                            size="small"
+                            type="number"
+                            inputProps={{
+                              min: 1,
+                              style: { textAlign: 'center', padding: '8.5px 8px' }
+                            }}
+                            value={it.quantity}
+                            onChange={e => qty(it._id, Math.max(1, Number(e.target.value || 1)))}
+                            className="ring-focus"
+                            sx={{
+                              width: 96,
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: 2,
+                                backgroundColor: 'background.paper'
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography fontWeight={800} color="primary">
+                            {Number(it.unitPrice * it.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title="Remove item">
+                            <IconButton
+                              color="error"
+                              onClick={() => removeItem(it._id)}
+                              sx={{
+                                borderRadius: 2,
+                                '&:hover': { backgroundColor: theme.palette.error.light }
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {(!cart.items || !cart.items.length) && (
+                      <TableRow>
+                        <TableCell colSpan={5}>
+                          <Stack
+                            alignItems="center"
+                            spacing={1}
+                            sx={{
+                              py: 6,
+                              color: 'text.secondary',
+                              textAlign: 'center'
+                            }}
+                          >
+                            <ShoppingCartCheckoutIcon sx={{ fontSize: 48, opacity: 0.4 }} />
+                            <Typography variant="h6" fontWeight={800}>
+                              Your cart is empty
+                            </Typography>
+                            <Typography variant="body2">
+                              Browse our healthcare packages and add items to continue.
+                            </Typography>
+                            <Button
+                              sx={{
+                                mt: 2, px: 4, borderRadius: 2, textTransform: 'none', fontWeight: 700
+                              }}
+                              variant="contained"
+                              onClick={() => navigate('/healthcare-packages')}
+                            >
+                              Browse Packages
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </Box>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Right: Summary + Schedule & Payment */}
+        <Grid item xs={12} md={5}>
+          <Stack spacing={3} position="sticky" top={isSm ? 0 : 24}>
+            <Card
+              elevation={0}
+              className="soft-gradient"
+              sx={{
+                borderRadius: 3,
+                border: `1px solid ${theme.palette.divider}`,
+                backgroundColor: theme.palette.background.paper,
+                boxShadow: '0 8px 30px rgba(2,6,23,.06)'
+              }}
+            >
+              <CardContent>
+                <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
+                  Order Summary
+                </Typography>
+                <Divider sx={{ my: 2, borderColor: theme.palette.divider }} />
+                <Stack spacing={1.5}>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Subtotal</Typography>
+                    <Typography fontWeight={700}>
+                      Rs. {Number(cart.total || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography color="text.secondary">Taxes & Fees</Typography>
+                    <Typography fontWeight={700}>—</Typography>
+                  </Stack>
+                  <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
+                    <Typography color="text.secondary">Discount</Typography>
+                    <Typography fontWeight={700} color="error.main">
+                      — No discount applied
+                    </Typography>
+                  </Stack>
+                </Stack>
+                <Divider sx={{ my: 2, borderColor: theme.palette.divider }} />
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6" fontWeight={900}>Total Amount</Typography>
+                  <Chip
+                    color="primary"
+                    variant="outlined"
+                    label={`Rs. ${Number(cart.total || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+                    sx={{ fontWeight: 800, px: 0.5 }}
+                  />
+                </Stack>
+              </CardContent>
+            </Card>
+
+            <Paper
+              elevation={0}
+              className="soft-gradient"
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                border: `1px solid ${theme.palette.divider}`,
+                backgroundColor: theme.palette.background.paper,
+                boxShadow: '0 8px 30px rgba(2,6,23,.06)'
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
+                <EventIcon color="primary" />
+                <Typography variant="h6" fontWeight={800}>Appointment Details</Typography>
+              </Stack>
+              <Divider sx={{ mb: 3, borderColor: theme.palette.divider }} />
+
+              <Stack spacing={2.5}>
+                <TextField
+                  label="Patient name (optional)"
+                  value={patientName}
+                  onChange={e => setPatientName(e.target.value)}
+                  fullWidth
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon color="action" />
+                      </InputAdornment>
+                    )
+                  }}
+                  className="ring-focus"
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+                <TextField
+                  label="Patient email"
+                  type="email"
+                  value={patientEmail}
+                  onChange={e => setPatientEmail(e.target.value)}
+                  fullWidth
+                  required
+                  error={!!errors.patientEmail}
+                  helperText={errors.patientEmail}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <EmailIcon color="action" />
+                      </InputAdornment>
+                    )
+                  }}
+                  className="ring-focus"
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+                <TextField
+                  label="Appointment Date & Time"
+                  type="datetime-local"
+                  value={appointmentDate}
+                  onChange={e => setAppointmentDate(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                  required
+                  error={!!errors.appointmentDate}
+                  helperText={errors.appointmentDate || 'Select a convenient time for your visit'}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <EventIcon color="action" />
+                      </InputAdornment>
+                    )
+                  }}
+                  className="ring-focus"
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+
+                {/* Payment choice */}
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    Payment Method
+                  </Typography>
+                  <RadioGroup row value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} sx={{ gap: 2 }}>
+                    <Paper
+                      elevation={paymentMethod === 'COD' ? 3 : 0}
+                      sx={{
+                        p: 1.5, flex: 1, borderRadius: 2,
+                        border: `2px solid ${paymentMethod === 'COD' ? theme.palette.primary.main : theme.palette.divider}`,
+                        cursor: 'pointer', transition: 'all 0.2s ease',
+                        '&:hover': { borderColor: theme.palette.primary.main, boxShadow: theme.shadows[2] }
+                      }}
+                      onClick={() => setPaymentMethod('COD')}
+                    >
+                      <FormControlLabel
+                        value="COD"
+                        control={<Radio sx={{ display: 'none' }} />}
+                        label={
+                          <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Box sx={{
+                              width: 40, height: 40, borderRadius: '50%',
+                              bgcolor: paymentMethod === 'COD' ? theme.palette.primary.light : theme.palette.grey[200],
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              <LocalAtmIcon color={paymentMethod === 'COD' ? 'primary' : 'action'} />
+                            </Box>
+                            <Box>
+                              <Typography fontWeight={700}>Pay at Center</Typography>
+                              <Typography variant="body2" color="text.secondary">Cash, Card, or UPI when you visit</Typography>
+                            </Box>
+                          </Stack>
+                        }
+                        sx={{ width: '100%', m: 0 }}
+                      />
+                    </Paper>
+
+                    <Paper
+                      elevation={paymentMethod === 'ONLINE' ? 3 : 0}
+                      sx={{
+                        p: 1.5, flex: 1, borderRadius: 2,
+                        border: `2px solid ${paymentMethod === 'ONLINE' ? theme.palette.primary.main : theme.palette.divider}`,
+                        cursor: 'pointer', transition: 'all 0.2s ease',
+                        '&:hover': { borderColor: theme.palette.primary.main, boxShadow: theme.shadows[2] }
+                      }}
+                      onClick={() => setPaymentMethod('ONLINE')}
+                    >
+                      <FormControlLabel
+                        value="ONLINE"
+                        control={<Radio sx={{ display: 'none' }} />}
+                        label={
+                          <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Box sx={{
+                              width: 40, height: 40, borderRadius: '50%',
+                              bgcolor: paymentMethod === 'ONLINE' ? theme.palette.primary.light : theme.palette.grey[200],
+                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
+                              <CreditCardIcon color={paymentMethod === 'ONLINE' ? 'primary' : 'action'} />
+                            </Box>
+                            <Box>
+                              <Typography fontWeight={700}>Online Payment</Typography>
+                              <Typography variant="body2" color="text.secondary">Secure card payment now</Typography>
+                            </Box>
+                          </Stack>
+                        }
+                        sx={{ width: '100%', m: 0 }}
+                      />
+                    </Paper>
+                  </RadioGroup>
+                </Box>
+
+                {/* Card fields when online */}
+                {paymentMethod === 'ONLINE' && (
+                  <Box sx={{
+                    border: '1px solid', borderColor: theme.palette.divider, borderRadius: 2, p: 3,
+                    bgcolor: theme.palette.grey[50]
+                  }}>
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                      <PaymentIcon color="primary" />
+                      <Typography variant="subtitle1" fontWeight={800}>Card Details</Typography>
+                    </Stack>
+
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <FormControl fullWidth>
+                          <InputLabel id="card-type-label">Card type</InputLabel>
+                          <Select
+                            labelId="card-type-label"
+                            label="Card type"
+                            value={detectedBrand}
+                            onChange={e => setCardBrand(e.target.value)}
+                            sx={{ borderRadius: 2 }}
+                          >
+                            <MenuItem value="VISA">
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <img src="images\download.png" alt="Visa" width={24} />
+                                <span>Visa</span>
+                              </Stack>
+                            </MenuItem>
+                            <MenuItem value="MASTERCARD">
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <img src="images\master.png" alt="Mastercard" width={24} />
+                                <span>Mastercard</span>
+                              </Stack>
+                            </MenuItem>
+                            <MenuItem value="AMEX">
+                              <Stack direction="row" alignItems="center" spacing={1}>
+                                <img src="images\amex.png" alt="American Express" width={24} />
+                                <span>Amex</span>
+                              </Stack>
+                            </MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          label="Name on card"
+                          value={cardName}
+                          onChange={e => setCardName(e.target.value)}
+                          fullWidth
+                          required
+                          error={!!errors.cardName}
+                          helperText={errors.cardName}
+                          className="ring-focus"
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          label="Card number"
+                          inputMode="numeric"
+                          value={formatCardNumber(cardNumber, detectedBrand)}
+                          onChange={e => setCardNumber(e.target.value)}
+                          fullWidth
+                          placeholder={detectedBrand === 'AMEX' ? '#### ###### #####' : '#### #### #### ####'}
+                          error={!!errors.cardNumber}
+                          helperText={errors.cardNumber || 'We do not store your full card number.'}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                {errors.cardNumber ? (
+                                  <WarningAmberRoundedIcon color="error" />
+                                ) : (
+                                  <CheckCircleRoundedIcon
+                                    color={cardNumber.length > 0 ? 'success' : 'action'}
+                                  />
+                                )}
+                              </InputAdornment>
+                            ),
+                            sx: { borderRadius: 2 }
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          label="Expiry (MM/YY)"
+                          value={cardExp}
+                          onChange={e => setCardExp(e.target.value.replace(/[^\d/]/g, '').slice(0, 5))}
+                          placeholder="MM/YY"
+                          fullWidth
+                          required
+                          error={!!errors.cardExp}
+                          helperText={errors.cardExp}
+                          className="ring-focus"
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          label={detectedBrand === 'AMEX' ? 'CVV (4 digits)' : 'CVV (3 digits)'}
+                          inputMode="numeric"
+                          value={cardCvv}
+                          onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, (detectedBrand === 'AMEX' ? 4 : 3)))}
+                          fullWidth
+                          required
+                          error={!!errors.cardCvv}
+                          helperText={errors.cardCvv || 'Not stored.'}
+                          className="ring-focus"
+                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+
+                <Button
+                  size="large"
+                  variant="contained"
+                  onClick={checkout}
+                  startIcon={<ShoppingCartCheckoutIcon />}
+                  disabled={!cart.items?.length || bookingInProgress}
+                  sx={{
+                    mt: 1,
+                    py: 1.5,
+                    borderRadius: 2,
+                    fontSize: '1rem',
+                    fontWeight: 800,
+                    textTransform: 'none',
+                    boxShadow: 'none',
+                    backgroundImage: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                    '&:hover': {
+                      boxShadow: 'none',
+                      backgroundImage: `linear-gradient(90deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main})`
+                    }
+                  }}
+                  fullWidth
+                >
+                  {bookingInProgress ? 'Processing Booking…' : 'Confirm & Book Appointment'}
+                </Button>
+
+                <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mt: 1 }}>
+                  By proceeding, you agree to our Terms of Service and Privacy Policy
+                </Typography>
+              </Stack>
+            </Paper>
+          </Stack>
+        </Grid>
+      </Grid>
+
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3500}
+        onClose={() => setToast({ ...toast, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          variant="filled"
+          severity={toast.severity}
+          onClose={() => setToast({ ...toast, open: false })}
+          sx={{
+            width: '100%',
+            borderRadius: 2,
+            boxShadow: theme.shadows[4],
+            alignItems: 'center'
+          }}
+          iconMapping={{
+            success: <CheckCircleRoundedIcon fontSize="inherit" />,
+            error: <WarningAmberRoundedIcon fontSize="inherit" />,
+          }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
+    </Container>
   );
 }

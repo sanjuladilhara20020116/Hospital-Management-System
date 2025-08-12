@@ -3,7 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FaPhoneAlt, FaMapMarkerAlt } from 'react-icons/fa';
 import './components.css'; 
-import logo from './logo.png'; // Import your logo image
+import logo from './Blue and White Simple Medical Health Logo.png'; // Import your logo image
 
 const Header = () => {
   return (
