@@ -17,7 +17,7 @@ import PatientDashboard from './pages/PatientDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 import PharmacistDashboard from './pages/PharmacistDashboard';
 import HospitalManagerDashboard from './pages/HospitalManagerDashboard';
-import LabAdminDashboard from './pages/LabAdminDashboard'; // ✅ add this file (can be a simple placeholder)
+import LabAdminDashboard from './pages/LabAdminDashboard';
 
 // Existing new modules
 import Inventory from './pages/Inventory';
@@ -44,28 +44,27 @@ function RoleRoute({ allowedRoles, children }) {
   const user = getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
   if (!allowedRoles.includes(user.role)) {
-    // Show a minimal message; replace with your global error page if you have one
     return <div style={{ padding: 24, color: '#c00' }}>Unauthorized Role</div>;
   }
   return children;
 }
 
-// Switch dashboard component by role (no UI logic beyond selection)
+// Switch dashboard component by role (now passes userId)
 function DashboardSwitch() {
   const user = getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
 
   switch (user.role) {
     case 'Patient':
-      return <PatientDashboard />;
+      return <PatientDashboard userId={user.userId} />;          // ✅ pass userId
     case 'Doctor':
-      return <DoctorDashboard />;
+      return <DoctorDashboard userId={user.userId} />;            // (safe to pass)
     case 'Pharmacist':
-      return <PharmacistDashboard />;
+      return <PharmacistDashboard userId={user.userId} />;        // (safe to pass)
     case 'HospitalManager':
-      return <HospitalManagerDashboard />;
-    case 'LabAdmin': // ✅ new role supported
-      return <LabAdminDashboard />;
+      return <HospitalManagerDashboard userId={user.userId} />;   // (safe to pass)
+    case 'LabAdmin':
+      return <LabAdminDashboard userId={user.userId} />;          // (safe to pass)
     default:
       return <div style={{ padding: 24, color: '#c00' }}>Unauthorized Role</div>;
   }
@@ -91,7 +90,7 @@ function App() {
                 'Doctor',
                 'Pharmacist',
                 'HospitalManager',
-                'LabAdmin', // ✅ allow LabAdmin
+                'LabAdmin',
               ]}
             >
               <DashboardSwitch />
@@ -99,7 +98,7 @@ function App() {
           }
         />
 
-        {/* Manager-only pages (keep as-is; gate as needed elsewhere if you use guards) */}
+        {/* Manager-only pages */}
         <Route path="/manager-dashboard" element={<HospitalManagerDashboard />} />
         <Route path="/wards" element={<WardManagement />} />
         <Route path="/departments" element={<DepartmentManagement />} />
