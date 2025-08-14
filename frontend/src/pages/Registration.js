@@ -72,6 +72,7 @@ export default function Registration() {
     if (!passwordRegex.test(formData.password)) newErrors.password = 'Min 8 chars, 1 uppercase, 1 number, 1 special char';
     if (formData.confirmPassword !== formData.password) newErrors.confirmPassword = 'Passwords do not match';
 
+    // Role-specific
     if (role === 'Doctor') {
       if (!formData.slmcRegistrationNumber || !/^\d{5}$/.test(formData.slmcRegistrationNumber))
         newErrors.slmcRegistrationNumber = 'Must be 5 digits';
@@ -80,6 +81,8 @@ export default function Registration() {
 
     if (role === 'Pharmacist' && !formData.pharmacistId)
       newErrors.pharmacistId = 'Pharmacist ID required';
+
+    // LabAdmin currently has no extra required fields
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -122,6 +125,7 @@ export default function Registration() {
             <MenuItem value="Doctor">Doctor</MenuItem>
             <MenuItem value="Pharmacist">Pharmacist</MenuItem>
             <MenuItem value="HospitalManager">Hospital Manager</MenuItem>
+            <MenuItem value="LabAdmin">Lab Admin</MenuItem> {/* ✅ Added */}
           </Select>
         </FormControl>
 
@@ -192,6 +196,8 @@ export default function Registration() {
                 onChange={handleChange} error={!!errors.pharmacistId}
                 helperText={errors.pharmacistId} sx={{ mb: 2 }} />
             )}
+
+            {/* LabAdmin: no extra fields right now */}
 
             <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 1 }}>
               Register
