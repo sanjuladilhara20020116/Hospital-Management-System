@@ -6,6 +6,7 @@ async function generateUserId(role) {
     Doctor: 'D',
     Pharmacist: 'M',
     HospitalManager: 'H',
+    LabAdmin: 'LA', // ✅ new
   };
 
   const prefix = prefixMap[role];
