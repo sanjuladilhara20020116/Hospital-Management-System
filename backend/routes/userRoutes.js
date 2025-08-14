@@ -1,48 +1,32 @@
+// routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// 📁 Ensure uploads directory exists
+const User = require('../models/User');
+const upload = require('../middleware/upload'); // ✅ shared upload
+
 const uploadsDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-// 🖼 Multer setup for profile photo upload
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const safeUserId = req.params.userId.replace(/[\/\\]/g, '_');
-    cb(null, `${safeUserId}-${Date.now()}${ext}`);
-  }
-});
-const upload = multer({ storage });
-
-
-// ✅ GET all doctors — move ABOVE :userId route
+// GET all doctors
 router.get('/doctors', async (req, res) => {
   try {
     const doctors = await User.find({ role: 'Doctor' }).select('_id userId firstName lastName');
     res.json(doctors);
   } catch (err) {
-    console.error('Error fetching doctors:', err.message);
+    console.error('Error fetching doctors:', err);
     res.status(500).json({ message: 'Failed to fetch doctors' });
   }
 });
 
-// 🔍 Search doctors — move ABOVE :userId route
+// Search doctors
 router.get('/search-doctors', async (req, res) => {
   const { query } = req.query;
   if (!query || query.trim().length < 1) {
     return res.status(400).json({ message: 'Missing or empty search query' });
   }
-
   try {
     const doctors = await User.find({
       role: 'Doctor',
@@ -52,7 +36,6 @@ router.get('/search-doctors', async (req, res) => {
         { lastName: { $regex: query, $options: 'i' } },
       ],
     }).select('_id userId firstName lastName');
-
     res.json(doctors);
   } catch (error) {
     console.error('Error searching doctors:', error);
@@ -60,7 +43,7 @@ router.get('/search-doctors', async (req, res) => {
   }
 });
 
-// 🔍 GET user by userId (without password)
+// Get by userId
 router.get('/:userId', async (req, res) => {
   try {
     const userId = decodeURIComponent(req.params.userId);
@@ -73,7 +56,7 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// ✏️ PUT update user profile
+// Update profile
 router.put('/:userId', upload.single('photo'), async (req, res) => {
   try {
     const userId = decodeURIComponent(req.params.userId);
@@ -86,7 +69,9 @@ router.put('/:userId', upload.single('photo'), async (req, res) => {
       'slmcRegistrationNumber', 'pharmacistId'
     ];
     fields.forEach(field => {
-      if (req.body[field] !== undefined) user[field] = req.body[field];
+      if (req.body[field] !== undefined) {
+        user[field] = field === 'age' ? Number(req.body[field]) : req.body[field];
+      }
     });
 
     if (req.file) {
@@ -94,7 +79,7 @@ router.put('/:userId', upload.single('photo'), async (req, res) => {
         const oldPhotoPath = path.join(uploadsDir, user.photo);
         if (fs.existsSync(oldPhotoPath)) fs.unlinkSync(oldPhotoPath);
       }
-      user.photo = req.file.filename;
+      user.photo = req.file.filename; // ✅ filename only
     }
 
     await user.save();
@@ -105,7 +90,7 @@ router.put('/:userId', upload.single('photo'), async (req, res) => {
   }
 });
 
-// ❌ DELETE user profile
+// Delete profile
 router.delete('/:userId', async (req, res) => {
   try {
     const userId = decodeURIComponent(req.params.userId);
