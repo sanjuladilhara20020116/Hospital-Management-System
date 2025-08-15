@@ -29,6 +29,10 @@ import HealthcarePackages from './pages/HealthcarePackages';
 import Cart from './pages/Cart';
 import MyBookings from './pages/MyBookings';
 
+// ✅ Your additional pages
+import MyLabReports from './pages/MyLabReports';
+import PatientReportDownload from './pages/PatientReportDownload';
+
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
@@ -80,6 +84,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registration />} />
 
+        {/* ✅ Your extra public route for report download page */}
+        <Route path="/lab-report" element={<PatientReportDownload />} />
+
         {/* Unified dashboard route with role guard + switch */}
         <Route
           path="/dashboard"
@@ -94,6 +101,16 @@ function App() {
               ]}
             >
               <DashboardSwitch />
+            </RoleRoute>
+          }
+        />
+
+        {/* ✅ Your patient-only My Lab Reports route */}
+        <Route
+          path="/my-reports"
+          element={
+            <RoleRoute allowedRoles={['Patient']}>
+              <MyLabReports />
             </RoleRoute>
           }
         />

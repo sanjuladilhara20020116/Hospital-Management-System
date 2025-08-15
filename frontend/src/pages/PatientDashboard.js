@@ -22,6 +22,7 @@ import {
   Upload as UploadIcon,
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
+import ScienceOutlined from '@mui/icons-material/ScienceOutlined';
 import axios from 'axios';
 import ChatPopup from './ChatPopup';
 import { useNavigate } from 'react-router-dom';
@@ -368,9 +369,11 @@ export default function PatientDashboard({ userId }) {
             </Box>
           </CardContent>
 
+          {/* MERGED ACTIONS */}
           <CardActions sx={{ p: 3, pt: 0, justifyContent: 'space-between' }}>
             {editMode ? (
               <>
+                {/* Friend's Save / Cancel kept intact */}
                 <Button 
                   variant="contained" 
                   color="primary" 
@@ -391,12 +394,13 @@ export default function PatientDashboard({ userId }) {
               </>
             ) : (
               <>
-                <Box>
+                {/* LEFT SIDE ACTIONS (your layout) */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                   <Button 
                     variant="contained" 
                     onClick={() => setEditMode(true)}
                     startIcon={<EditIcon />}
-                    sx={{ borderRadius: 2, px: 3, mr: 2 }}
+                    sx={{ borderRadius: 2, px: 3 }}
                   >
                     Edit Profile
                   </Button>
@@ -405,7 +409,7 @@ export default function PatientDashboard({ userId }) {
                     color="error" 
                     onClick={() => setDeleteDialogOpen(true)}
                     startIcon={<DeleteIcon />}
-                    sx={{ borderRadius: 2, px: 3, mr: 2 }}
+                    sx={{ borderRadius: 2, px: 3 }}
                   >
                     Delete Account
                   </Button>
@@ -418,7 +422,20 @@ export default function PatientDashboard({ userId }) {
                   >
                     Logout
                   </Button>
+
+                  {/* NEW: My Lab Reports (from your code) */}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => navigate('/my-reports')}
+                    startIcon={<ScienceOutlined />}
+                    sx={{ borderRadius: 2, px: 2 }}
+                  >
+                    My Lab Reports
+                  </Button>
                 </Box>
+
+                {/* RIGHT SIDE ACTION (friend's Health Packages) */}
                 <Button
                   variant="contained"
                   color="success"

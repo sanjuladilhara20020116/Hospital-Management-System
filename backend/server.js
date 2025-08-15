@@ -7,12 +7,42 @@ const path = require('path');
 
 const app = express();
 
-// CORS for React on :3000
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+/* -------------------- Core middleware -------------------- */
+// CORS for React on :3000 (adjust CLIENT_ORIGIN if needed)
+// ---- CORS (allow localhost AND your LAN IPs) ----
 
-// Parsers
-app.use(express.json());
+
+const STATIC_ALLOWED = new Set(
+  [
+    'http://localhost:3000',
+    process.env.CLIENT_ORIGIN, // e.g. http://192.168.1.23:3000 if you set it
+    process.env.APP_BASE_URL,  // if it points at your React app
+  ].filter(Boolean)
+);
+
+// allow localhost:* and common LAN IPs like 192.168.x.x:3000
+const LAN_REGEX = /^http:\/\/(?:localhost|\d{1,3}(?:\.\d{1,3}){3}):\d+$/;
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // Postman / curl / same-origin
+      if (STATIC_ALLOWED.has(origin) || LAN_REGEX.test(origin)) {
+        return cb(null, true);
+      }
+      return cb(null, false); // silently block unknown origins
+    },
+    credentials: true,
+  })
+);
+
+// Body parsers
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+
+
+
 
 // Static for uploaded images
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -44,6 +74,43 @@ app.use('/api/pharmacy', pharmacyRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/bookings', bookingRoutes);
+
+
+/* -------------------- Lab module (NO JWT) -------------------- */
+// These are your new routes. Ensure these files exist:
+const labJobRoutes = require('./routes/labJobRoutes');           // uses middleware/actorLabAdmin inside
+//const publicReportRoutes = require('./routes/publicReportRoutes');// public download by reference
+app.use('/api/lab-jobs', labJobRoutes);
+//app.use('/api/public/reports', publicReportRoutes);
+
+/* -------------------- Optional: silence HomePage 404s -------------------- */
+// Remove if you later build real handlers.
+app.get('/api/stats', (_req, res) => res.json({ patients: 0, doctors: 0, labs: 0 }));
+app.get('/api/doctors/featured', (_req, res) => res.json([]));
+app.get('/api/testimonials', (_req, res) => res.json([]));
+
+
+
+
+const userReportRoutes = require('./routes/userReportRoutes');
+const publicReportRoutes = require('./routes/publicReportRoutes');
+
+app.use('/api/users', userReportRoutes);
+app.use('/api/public/reports', publicReportRoutes);
+
+
+
+
+/* -------------------- 404 for unknown API routes -------------------- */
+app.use('/api', (req, res) => {
+  res.status(404).json({ message: 'API route not found' });
+});
+
+
+
+
+
+
 
 // Global error handler (optional but helpful)
 app.use((err, req, res, next) => {
