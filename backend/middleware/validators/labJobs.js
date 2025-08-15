@@ -65,3 +65,4 @@ exports.listFilterValidation = [
   query('dateFrom').optional({ checkFalsy: true }).isISO8601().withMessage('dateFrom must be YYYY-MM-DD'),
   query('dateTo').optional({ checkFalsy: true }).isISO8601().withMessage('dateTo must be YYYY-MM-DD'),
 ];
+

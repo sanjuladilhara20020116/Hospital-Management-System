@@ -12,7 +12,7 @@ const app = express();
 // ---- CORS (allow localhost AND your LAN IPs) ----
 
 
-<<<<<<< Updated upstream
+
 const STATIC_ALLOWED = new Set(
   [
     'http://localhost:3000',
@@ -20,10 +20,10 @@ const STATIC_ALLOWED = new Set(
     process.env.APP_BASE_URL,  // if it points at your React app
   ].filter(Boolean)
 );
-=======
+
 const labReportRoutes = require('./routes/labReportRoutes');
 app.use('/api/lab-reports', labReportRoutes);
->>>>>>> Stashed changes
+
 
 // allow localhost:* and common LAN IPs like 192.168.x.x:3000
 const LAN_REGEX = /^http:\/\/(?:localhost|\d{1,3}(?:\.\d{1,3}){3}):\d+$/;
