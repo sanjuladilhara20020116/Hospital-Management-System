@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import React, { useEffect, useState, useCallback } from "react";
 import {
   Box,
@@ -377,3 +378,180 @@ const handleRepeat = async (job) => {
     </Box>
   );
 }
+=======
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+const LabAdminDashboard = () => {
+  const [jobs, setJobs] = useState([]);
+  const [patientUserId, setPatientUserId] = useState('');
+  const [testType, setTestType] = useState('');
+  const [assignedDate, setAssignedDate] = useState('');
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [message, setMessage] = useState('');
+
+  const token = localStorage.getItem('token');
+
+  const fetchJobs = async () => {
+    try {
+      const res = await axios.get('/api/lab-jobs', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setJobs(res.data);
+    } catch (err) {
+      console.error('Failed to load jobs', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const handleAddJob = async (e) => {
+    e.preventDefault();
+    try {
+      const userRes = await axios.get(`/api/users/${encodeURIComponent(patientUserId)}`);
+      const patientId = userRes.data._id;
+
+      await axios.post('/api/lab-reports/job', {
+        patientId,
+        testType,
+        assignedDate
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setPatientUserId('');
+      setTestType('');
+      setAssignedDate('');
+      setMessage('Job added successfully!');
+      fetchJobs();
+    } catch (err) {
+      console.error(err);
+      setMessage('Failed to add job. Check patient ID or inputs.');
+    }
+  };
+
+  const handleUploadReport = async (e) => {
+    e.preventDefault();
+    try {
+      const formData = new FormData();
+      formData.append('patientId', selectedJob.patientId._id);
+      formData.append('reportType', selectedJob.testType);
+      formData.append('report', uploadFile);
+
+      await axios.post('/api/lab-reports/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      setSelectedJob(null);
+      setUploadFile(null);
+      setMessage('Report uploaded successfully!');
+      fetchJobs();
+    } catch (err) {
+      console.error(err);
+      setMessage('Upload failed.');
+    }
+  };
+
+  return (
+    <div style={{ padding: '30px', maxWidth: '900px', margin: 'auto' }}>
+      <h2>Lab Admin Dashboard</h2>
+
+      <form onSubmit={handleAddJob} style={{ marginBottom: '20px' }}>
+        <h3>Add New Lab Job</h3>
+        <input
+          type="text"
+          placeholder="Patient User ID"
+          value={patientUserId}
+          onChange={(e) => setPatientUserId(e.target.value)}
+          required
+        />
+        <select value={testType} onChange={(e) => setTestType(e.target.value)} required>
+          <option value="">Select Test Type</option>
+          <option value="Cholesterol">Cholesterol</option>
+          <option value="Diabetes">Diabetes</option>
+          <option value="X-ray">X-ray</option>
+        </select>
+        <input
+          type="date"
+          value={assignedDate}
+          onChange={(e) => setAssignedDate(e.target.value)}
+          required
+        />
+        <button type="submit">Add Job</button>
+      </form>
+
+      <h3>Pending Jobs</h3>
+      <table border="1" cellPadding="10">
+        <thead>
+          <tr>
+            <th>Patient ID</th>
+            <th>Test Type</th>
+            <th>Assigned Date</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.filter(job => job.status === 'Pending').map(job => (
+            <tr key={job._id}>
+              <td>{job.patientId.userId}</td>
+              <td>{job.testType}</td>
+              <td>{new Date(job.assignedDate).toLocaleDateString()}</td>
+              <td>
+                <button onClick={() => setSelectedJob(job)}>Upload Report</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {selectedJob && (
+        <div style={{ marginTop: '20px' }}>
+          <h4>Upload Report for {selectedJob.testType} (Patient: {selectedJob.patientId.userId})</h4>
+          <form onSubmit={handleUploadReport}>
+            <input
+              type="file"
+              accept=".pdf,.jpg,.png"
+              onChange={(e) => setUploadFile(e.target.files[0])}
+              required
+            />
+            <button type="submit">Submit Report</button>
+            <button type="button" onClick={() => setSelectedJob(null)}>Cancel</button>
+          </form>
+        </div>
+      )}
+
+      <h3 style={{ marginTop: '30px' }}>Completed Jobs</h3>
+      <table border="1" cellPadding="10">
+        <thead>
+          <tr>
+            <th>Patient ID</th>
+            <th>Test Type</th>
+            <th>Assigned Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.filter(job => job.status === 'Completed').map(job => (
+            <tr key={job._id}>
+              <td>{job.patientId.userId}</td>
+              <td>{job.testType}</td>
+              <td>{new Date(job.assignedDate).toLocaleDateString()}</td>
+              <td>{job.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {message && <p style={{ marginTop: '15px' }}>{message}</p>}
+    </div>
+  );
+};
+
+export default LabAdminDashboard;
+>>>>>>> Stashed changes

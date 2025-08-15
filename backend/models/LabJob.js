@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 // models/LabJob.js
 const mongoose = require('mongoose');
 
@@ -20,6 +21,31 @@ const labJobSchema = new mongoose.Schema({
   // ownership
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   createdAt:   { type: Date, default: Date.now }
+=======
+// backend/models/LabJob.js
+const mongoose = require('mongoose');
+
+const labJobSchema = new mongoose.Schema({
+  patientId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  testType: {
+    type: String,
+    enum: ['Cholesterol', 'Diabetes', 'X-ray'], // Removed 'Other'
+    required: true
+  },
+  assignedDate: {
+    type: Date,
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['Pending', 'Completed'],
+    default: 'Pending'
+  }
+>>>>>>> Stashed changes
 });
 
 module.exports = mongoose.model('LabJob', labJobSchema);

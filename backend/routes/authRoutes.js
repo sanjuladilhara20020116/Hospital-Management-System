@@ -6,6 +6,13 @@ const bcrypt = require('bcryptjs');
 const upload = require('../middleware/upload');       // ✅ use shared upload
 const User = require('../models/User');
 const generateUserId = require('../utils/generateUserId');
+<<<<<<< Updated upstream
+=======
+const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const path = require('path');
+const jwt = require('jsonwebtoken');
+>>>>>>> Stashed changes
 
 const ALLOWED_ROLES = ['Patient', 'Doctor', 'Pharmacist', 'HospitalManager', 'LabAdmin'];
 
@@ -103,8 +110,16 @@ router.post('/login', async (req, res) => {
     const isMatch = await require('bcryptjs').compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
+    // ✅ Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
     res.json({
       message: 'Login successful',
+      token, // ✅ return token
       user: {
         userId: user.userId,
         role: user.role,
@@ -118,5 +133,3 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
-module.exports = router;

@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 const jwt = require('jsonwebtoken');
 
 exports.protect = (req, res, next) => {
@@ -26,3 +27,34 @@ exports.allowRoles = (...roles) => (req, res, next) => {
   }
   next();
 };
+=======
+// backend/middleware/auth.js
+const jwt = require('jsonwebtoken');
+
+// Verify JWT token
+exports.verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "No token provided" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded; // contains id and role
+    next();
+  } catch (err) {
+    return res.status(403).json({ message: "Invalid token" });
+  }
+};
+
+// Check if user is Lab Admin
+exports.isLabAdmin = (req, res, next) => {
+  if (req.user.role === 'LabAdmin') return next(); // Capitalized
+  return res.status(403).json({ message: "Access denied: Lab Admin only" });
+};
+
+exports.isDoctorOrPatient = (req, res, next) => {
+  const role = req.user.role;
+  if (role === 'Doctor' || role === 'Patient') return next(); // Capitalized
+  return res.status(403).json({ message: "Access denied: Doctor or Patient only" });
+};
+
+>>>>>>> Stashed changes
