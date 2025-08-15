@@ -1,3 +1,4 @@
+
 // src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -11,13 +12,6 @@ import HomePage from './pages/HomePage';
 import WardManagement from './pages/WardManagement';
 import DepartmentManagement from './pages/DepartmentManagement';
 import SupplierManagement from './pages/SupplierManagement';
-<<<<<<< Updated upstream
-=======
-import HomePage from './pages/HomePage'; // ✅ Import advanced homepage
-import UploadReportForm from './pages/UploadReportForm';
-import LabAdminDashboard from './pages/LabAdminDashboard';
-import LabAdminRegister from './pages/LabAdminRegister'; // path must match your project
->>>>>>> Stashed changes
 
 // Dashboards by role
 import PatientDashboard from './pages/PatientDashboard';
@@ -127,7 +121,6 @@ function App() {
         <Route path="/wards" element={<WardManagement />} />
         <Route path="/departments" element={<DepartmentManagement />} />
         <Route path="/supplier-management" element={<SupplierManagement />} />
-<<<<<<< Updated upstream
 
         {/* Inventory & Pharmacy */}
         <Route path="/inventory" element={<Inventory />} />
@@ -138,11 +131,6 @@ function App() {
         <Route path="/packages" element={<HealthcarePackages />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/my-bookings" element={<MyBookings />} />
-=======
-        <Route path="/upload-report" element={<UploadReportForm />} />
-        <Route path="/lab-dashboard" element={<LabAdminDashboard />} />
-<Route path="/LabAdminRegister" element={<LabAdminRegister />} />
->>>>>>> Stashed changes
       </Routes>
     </Router>
   );

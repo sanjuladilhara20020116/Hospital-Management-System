@@ -1,3 +1,4 @@
+
 // server.js
 require('dotenv').config();
 const express = require('express');
@@ -7,10 +8,8 @@ const path = require('path');
 
 const app = express();
 
-/* -------------------- Core middleware -------------------- */
 // CORS for React on :3000 (adjust CLIENT_ORIGIN if needed)
 // ---- CORS (allow localhost AND your LAN IPs) ----
-
 
 
 const STATIC_ALLOWED = new Set(
@@ -20,10 +19,6 @@ const STATIC_ALLOWED = new Set(
     process.env.APP_BASE_URL,  // if it points at your React app
   ].filter(Boolean)
 );
-
-const labReportRoutes = require('./routes/labReportRoutes');
-app.use('/api/lab-reports', labReportRoutes);
-
 
 // allow localhost:* and common LAN IPs like 192.168.x.x:3000
 const LAN_REGEX = /^http:\/\/(?:localhost|\d{1,3}(?:\.\d{1,3}){3}):\d+$/;
