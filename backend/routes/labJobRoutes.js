@@ -22,7 +22,7 @@ const {
 const { validate } = require('../middleware/validators');
 
 // Use shared uploader (stores into /uploads, returns req.file.filename)
-const upload = require('../middleware/upload');
+const uploadReport = require('../middleware/uploadReport'); // pdf+images
 
 // Create
 router.post(
@@ -69,7 +69,7 @@ router.post(
   '/:id/report',
   actorLabAdmin,
   idParamValidation, validate,
-  upload.single('reportFile'),
+  uploadReport.single('reportFile'),
   uploadLabReport
 );
 

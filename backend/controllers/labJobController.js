@@ -143,37 +143,52 @@ exports.uploadLabReport = async (req, res) => {
     if (job.status === 'Completed') return res.status(409).json({ message: 'Job already completed' });
     if (!req.file) return res.status(400).json({ message: 'File is required' });
 
-    // store filename only
+    // store filename only (existing behavior)
     job.reportFile = req.file.filename;
     job.status = 'Completed';
     job.completedAt = new Date();
     await job.save();
 
-    // ---- EMAIL NOTIFICATION (optional) ----
+    /* --- NEW: create/ensure LabReport doc for this file (non-breaking) --- */
+    try {
+      const LabReport = require('../models/LabReport');
+      const absolutePath = path.join(labReportsDir, job.reportFile); // this is where you saved the file
+      const reportType = job.testType; // e.g., "Cholesterol"
+
+      // Create a LabReport record if one doesn't already exist for this file+patient
+      let labReport = await LabReport.findOne({
+        patientId: job.patientRef,           // ObjectId to User
+        reportType,
+        filePath: absolutePath
+      });
+
+      if (!labReport) {
+        labReport = await LabReport.create({
+          patientId: job.patientRef,
+          reportType,
+          filePath: absolutePath,
+          uploadDate: job.completedAt
+        });
+      }
+      // include created/linked id in response
+      req.createdLabReportId = labReport._id;
+    } catch (e) {
+      console.warn('⚠️ Could not create LabReport record:', e.message);
+    }
+    /* --- END NEW --- */
+
+    // ---- EMAIL NOTIFICATION (existing) ----
     try {
       const patient = await User.findById(job.patientRef).select('email firstName lastName');
       if (patient?.email) {
         const patientName = `${patient.firstName || ''} ${patient.lastName || ''}`.trim() || 'Patient';
-       // near the email code in uploadLabReport
-const APP_BASE_URL =
-  process.env.APP_BASE_URL ||
-  process.env.CLIENT_ORIGIN ||
-  'http://localhost:3000';
-
-const link = `${APP_BASE_URL}/lab-report?ref=${encodeURIComponent(job.referenceNo)}`;
-
+        const APP_BASE_URL = process.env.APP_BASE_URL || process.env.CLIENT_ORIGIN || 'http://localhost:3000';
+        const link = `${APP_BASE_URL}/lab-report?ref=${encodeURIComponent(job.referenceNo)}`;
         const html = buildCompletedEmail({
-          patientName,
-          referenceNo: job.referenceNo,
-          testType: job.testType,
-          completedAt: job.completedAt,
-          link,
+          patientName, referenceNo: job.referenceNo, testType: job.testType,
+          completedAt: job.completedAt, link,
         });
-        await sendMail({
-          to: patient.email,
-          subject: `Your ${job.testType} lab report is ready (Ref: ${job.referenceNo})`,
-          html,
-        });
+        await sendMail({ to: patient.email, subject: `Your ${job.testType} lab report is ready (Ref: ${job.referenceNo})`, html });
         console.log('✅ Email sent to', patient.email, 'for ref', job.referenceNo);
       } else {
         console.warn('⚠️  No email on patient record for', job.patientId);
@@ -182,12 +197,14 @@ const link = `${APP_BASE_URL}/lab-report?ref=${encodeURIComponent(job.referenceN
       console.error('❌ Email send failed:', mailErr.message);
     }
 
-    res.json({ message: 'Report uploaded successfully', job });
+    // include the LabReport id if we created it
+    res.json({ message: 'Report uploaded successfully', job, labReportId: req.createdLabReportId || null });
   } catch (err) {
     console.error('uploadLabReport error:', err);
     res.status(500).json({ message: 'Server error uploading report' });
   }
 };
+
 
 // DOWNLOAD (owner-only)
 exports.downloadReport = async (req, res) => {

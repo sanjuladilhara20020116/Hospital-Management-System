@@ -99,16 +99,21 @@ app.use('/api/users', userReportRoutes);
 app.use('/api/public/reports', publicReportRoutes);
 
 
+const labReportRoutes = require('./routes/labReportRoutes');
+app.use('/api/reports', labReportRoutes);
+
+
+const analyzeRoutes = require('./routes/analyzeRoutes');
+app.use('/api', analyzeRoutes);
+
+app.use("/api", require("./routes/cholesterol"));
+
 
 
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API route not found' });
 });
-
-
-
-
 
 
 

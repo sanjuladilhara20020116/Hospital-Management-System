@@ -18,6 +18,15 @@ const labJobSchema = new mongoose.Schema({
 
   referenceNo: { type: String, unique: true, required: true },
 
+/* 👇 NEW (optional) — used to mark “new vs downloaded” for the portal */
+  downloads: [{
+    when: { type: Date, default: Date.now }, // when this user downloaded
+    by:   { type: String, default: 'public' } // patientId (e.g. P2025/123/13) or 'public'
+  }],
+  firstDownloadedAt: { type: Date }, // first ever download timestamp
+
+
+
   // ownership
   createdBy:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   createdAt:   { type: Date, default: Date.now }

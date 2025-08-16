@@ -34,6 +34,8 @@ import MyBookings from './pages/MyBookings';
 import MyLabReports from './pages/MyLabReports';
 import PatientReportDownload from './pages/PatientReportDownload';
 
+import ReportAnalysisPage from "./pages/ReportAnalysisPage";
+import CholesterolDashboard from "./pages/CholesterolDashboard";
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
@@ -131,6 +133,8 @@ function App() {
         <Route path="/packages" element={<HealthcarePackages />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/my-bookings" element={<MyBookings />} />
+      <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
+     <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
       </Routes>
     </Router>
   );
