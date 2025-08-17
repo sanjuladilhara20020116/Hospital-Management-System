@@ -120,7 +120,37 @@ exports.analyzeReport = async (req, res) => {
       filePath: absolutePath,
       reportType: report.reportType || 'Cholesterol',
     });
-    
+
+    /* ---------- DM NaN guard + HbA1c fallback from eAG ---------- */
+    if ((report.reportType || '').toLowerCase() === 'diabetes') {
+      // guard: sanitize NaN -> null
+      for (const k of ['fastingGlucose','postPrandialGlucose','randomGlucose','ogtt2h','hba1c']) {
+        if (typeof extracted[k] === 'number' && Number.isNaN(extracted[k])) {
+          extracted[k] = null;
+        }
+      }
+      // infer HbA1c from eAG (from notes) if missing
+      const parseNum = (s) => {
+        if (!s) return null;
+        const m = String(s).match(/([0-9]+(?:\.[0-9]+)?)/);
+        return m ? Number(m[1]) : null;
+      };
+      const deriveHba1c = (eag) => {
+        if (!Number.isFinite(eag)) return null;
+        const v = (eag + 46.7) / 28.7;          // ADA
+        return Math.round(v * 10) / 10;
+      };
+      if (extracted.hba1c == null) {
+        const eAGfromNotes = parseNum(extracted.notes);
+        const inferred = deriveHba1c(eAGfromNotes);
+        if (inferred != null) {
+          extracted.hba1c = inferred;
+          extracted.hba1cUnits = extracted.hba1cUnits || '%';
+          extracted.hba1cDerived = true; // optional flag
+        }
+      }
+    }
+    /* -------- END DM fallback -------- */
 
     let analysis = {};
     let extractedPayload = {};
@@ -177,7 +207,7 @@ exports.analyzeReport = async (req, res) => {
     }
 
     const payload = {
-      extracted,     // raw values
+      extracted,     // raw values (now with HbA1c possibly derived)
       analysis,      // structured bucket analysis
       isAnalyzed: true,
       analyzedAt: new Date(),
@@ -245,7 +275,6 @@ exports.analyzeByReference = async (req, res) => {
     if (!fs.existsSync(abs)) return res.status(404).json({ ok: false, message: 'Report file missing on disk' });
 
     // Use a stable identity for the report: patient + type + filePath
-    // (If you actually want one report per upload, this is good.)
     let report = await LabReport.findOne({
       patientId: job.patientRef,
       reportType: job.testType,
@@ -262,13 +291,56 @@ exports.analyzeByReference = async (req, res) => {
       reportType: job.testType || 'Cholesterol',
     });
 
-    const analysis = await analyzeValues({
-      ldl: extracted.ldl,
-      hdl: extracted.hdl,
-      triglycerides: extracted.triglycerides,
-      totalCholesterol: extracted.totalCholesterol,
-      units: extracted.units || 'mg/dL',
-    });
+    /* ---------- DM NaN guard + HbA1c fallback from eAG ---------- */
+    if (String(job.testType).toLowerCase() === 'diabetes') {
+      for (const k of ['fastingGlucose','postPrandialGlucose','randomGlucose','ogtt2h','hba1c']) {
+        if (typeof extracted[k] === 'number' && Number.isNaN(extracted[k])) {
+          extracted[k] = null;
+        }
+      }
+      const parseNum = (s) => {
+        if (!s) return null;
+        const m = String(s).match(/([0-9]+(?:\.[0-9]+)?)/);
+        return m ? Number(m[1]) : null;
+      };
+      const deriveHba1c = (eag) => {
+        if (!Number.isFinite(eag)) return null;
+        const v = (eag + 46.7) / 28.7;
+        return Math.round(v * 10) / 10;
+      };
+      if (extracted.hba1c == null) {
+        const eAGfromNotes = parseNum(extracted.notes);
+        const inferred = deriveHba1c(eAGfromNotes);
+        if (inferred != null) {
+          extracted.hba1c = inferred;
+          extracted.hba1cUnits = extracted.hba1cUnits || '%';
+          extracted.hba1cDerived = true;
+        }
+      }
+    }
+    /* -------- END DM fallback -------- */
+
+    const analysis =
+      (String(job.testType).toLowerCase() === 'diabetes')
+        ? await analyzeValues({
+            reportType: 'Diabetes',
+            fastingGlucose: extracted.fastingGlucose,
+            postPrandialGlucose: extracted.postPrandialGlucose,
+            randomGlucose: extracted.randomGlucose,
+            ogtt2h: extracted.ogtt2h,
+            hba1c: extracted.hba1c,
+            glucoseUnits: extracted.glucoseUnits || 'mg/dL',
+            hba1cUnits: extracted.hba1cUnits || '%',
+            notes: extracted.notes || '',
+          })
+        : await analyzeValues({
+            reportType: 'Cholesterol',
+            ldl: extracted.ldl,
+            hdl: extracted.hdl,
+            triglycerides: extracted.triglycerides,
+            totalCholesterol: extracted.totalCholesterol,
+            units: extracted.units || 'mg/dL',
+          });
 
     const payload = {
       patientId: job.patientRef,
@@ -276,17 +348,32 @@ exports.analyzeByReference = async (req, res) => {
       filePath: abs,
       uploadDate: job.completedAt || new Date(),
 
-      extracted: {
-        testDate: extracted.testDate || null,
-        labName: extracted.labName || '',
-        patientNameOnReport: extracted.patientName || '',
-        totalCholesterol: extracted.totalCholesterol ?? null,
-        ldl: extracted.ldl ?? null,
-        hdl: extracted.hdl ?? null,
-        triglycerides: extracted.triglycerides ?? null,
-        units: extracted.units || 'mg/dL',
-        notes: extracted.notes || '',
-      },
+      extracted:
+        (String(job.testType).toLowerCase() === 'diabetes')
+          ? {
+              testDate: extracted.testDate || null,
+              labName: extracted.labName || '',
+              patientNameOnReport: extracted.patientName || '',
+              notes: extracted.notes || '',
+              glucoseUnits: extracted.glucoseUnits || 'mg/dL',
+              hba1cUnits: extracted.hba1cUnits || '%',
+              fastingGlucose: extracted.fastingGlucose ?? null,
+              postPrandialGlucose: extracted.postPrandialGlucose ?? null,
+              randomGlucose: extracted.randomGlucose ?? null,
+              ogtt2h: extracted.ogtt2h ?? null,
+              hba1c: extracted.hba1c ?? null,
+            }
+          : {
+              testDate: extracted.testDate || null,
+              labName: extracted.labName || '',
+              patientNameOnReport: extracted.patientName || '',
+              totalCholesterol: extracted.totalCholesterol ?? null,
+              ldl: extracted.ldl ?? null,
+              hdl: extracted.hdl ?? null,
+              triglycerides: extracted.triglycerides ?? null,
+              units: extracted.units || 'mg/dL',
+              notes: extracted.notes || '',
+            },
       analysis: analysis || {},
       isAnalyzed: true,
       analyzedAt: new Date(),
@@ -427,4 +514,3 @@ exports.getAdvice = async (req, res) => {
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
-
