@@ -4,12 +4,11 @@ import { useParams, useNavigate } from "react-router-dom";
 
 const API_BASE = "http://localhost:5000/api";
 
-/* ---------- normalize whatever is in report.analysis into bucket shape ---------- */
-function normalizeAnalysis(analysis, extracted = {}) {
+/* ---------- Cholesterol: normalize to bucket shape (handles legacy) ---------- */
+function normalizeCholesterol(analysis, extracted = {}) {
   const a = analysis || {};
   const ex = extracted || {};
 
-  // If already bucket-shaped, make sure all buckets exist
   const alreadyBuckets =
     a &&
     typeof a === "object" &&
@@ -27,18 +26,10 @@ function normalizeAnalysis(analysis, extracted = {}) {
     };
   }
 
-  // Legacy “status” shape -> convert to buckets
   const toCategory = (s = "") => {
     const t = String(s).toLowerCase();
     if (!t || t.includes("unknown")) return "unknown";
-    if (
-      t.includes("optimal") ||
-      t.includes("protective") ||
-      t.includes("desirable") ||
-      t.includes("normal") ||
-      t.includes("good")
-    )
-      return "good";
+    if (t.includes("optimal") || t.includes("protective") || t.includes("desirable") || t.includes("normal") || t.includes("good")) return "good";
     if (t.includes("near") || t.includes("borderline")) return "moderate";
     if (t.includes("high")) return "bad";
     return "unknown";
@@ -65,14 +56,54 @@ function normalizeAnalysis(analysis, extracted = {}) {
   };
 }
 
+/* ---------- Diabetes: normalize to bucket shape ---------- */
+function normalizeDiabetes(analysis, extracted = {}) {
+  const a = analysis || {};
+  const ex = extracted || {};
+
+  // Buckets expected from backend: fastingGlucose, postPrandialGlucose, randomGlucose, ogtt2h, hba1c
+  const alreadyBuckets =
+    a &&
+    typeof a === "object" &&
+    ("fastingGlucose" in a ||
+      "postPrandialGlucose" in a ||
+      "randomGlucose" in a ||
+      "ogtt2h" in a ||
+      "hba1c" in a);
+
+  const unknown = { value: null, category: "unknown", reference: "" };
+
+  if (alreadyBuckets) {
+    return {
+      fastingGlucose: a.fastingGlucose || { ...unknown, value: ex.fastingGlucose ?? null },
+      postPrandialGlucose: a.postPrandialGlucose || { ...unknown, value: ex.postPrandialGlucose ?? null },
+      randomGlucose: a.randomGlucose || { ...unknown, value: ex.randomGlucose ?? null },
+      ogtt2h: a.ogtt2h || { ...unknown, value: ex.ogtt2h ?? null },
+      hba1c: a.hba1c || { ...unknown, value: ex.hba1c ?? null },
+      notes: a.notes || "",
+      nextSteps: Array.isArray(a.nextSteps) ? a.nextSteps : [],
+    };
+  }
+
+  // If analysis is empty/legacy, create unknown buckets from extracted values
+  return {
+    fastingGlucose: { ...unknown, value: ex.fastingGlucose ?? null },
+    postPrandialGlucose: { ...unknown, value: ex.postPrandialGlucose ?? null },
+    randomGlucose: { ...unknown, value: ex.randomGlucose ?? null },
+    ogtt2h: { ...unknown, value: ex.ogtt2h ?? null },
+    hba1c: { ...unknown, value: ex.hba1c ?? null },
+    notes: a.summary || "",
+    nextSteps: Array.isArray(a.tips) ? a.tips : [],
+  };
+}
+
 export default function ReportAnalysisPage() {
-  const { id } = useParams(); // Mongo _id of LabReport
+  const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
   const [err, setErr] = useState("");
 
-  // Optional AI coach (from /advice)
   const [coach, setCoach] = useState({ loading: false, error: "", data: null });
 
   const fetchReport = async () => {
@@ -91,7 +122,6 @@ export default function ReportAnalysisPage() {
     }
   };
 
-  // OPTIONAL: fetch advice once the report is analyzed (ignore if 404 not mounted)
   const fetchAdvice = async (reportId) => {
     setCoach({ loading: true, error: "", data: null });
     try {
@@ -99,7 +129,6 @@ export default function ReportAnalysisPage() {
       console.log("Fetch advice:", url);
       const r = await fetch(url);
       if (r.status === 404) {
-        // route not mounted; just skip silently
         setCoach({ loading: false, error: "", data: null });
         return;
       }
@@ -134,23 +163,30 @@ export default function ReportAnalysisPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: id }),
       });
-
-      // If already analyzed, backend may return 409 — treat as success and just refresh
       if (r.status === 409) {
         await fetchReport();
         return;
       }
-
       const data = await r.json();
       if (!r.ok || !data?.ok) throw new Error(data?.message || "Analyze failed");
-      await fetchReport(); // refresh
+      await fetchReport();
     } catch (e) {
       setErr(e.message);
     }
   };
 
   const ex = report?.extracted || {};
-  const ana = useMemo(() => normalizeAnalysis(report?.analysis, ex), [report, ex]);
+  const isChol = (report?.reportType || "").toLowerCase() === "cholesterol";
+  const isDia = (report?.reportType || "").toLowerCase() === "diabetes";
+
+  const ana = useMemo(() => {
+    if (!report) return null;
+    return isChol
+      ? normalizeCholesterol(report.analysis, ex)
+      : isDia
+      ? normalizeDiabetes(report.analysis, ex)
+      : report.analysis || null;
+  }, [report, ex, isChol, isDia]);
 
   return (
     <div style={{ maxWidth: 900, margin: "24px auto", fontFamily: "system-ui" }}>
@@ -161,11 +197,7 @@ export default function ReportAnalysisPage() {
       <h1>Report Analysis</h1>
 
       {loading && <p>Loading…</p>}
-      {err && (
-        <div style={{ color: "crimson", marginBottom: 12 }}>
-          Error: {err}
-        </div>
-      )}
+      {err && <div style={{ color: "crimson", marginBottom: 12 }}>Error: {err}</div>}
 
       {!loading && report && (
         <>
@@ -228,17 +260,38 @@ export default function ReportAnalysisPage() {
                 }}
               >
                 <h3 style={{ marginTop: 0 }}>Extracted Values</h3>
-                <Grid3>
-                  <Metric title="Total Cholesterol" value={ex.totalCholesterol} unit={ex.units || "mg/dL"} />
-                  <Metric title="LDL" value={ex.ldl} unit={ex.units || "mg/dL"} />
-                  <Metric title="HDL" value={ex.hdl} unit={ex.units || "mg/dL"} />
-                  <Metric title="Triglycerides" value={ex.triglycerides} unit={ex.units || "mg/dL"} />
-                  <Metric title="Test Date" value={ex.testDate || "—"} />
-                  <Metric title="Lab" value={ex.labName || "—"} />
-                </Grid3>
-                {ex.notes ? (
-                  <p style={{ marginTop: 12, color: "#475569" }}>{ex.notes}</p>
-                ) : null}
+
+                {isChol && (
+                  <Grid3>
+                    <Metric title="Total Cholesterol" value={ex.totalCholesterol} unit={ex.units || "mg/dL"} />
+                    <Metric title="LDL" value={ex.ldl} unit={ex.units || "mg/dL"} />
+                    <Metric title="HDL" value={ex.hdl} unit={ex.units || "mg/dL"} />
+                    <Metric title="Triglycerides" value={ex.triglycerides} unit={ex.units || "mg/dL"} />
+                    <Metric title="Test Date" value={ex.testDate || "—"} />
+                    <Metric title="Lab" value={ex.labName || "—"} />
+                  </Grid3>
+                )}
+
+                {isDia && (
+                  <Grid3>
+                    <Metric
+                      title="Fasting Glucose"
+                      value={ex.fastingGlucose}
+                      unit={ex.glucoseUnits || "mg/dL"}
+                    />
+                    <Metric
+                      title="Post-Prandial (2h)"
+                      value={ex.postPrandialGlucose}
+                      unit={ex.glucoseUnits || "mg/dL"}
+                    />
+                    <Metric title="Random Glucose" value={ex.randomGlucose} unit={ex.glucoseUnits || "mg/dL"} />
+                    <Metric title="OGTT 2-hour" value={ex.ogtt2h} unit={ex.glucoseUnits || "mg/dL"} />
+                    <Metric title="HbA1c" value={ex.hba1c} unit={ex.hba1cUnits || "%"} />
+                    <Metric title="Test Date / Lab" value={(ex.testDate || "—") + " / " + (ex.labName || "—")} />
+                  </Grid3>
+                )}
+
+                {ex.notes ? <p style={{ marginTop: 12, color: "#475569" }}>{ex.notes}</p> : null}
               </section>
 
               {/* AI analysis summary (normalized) */}
@@ -251,31 +304,34 @@ export default function ReportAnalysisPage() {
                 }}
               >
                 <h3 style={{ marginTop: 0 }}>AI Summary</h3>
-                <Grid2>
-                  <Bucket title="LDL" obj={ana.ldl} />
-                  <Bucket title="HDL" obj={ana.hdl} />
-                  <Bucket title="Triglycerides" obj={ana.triglycerides} />
-                  <Bucket title="Total Cholesterol" obj={ana.totalCholesterol} />
-                </Grid2>
-                {ana.notes && (
-                  <div style={{ marginTop: 12 }}>
-                    <h4 style={{ marginBottom: 6 }}>Notes</h4>
-                    <p style={{ margin: 0, color: "#475569" }}>{ana.notes}</p>
-                  </div>
+
+                {isChol && ana && (
+                  <>
+                    <Grid2>
+                      <Bucket title="LDL" obj={ana.ldl} />
+                      <Bucket title="HDL" obj={ana.hdl} />
+                      <Bucket title="Triglycerides" obj={ana.triglycerides} />
+                      <Bucket title="Total Cholesterol" obj={ana.totalCholesterol} />
+                    </Grid2>
+                    <NotesAndNext notes={ana.notes} next={ana.nextSteps} />
+                  </>
                 )}
-                {Array.isArray(ana.nextSteps) && ana.nextSteps.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <h4 style={{ marginBottom: 6 }}>Next steps (not medical advice)</h4>
-                    <ul style={{ margin: 0, color: "#475569" }}>
-                      {ana.nextSteps.map((s, i) => (
-                        <li key={i}>{s}</li>
-                      ))}
-                    </ul>
-                  </div>
+
+                {isDia && ana && (
+                  <>
+                    <Grid2>
+                      <Bucket title="Fasting Glucose" obj={ana.fastingGlucose} />
+                      <Bucket title="Post-Prandial (2h)" obj={ana.postPrandialGlucose} />
+                      <Bucket title="Random Glucose" obj={ana.randomGlucose} />
+                      <Bucket title="OGTT 2-hour" obj={ana.ogtt2h} />
+                      <Bucket title="HbA1c" obj={ana.hba1c} />
+                    </Grid2>
+                    <NotesAndNext notes={ana.notes} next={ana.nextSteps} />
+                  </>
                 )}
               </section>
 
-              {/* OPTIONAL: AI Coach (from /advice endpoint) */}
+              {/* OPTIONAL: AI Coach */}
               {coach.loading && <p style={{ color: "#64748b" }}>Generating guidance…</p>}
               {coach.error && <p style={{ color: "crimson" }}>Advice Error: {coach.error}</p>}
               {coach.data && (
@@ -358,7 +414,8 @@ export default function ReportAnalysisPage() {
                       <strong>Value Breakdown & Meaning</strong>
                     </div>
                     <ul style={{ margin: 0, paddingLeft: 18, color: "#475569" }}>
-                      {report?.extracted?.ldl != null && (
+                      {/* Cholesterol values */}
+                      {isChol && report?.extracted?.ldl != null && (
                         <li>
                           <strong>
                             LDL ({report.extracted.ldl} {report.extracted.units || "mg/dL"})
@@ -366,7 +423,7 @@ export default function ReportAnalysisPage() {
                           — {coach.data?.breakdown?.ldl || "—"}
                         </li>
                       )}
-                      {report?.extracted?.hdl != null && (
+                      {isChol && report?.extracted?.hdl != null && (
                         <li>
                           <strong>
                             HDL ({report.extracted.hdl} {report.extracted.units || "mg/dL"})
@@ -374,7 +431,7 @@ export default function ReportAnalysisPage() {
                           — {coach.data?.breakdown?.hdl || "—"}
                         </li>
                       )}
-                      {report?.extracted?.triglycerides != null && (
+                      {isChol && report?.extracted?.triglycerides != null && (
                         <li>
                           <strong>
                             Triglycerides ({report.extracted.triglycerides} {report.extracted.units || "mg/dL"})
@@ -382,13 +439,54 @@ export default function ReportAnalysisPage() {
                           — {coach.data?.breakdown?.triglycerides || "—"}
                         </li>
                       )}
-                      {report?.extracted?.totalCholesterol != null && (
+                      {isChol && report?.extracted?.totalCholesterol != null && (
                         <li>
                           <strong>
-                            Total Cholesterol ({report.extracted.totalCholesterol}{" "}
-                            {report.extracted.units || "mg/dL"})
+                            Total Cholesterol ({report.extracted.totalCholesterol} {report.extracted.units || "mg/dL"})
                           </strong>{" "}
                           — {coach.data?.breakdown?.totalCholesterol || "—"}
+                        </li>
+                      )}
+
+                      {/* Diabetes values */}
+                      {isDia && report?.extracted?.fastingGlucose != null && (
+                        <li>
+                          <strong>
+                            Fasting Glucose ({report.extracted.fastingGlucose} {report.extracted.glucoseUnits || "mg/dL"})
+                          </strong>{" "}
+                          — {coach.data?.breakdown?.fastingGlucose || "—"}
+                        </li>
+                      )}
+                      {isDia && report?.extracted?.postPrandialGlucose != null && (
+                        <li>
+                          <strong>
+                            Post-Prandial (2h) ({report.extracted.postPrandialGlucose} {report.extracted.glucoseUnits || "mg/dL"})
+                          </strong>{" "}
+                          — {coach.data?.breakdown?.postPrandialGlucose || "—"}
+                        </li>
+                      )}
+                      {isDia && report?.extracted?.randomGlucose != null && (
+                        <li>
+                          <strong>
+                            Random Glucose ({report.extracted.randomGlucose} {report.extracted.glucoseUnits || "mg/dL"})
+                          </strong>{" "}
+                          — {coach.data?.breakdown?.randomGlucose || "—"}
+                        </li>
+                      )}
+                      {isDia && report?.extracted?.ogtt2h != null && (
+                        <li>
+                          <strong>
+                            OGTT 2-hour ({report.extracted.ogtt2h} {report.extracted.glucoseUnits || "mg/dL"})
+                          </strong>{" "}
+                          — {coach.data?.breakdown?.ogtt2h || "—"}
+                        </li>
+                      )}
+                      {isDia && report?.extracted?.hba1c != null && (
+                        <li>
+                          <strong>
+                            HbA1c ({report.extracted.hba1c} {report.extracted.hba1cUnits || "%"})
+                          </strong>{" "}
+                          — {coach.data?.breakdown?.hba1c || "—"}
                         </li>
                       )}
                     </ul>
@@ -400,6 +498,29 @@ export default function ReportAnalysisPage() {
         </>
       )}
     </div>
+  );
+}
+
+function NotesAndNext({ notes, next }) {
+  return (
+    <>
+      {notes && (
+        <div style={{ marginTop: 12 }}>
+          <h4 style={{ marginBottom: 6 }}>Notes</h4>
+          <p style={{ margin: 0, color: "#475569" }}>{notes}</p>
+        </div>
+      )}
+      {Array.isArray(next) && next.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <h4 style={{ marginBottom: 6 }}>Next steps (not medical advice)</h4>
+          <ul style={{ margin: 0, color: "#475569" }}>
+            {next.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -115,22 +115,55 @@ exports.analyzeReport = async (req, res) => {
       return res.status(404).json({ ok: false, message: 'Report file missing on disk' });
     }
 
+    // extract respecting reportType
     const extracted = await extractFromReport({
       filePath: absolutePath,
-      originalName: path.basename(absolutePath),
       reportType: report.reportType || 'Cholesterol',
     });
+    
 
-    const analysis = await analyzeValues({
-      ldl: extracted.ldl,
-      hdl: extracted.hdl,
-      triglycerides: extracted.triglycerides,
-      totalCholesterol: extracted.totalCholesterol,
-      units: extracted.units || 'mg/dL',
-    });
+    let analysis = {};
+    let extractedPayload = {};
 
-    const payload = {
-      extracted: {
+    if (report.reportType === 'Diabetes') {
+      // diabetes analysis
+      analysis = await analyzeValues({
+        reportType: 'Diabetes',
+        fastingGlucose: extracted.fastingGlucose,
+        postPrandialGlucose: extracted.postPrandialGlucose,
+        randomGlucose: extracted.randomGlucose,
+        ogtt2h: extracted.ogtt2h,
+        hba1c: extracted.hba1c,
+        glucoseUnits: extracted.glucoseUnits || 'mg/dL',
+        hba1cUnits: extracted.hba1cUnits || '%',
+      });
+
+      extractedPayload = {
+        testDate: extracted.testDate || null,
+        labName: extracted.labName || '',
+        patientNameOnReport: extracted.patientName || '',
+        notes: extracted.notes || '',
+        // units for DM are per-metric
+        glucoseUnits: extracted.glucoseUnits || 'mg/dL',
+        hba1cUnits: extracted.hba1cUnits || '%',
+        fastingGlucose: extracted.fastingGlucose ?? null,
+        postPrandialGlucose: extracted.postPrandialGlucose ?? null,
+        randomGlucose: extracted.randomGlucose ?? null,
+        ogtt2h: extracted.ogtt2h ?? null,
+        hba1c: extracted.hba1c ?? null,
+      };
+    } else {
+      // cholesterol (default)
+      analysis = await analyzeValues({
+        reportType: 'Cholesterol',
+        ldl: extracted.ldl,
+        hdl: extracted.hdl,
+        triglycerides: extracted.triglycerides,
+        totalCholesterol: extracted.totalCholesterol,
+        units: extracted.units || 'mg/dL',
+      });
+
+      extractedPayload = {
         testDate: extracted.testDate || null,
         labName: extracted.labName || '',
         patientNameOnReport: extracted.patientName || '',
@@ -140,17 +173,20 @@ exports.analyzeReport = async (req, res) => {
         triglycerides: extracted.triglycerides ?? null,
         units: extracted.units || 'mg/dL',
         notes: extracted.notes || '',
-      },
-      analysis: analysis || {},
+      };
+    }
+
+    const payload = {
+      extracted,     // raw values
+      analysis,      // structured bucket analysis
       isAnalyzed: true,
       analyzedAt: new Date(),
     };
 
-    // 🔒 Atomic write — guaranteed persistence
     const updated = await LabReport.findByIdAndUpdate(
       report._id,
       { $set: payload },
-      { new: true } // return updated doc
+      { new: true }
     );
 
     return res.json({ ok: true, reportId: updated._id, report: updated });

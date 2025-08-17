@@ -2,30 +2,28 @@
 const mongoose = require('mongoose');
 
 const ExtractedValuesSchema = new mongoose.Schema({
+  // common
   testDate: String,
   labName: String,
   patientNameOnReport: String,
+  notes: String,
+
+  // ---- Cholesterol (existing) ----
   totalCholesterol: Number,
   ldl: Number,
   hdl: Number,
   triglycerides: Number,
-  units: { type: String, default: 'mg/dL' },
-  notes: String,
-}, { _id: false });
+  units: { type: String, default: 'mg/dL' }, // cholesterol units
 
-/**
- * NOTE: We keep the legacy AnalysisSchema here ONLY for reference.
- * We no longer *use* it on the model, because we want to store either the legacy
- * shape OR the new bucket shape. Using Mixed allows both.
- */
-// const AnalysisSchema = new mongoose.Schema({
-//   ldlStatus: String,
-//   hdlStatus: String,
-//   triglycerideStatus: String,
-//   totalCholesterolStatus: String,
-//   summary: String,
-//   tips: [String],
-// }, { _id: false });
+  // ---- Diabetes (new, all optional; SAFE additions) ----
+  fastingGlucose: Number,          // mg/dL or mmol/L
+  postPrandialGlucose: Number,     // 2-hr PP
+  randomGlucose: Number,           // RBS
+  ogtt2h: Number,                  // 2-hr OGTT
+  hba1c: Number,                   // %
+  glucoseUnits: String,            // 'mg/dL' | 'mmol/L'
+  hba1cUnits: { type: String, default: '%' },
+}, { _id: false });
 
 const labReportSchema = new mongoose.Schema({
   patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
@@ -35,16 +33,17 @@ const labReportSchema = new mongoose.Schema({
 
   isAnalyzed: { type: Boolean, default: false },
   analyzedAt: Date,
-  extracted: ExtractedValuesSchema,
 
-  // IMPORTANT: allow any JSON here so we can store BOTH old and new shapes safely.
+  // 👇 allow extracted fields for ANY test type (cholesterol OR diabetes)
+  extracted: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+  // already Mixed so we can keep both legacy/new shapes
   analysis: { type: mongoose.Schema.Types.Mixed, default: {} },
 }, { timestamps: true });
 
 /**
- * Auto-adapt legacy analysis shape -> new UI bucket shape when serializing.
- * This means existing documents that still have { ldlStatus, ... } will
- * appear to the frontend in the structure it expects, without a migration.
+ * Auto-adapt legacy cholesterol analysis shape -> new UI bucket shape when serializing.
+ * (Unchanged; it only touches cholesterol legacy docs. Diabetes uses the new shape directly.)
  */
 labReportSchema.set('toJSON', {
   virtuals: true,
@@ -58,13 +57,12 @@ labReportSchema.set('toJSON', {
       !a || !a.ldl || !a.hdl || !a.triglycerides || !a.totalCholesterol;
 
     if (hasLegacy && missingBuckets) {
-      // Map legacy statuses -> UI categories
       const toCategory = (s = '') => {
         const t = String(s).toLowerCase();
         if (!t || t.includes('unknown')) return 'unknown';
         if (t.includes('optimal') || t.includes('protective') || t.includes('desirable') || t.includes('normal') || t.includes('good')) return 'good';
         if (t.includes('near') || t.includes('borderline')) return 'moderate';
-        if (t.includes('high')) return 'bad'; // covers "high" and "very high"
+        if (t.includes('high')) return 'bad';
         return 'unknown';
       };
 
@@ -85,12 +83,10 @@ labReportSchema.set('toJSON', {
         nextSteps: Array.isArray(a.tips) ? a.tips : [],
       };
     }
-
     return ret;
   }
 });
 
-// If you ever need the same behavior for toObject():
 labReportSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.models.LabReport || mongoose.model('LabReport', labReportSchema);
