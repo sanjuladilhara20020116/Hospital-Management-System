@@ -29,7 +29,14 @@ function normalizeCholesterol(analysis, extracted = {}) {
   const toCategory = (s = "") => {
     const t = String(s).toLowerCase();
     if (!t || t.includes("unknown")) return "unknown";
-    if (t.includes("optimal") || t.includes("protective") || t.includes("desirable") || t.includes("normal") || t.includes("good")) return "good";
+    if (
+      t.includes("optimal") ||
+      t.includes("protective") ||
+      t.includes("desirable") ||
+      t.includes("normal") ||
+      t.includes("good")
+    )
+      return "good";
     if (t.includes("near") || t.includes("borderline")) return "moderate";
     if (t.includes("high")) return "bad";
     return "unknown";
@@ -61,7 +68,6 @@ function normalizeDiabetes(analysis, extracted = {}) {
   const a = analysis || {};
   const ex = extracted || {};
 
-  // Buckets expected from backend: fastingGlucose, postPrandialGlucose, randomGlucose, ogtt2h, hba1c
   const alreadyBuckets =
     a &&
     typeof a === "object" &&
@@ -104,13 +110,18 @@ export default function ReportAnalysisPage() {
   const [report, setReport] = useState(null);
   const [err, setErr] = useState("");
 
+  // MINI preview (no save) — used only for Diabetes when not analyzed
+  const [mini, setMini] = useState(null);
+  const [miniErr, setMiniErr] = useState("");
+  const [miniLoading, setMiniLoading] = useState(false);
+
+  // (optional) advice section you already had
   const [coach, setCoach] = useState({ loading: false, error: "", data: null });
 
   const fetchReport = async () => {
     setErr("");
     try {
       const url = `${API_BASE}/reports/${encodeURIComponent(id)}`;
-      console.log("Fetch report:", url);
       const r = await fetch(url);
       const data = await r.json();
       if (!r.ok || !data?.ok) throw new Error(data?.message || "Failed to load report");
@@ -122,11 +133,29 @@ export default function ReportAnalysisPage() {
     }
   };
 
+  // MINI preview endpoint (exactly like the mini project output)
+  const fetchMiniPreview = async (reportId) => {
+    setMiniErr("");
+    setMini(null);
+    setMiniLoading(true);
+    try {
+      const url = `${API_BASE}/reports/${encodeURIComponent(reportId)}/diabetes/preview`;
+      const r = await fetch(url, { method: "POST" });
+      const data = await r.json();
+      if (!r.ok || !data?.ok) throw new Error(data?.message || "Preview failed");
+      setMini(data.parsed || null);
+    } catch (e) {
+      setMiniErr(e.message);
+      setMini(null);
+    } finally {
+      setMiniLoading(false);
+    }
+  };
+
   const fetchAdvice = async (reportId) => {
     setCoach({ loading: true, error: "", data: null });
     try {
       const url = `${API_BASE}/reports/${encodeURIComponent(reportId)}/advice`;
-      console.log("Fetch advice:", url);
       const r = await fetch(url);
       if (r.status === 404) {
         setCoach({ loading: false, error: "", data: null });
@@ -145,6 +174,18 @@ export default function ReportAnalysisPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // If Diabetes & not analyzed → fetch mini preview
+  useEffect(() => {
+    const t = (report?.reportType || "").toLowerCase();
+    if (report?._id && !report?.isAnalyzed && (t === "diabetes" || t === "diabetic")) {
+      fetchMiniPreview(report._id);
+    } else {
+      setMini(null);
+      setMiniErr("");
+      setMiniLoading(false);
+    }
+  }, [report?._id, report?.isAnalyzed, report?.reportType]);
+
   useEffect(() => {
     if (report?._id && report?.isAnalyzed) {
       fetchAdvice(report._id);
@@ -157,7 +198,6 @@ export default function ReportAnalysisPage() {
     setErr("");
     try {
       const url = `${API_BASE}/analyze`;
-      console.log("Run analyze:", url, "payload:", { key: id });
       const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -175,10 +215,11 @@ export default function ReportAnalysisPage() {
     }
   };
 
-  const ex = report?.extracted || {};
   const isChol = (report?.reportType || "").toLowerCase() === "cholesterol";
-  const isDia = (report?.reportType || "").toLowerCase() === "diabetes";
+  const isDia  = ["diabetes", "diabetic"].includes((report?.reportType || "").toLowerCase());
 
+  // Use DB extracted when analyzed; use MINI preview otherwise (only for diabetes)
+  const ex = report?.isAnalyzed ? (report?.extracted || {}) : (isDia ? {} : {});
   const ana = useMemo(() => {
     if (!report) return null;
     return isChol
@@ -187,6 +228,12 @@ export default function ReportAnalysisPage() {
       ? normalizeDiabetes(report.analysis, ex)
       : report.analysis || null;
   }, [report, ex, isChol, isDia]);
+
+  // Mini units (robust to string or object)
+  const mu = mini?.units || {};
+  const glucoseUnitMini =
+    typeof mu === "string" ? (mu === "%" ? "mg/dL" : mu) : (mu.glucose || "mg/dL");
+  const a1cUnitMini = typeof mu === "string" ? "%" : (mu.hba1c || "%");
 
   return (
     <div style={{ maxWidth: 900, margin: "24px auto", fontFamily: "system-ui" }}>
@@ -225,7 +272,7 @@ export default function ReportAnalysisPage() {
             </div>
 
             {!report.isAnalyzed && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   onClick={runAnalyze}
                   style={{
@@ -238,262 +285,284 @@ export default function ReportAnalysisPage() {
                     cursor: "pointer",
                   }}
                 >
-                  Analyze Now
+                  Analyze & Save
                 </button>
-                <p style={{ color: "#64748b", marginTop: 6 }}>
-                  We’ll extract values from the original file and save the summary.
+                {isDia && (
+                  <button
+                    onClick={() => fetchMiniPreview(report._id)}
+                    style={{
+                      background: "#0ea5e9",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "10px 14px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Refresh Preview
+                  </button>
+                )}
+                <p style={{ color: "#64748b", margin: 0 }}>
+                  Preview shows extracted values without saving. Click “Analyze & Save” to persist.
                 </p>
               </div>
             )}
           </div>
 
-          {/* Extracted metrics */}
-          {report.isAnalyzed && (
-            <>
-              <section
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 8,
-                  padding: 16,
-                  background: "#fff",
-                  marginBottom: 16,
-                }}
-              >
-                <h3 style={{ marginTop: 0 }}>Extracted Values</h3>
+          {/* ======================= EXTRACTED / PREVIEW ======================= */}
+          <section
+            style={{
+              border: "1px solid #eee",
+              borderRadius: 8,
+              padding: 16,
+              background: "#fff",
+              marginBottom: 16,
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>
+              Extracted Values {report.isAnalyzed ? "" : isDia ? "(Mini Preview • no save)" : "(Preview)"}
+            </h3>
 
-                {isChol && (
-                  <Grid3>
-                    <Metric title="Total Cholesterol" value={ex.totalCholesterol} unit={ex.units || "mg/dL"} />
-                    <Metric title="LDL" value={ex.ldl} unit={ex.units || "mg/dL"} />
-                    <Metric title="HDL" value={ex.hdl} unit={ex.units || "mg/dL"} />
-                    <Metric title="Triglycerides" value={ex.triglycerides} unit={ex.units || "mg/dL"} />
-                    <Metric title="Test Date" value={ex.testDate || "—"} />
-                    <Metric title="Lab" value={ex.labName || "—"} />
-                  </Grid3>
-                )}
+            {/* CHOLESTEROL (unchanged) */}
+            {isChol && (
+              <Grid3>
+                <Metric title="Total Cholesterol" value={ex.totalCholesterol} unit={ex.units || "mg/dL"} />
+                <Metric title="LDL" value={ex.ldl} unit={ex.units || "mg/dL"} />
+                <Metric title="HDL" value={ex.hdl} unit={ex.units || "mg/dL"} />
+                <Metric title="Triglycerides" value={ex.triglycerides} unit={ex.units || "mg/dL"} />
+                <Metric title="Test Date" value={ex.testDate || "—"} />
+                <Metric title="Lab" value={ex.labName || "—"} />
+              </Grid3>
+            )}
 
-                {isDia && (
-                  <Grid3>
-                    <Metric
-                      title="Fasting Glucose"
-                      value={ex.fastingGlucose}
-                      unit={ex.glucoseUnits || "mg/dL"}
-                    />
-                    <Metric
-                      title="Post-Prandial (2h)"
-                      value={ex.postPrandialGlucose}
-                      unit={ex.glucoseUnits || "mg/dL"}
-                    />
-                    <Metric title="Random Glucose" value={ex.randomGlucose} unit={ex.glucoseUnits || "mg/dL"} />
-                    <Metric title="OGTT 2-hour" value={ex.ogtt2h} unit={ex.glucoseUnits || "mg/dL"} />
-                    <Metric title="HbA1c" value={ex.hba1c} unit={ex.hba1cUnits || "%"} />
-                    <Metric title="Test Date / Lab" value={(ex.testDate || "—") + " / " + (ex.labName || "—")} />
-                  </Grid3>
-                )}
+            {/* DIABETES: if analyzed → show saved shape (incl. OGTT card) */}
+            {isDia && report.isAnalyzed && (
+              <Grid3>
+                <Metric title="Fasting Glucose" value={ex.fastingGlucose} unit={ex.glucoseUnits || "mg/dL"} />
+                <Metric title="Post-Prandial (2h)" value={ex.postPrandialGlucose} unit={ex.glucoseUnits || "mg/dL"} />
+                <Metric title="Random Glucose" value={ex.randomGlucose} unit={ex.glucoseUnits || "mg/dL"} />
+                <Metric title="OGTT 2-hour" value={ex.ogtt2h} unit={ex.glucoseUnits || "mg/dL"} />
+                <Metric title="HbA1c" value={ex.hba1c} unit={ex.hba1cUnits || "%"} />
+                <Metric title="Test Date / Lab" value={(ex.testDate || "—") + " / " + (ex.labName || "—")} />
+              </Grid3>
+            )}
 
-                {ex.notes ? <p style={{ marginTop: 12, color: "#475569" }}>{ex.notes}</p> : null}
-              </section>
+            {/* DIABETES: if NOT analyzed → show EXACTLY like mini project */}
+            {isDia && !report.isAnalyzed && (
+              <>
+                {miniLoading && <p style={{ color: "#64748b" }}>Extracting preview…</p>}
+                {miniErr && <p style={{ color: "crimson" }}>Preview Error: {miniErr}</p>}
+                <Grid3>
+                  <Metric title="Fasting (FBS)" value={mini?.fastingGlucose} unit={glucoseUnitMini} />
+                  <Metric title="2-hr/PP" value={mini?.ppGlucose ?? mini?.ogtt_2hr} unit={glucoseUnitMini} />
+                  <Metric title="Random (RBS)" value={mini?.randomGlucose} unit={glucoseUnitMini} />
+                  <Metric title="HbA1c" value={mini?.hba1c} unit={a1cUnitMini} />
+                  <Metric title="eAG" value={mini?.eAG} unit="mg/dL" />
+                  <Metric title="Test Date / Lab" value={`${mini?.testDate || "—"} / ${mini?.labName || "—"}`} />
+                </Grid3>
+                {mini?.notes ? <p style={{ marginTop: 12, color: "#475569" }}>{mini.notes}</p> : null}
+              </>
+            )}
+          </section>
 
-              {/* AI analysis summary (normalized) */}
-              <section
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 8,
-                  padding: 16,
-                  background: "#fff",
-                }}
-              >
-                <h3 style={{ marginTop: 0 }}>AI Summary</h3>
+          {/* ======================= AI SUMMARY (existing buckets) ======================= */}
+          <section
+            style={{
+              border: "1px solid #eee",
+              borderRadius: 8,
+              padding: 16,
+              background: "#fff",
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>AI Summary</h3>
 
-                {isChol && ana && (
-                  <>
-                    <Grid2>
-                      <Bucket title="LDL" obj={ana.ldl} />
-                      <Bucket title="HDL" obj={ana.hdl} />
-                      <Bucket title="Triglycerides" obj={ana.triglycerides} />
-                      <Bucket title="Total Cholesterol" obj={ana.totalCholesterol} />
-                    </Grid2>
-                    <NotesAndNext notes={ana.notes} next={ana.nextSteps} />
-                  </>
-                )}
+            {isChol && ana && (
+              <>
+                <Grid2>
+                  <Bucket title="LDL" obj={ana.ldl} />
+                  <Bucket title="HDL" obj={ana.hdl} />
+                  <Bucket title="Triglycerides" obj={ana.triglycerides} />
+                  <Bucket title="Total Cholesterol" obj={ana.totalCholesterol} />
+                </Grid2>
+                <NotesAndNext notes={ana.notes} next={ana.nextSteps} />
+              </>
+            )}
 
-                {isDia && ana && (
-                  <>
-                    <Grid2>
-                      <Bucket title="Fasting Glucose" obj={ana.fastingGlucose} />
-                      <Bucket title="Post-Prandial (2h)" obj={ana.postPrandialGlucose} />
-                      <Bucket title="Random Glucose" obj={ana.randomGlucose} />
-                      <Bucket title="OGTT 2-hour" obj={ana.ogtt2h} />
-                      <Bucket title="HbA1c" obj={ana.hba1c} />
-                    </Grid2>
-                    <NotesAndNext notes={ana.notes} next={ana.nextSteps} />
-                  </>
-                )}
-              </section>
+            {isDia && ana && (
+              <>
+                <Grid2>
+                  <Bucket title="Fasting Glucose" obj={ana.fastingGlucose} />
+                  <Bucket title="Post-Prandial (2h)" obj={ana.postPrandialGlucose} />
+                  <Bucket title="Random Glucose" obj={ana.randomGlucose} />
+                  <Bucket title="OGTT 2-hour" obj={ana.ogtt2h} />
+                  <Bucket title="HbA1c" obj={ana.hba1c} />
+                </Grid2>
+                <NotesAndNext notes={ana.notes} next={ana.nextSteps} />
+              </>
+            )}
+          </section>
 
-              {/* OPTIONAL: AI Coach */}
-              {coach.loading && <p style={{ color: "#64748b" }}>Generating guidance…</p>}
-              {coach.error && <p style={{ color: "crimson" }}>Advice Error: {coach.error}</p>}
-              {coach.data && (
-                <section
+          {/* OPTIONAL: AI Coach (unchanged) */}
+          {coach.loading && <p style={{ color: "#64748b" }}>Generating guidance…</p>}
+          {coach.error && <p style={{ color: "crimson" }}>Advice Error: {coach.error}</p>}
+          {coach.data && (
+            <section
+              style={{
+                border: "1px solid #eee",
+                borderRadius: 12,
+                padding: 16,
+                background: "#fff",
+                marginTop: 16,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span
                   style={{
-                    border: "1px solid #eee",
-                    borderRadius: 12,
-                    padding: 16,
-                    background: "#fff",
-                    marginTop: 16,
+                    width: 32,
+                    height: 32,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "50%",
+                    background: "#eef2ff",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span
-                      style={{
-                        width: 32,
-                        height: 32,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderRadius: "50%",
-                        background: "#eef2ff",
-                      }}
-                    >
-                      🧠
-                    </span>
-                    <h3 style={{ margin: 0 }}>AI Coach</h3>
-                  </div>
+                  🧠
+                </span>
+                <h3 style={{ margin: 0 }}>AI Coach</h3>
+              </div>
 
-                  {coach.data.healthStatus && (
-                    <div style={{ marginBottom: 12, background: "#f8fafc", borderRadius: 10, padding: 12 }}>
-                      <strong>Health Status</strong>
-                      <p style={{ margin: "6px 0 0", color: "#475569" }}>{coach.data.healthStatus}</p>
-                    </div>
+              {coach.data.healthStatus && (
+                <div style={{ marginBottom: 12, background: "#f8fafc", borderRadius: 10, padding: 12 }}>
+                  <strong>Health Status</strong>
+                  <p style={{ margin: "6px 0 0", color: "#475569" }}>{coach.data.healthStatus}</p>
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: "grid",
+                  gap: 12,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                }}
+              >
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span>🧩</span>
+                    <strong>Possible Reasons</strong>
+                  </div>
+                  {Array.isArray(coach.data.reasons) && coach.data.reasons.length > 0 ? (
+                    <ul style={{ margin: 0, paddingLeft: 18, color: "#475569" }}>
+                      {coach.data.reasons.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p style={{ margin: 0, color: "#94a3b8" }}>—</p>
+                  )}
+                </div>
+
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                    <span>🍎</span>
+                    <strong>Recommendations</strong>
+                  </div>
+                  {Array.isArray(coach.data.recommendations) && coach.data.recommendations.length > 0 ? (
+                    <ul style={{ margin: 0, paddingLeft: 18, color: "#475569" }}>
+                      {coach.data.recommendations.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p style={{ margin: 0, color: "#94a3b8" }}>—</p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 12, border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                  <span>📊</span>
+                  <strong>Value Breakdown & Meaning</strong>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 18, color: "#475569" }}>
+                  {/* these lines use saved report.extracted; in preview (not saved) this will be blank, which is fine */}
+                  {isChol && report?.extracted?.ldl != null && (
+                    <li>
+                      <strong>
+                        LDL ({report.extracted.ldl} {report.extracted.units || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.ldl || "—"}
+                    </li>
+                  )}
+                  {isChol && report?.extracted?.hdl != null && (
+                    <li>
+                      <strong>
+                        HDL ({report.extracted.hdl} {report.extracted.units || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.hdl || "—"}
+                    </li>
+                  )}
+                  {isChol && report?.extracted?.triglycerides != null && (
+                    <li>
+                      <strong>
+                        Triglycerides ({report.extracted.triglycerides} {report.extracted.units || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.triglycerides || "—"}
+                    </li>
+                  )}
+                  {isChol && report?.extracted?.totalCholesterol != null && (
+                    <li>
+                      <strong>
+                        Total Cholesterol ({report.extracted.totalCholesterol} {report.extracted.units || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.totalCholesterol || "—"}
+                    </li>
                   )}
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 12,
-                      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                    }}
-                  >
-                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                        <span>🧩</span>
-                        <strong>Possible Reasons</strong>
-                      </div>
-                      {Array.isArray(coach.data.reasons) && coach.data.reasons.length > 0 ? (
-                        <ul style={{ margin: 0, paddingLeft: 18, color: "#475569" }}>
-                          {coach.data.reasons.map((t, i) => (
-                            <li key={i}>{t}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p style={{ margin: 0, color: "#94a3b8" }}>—</p>
-                      )}
-                    </div>
-
-                    <div style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                        <span>🍎</span>
-                        <strong>Recommendations</strong>
-                      </div>
-                      {Array.isArray(coach.data.recommendations) && coach.data.recommendations.length > 0 ? (
-                        <ul style={{ margin: 0, paddingLeft: 18, color: "#475569" }}>
-                          {coach.data.recommendations.map((t, i) => (
-                            <li key={i}>{t}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p style={{ margin: 0, color: "#94a3b8" }}>—</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 12, border: "1px solid #e2e8f0", borderRadius: 10, padding: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                      <span>📊</span>
-                      <strong>Value Breakdown & Meaning</strong>
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: 18, color: "#475569" }}>
-                      {/* Cholesterol values */}
-                      {isChol && report?.extracted?.ldl != null && (
-                        <li>
-                          <strong>
-                            LDL ({report.extracted.ldl} {report.extracted.units || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.ldl || "—"}
-                        </li>
-                      )}
-                      {isChol && report?.extracted?.hdl != null && (
-                        <li>
-                          <strong>
-                            HDL ({report.extracted.hdl} {report.extracted.units || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.hdl || "—"}
-                        </li>
-                      )}
-                      {isChol && report?.extracted?.triglycerides != null && (
-                        <li>
-                          <strong>
-                            Triglycerides ({report.extracted.triglycerides} {report.extracted.units || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.triglycerides || "—"}
-                        </li>
-                      )}
-                      {isChol && report?.extracted?.totalCholesterol != null && (
-                        <li>
-                          <strong>
-                            Total Cholesterol ({report.extracted.totalCholesterol} {report.extracted.units || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.totalCholesterol || "—"}
-                        </li>
-                      )}
-
-                      {/* Diabetes values */}
-                      {isDia && report?.extracted?.fastingGlucose != null && (
-                        <li>
-                          <strong>
-                            Fasting Glucose ({report.extracted.fastingGlucose} {report.extracted.glucoseUnits || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.fastingGlucose || "—"}
-                        </li>
-                      )}
-                      {isDia && report?.extracted?.postPrandialGlucose != null && (
-                        <li>
-                          <strong>
-                            Post-Prandial (2h) ({report.extracted.postPrandialGlucose} {report.extracted.glucoseUnits || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.postPrandialGlucose || "—"}
-                        </li>
-                      )}
-                      {isDia && report?.extracted?.randomGlucose != null && (
-                        <li>
-                          <strong>
-                            Random Glucose ({report.extracted.randomGlucose} {report.extracted.glucoseUnits || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.randomGlucose || "—"}
-                        </li>
-                      )}
-                      {isDia && report?.extracted?.ogtt2h != null && (
-                        <li>
-                          <strong>
-                            OGTT 2-hour ({report.extracted.ogtt2h} {report.extracted.glucoseUnits || "mg/dL"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.ogtt2h || "—"}
-                        </li>
-                      )}
-                      {isDia && report?.extracted?.hba1c != null && (
-                        <li>
-                          <strong>
-                            HbA1c ({report.extracted.hba1c} {report.extracted.hba1cUnits || "%"})
-                          </strong>{" "}
-                          — {coach.data?.breakdown?.hba1c || "—"}
-                        </li>
-                      )}
-                    </ul>
-                  </div>
-                </section>
-              )}
-            </>
+                  {isDia && report?.extracted?.fastingGlucose != null && (
+                    <li>
+                      <strong>
+                        Fasting Glucose ({report.extracted.fastingGlucose} {report.extracted.glucoseUnits || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.fastingGlucose || "—"}
+                    </li>
+                  )}
+                  {isDia && report?.extracted?.postPrandialGlucose != null && (
+                    <li>
+                      <strong>
+                        Post-Prandial (2h) ({report.extracted.postPrandialGlucose} {report.extracted.glucoseUnits || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.postPrandialGlucose || "—"}
+                    </li>
+                  )}
+                  {isDia && report?.extracted?.randomGlucose != null && (
+                    <li>
+                      <strong>
+                        Random Glucose ({report.extracted.randomGlucose} {report.extracted.glucoseUnits || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.randomGlucose || "—"}
+                    </li>
+                  )}
+                  {isDia && report?.extracted?.ogtt2h != null && (
+                    <li>
+                      <strong>
+                        OGTT 2-hour ({report.extracted.ogtt2h} {report.extracted.glucoseUnits || "mg/dL"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.ogtt2h || "—"}
+                    </li>
+                  )}
+                  {isDia && report?.extracted?.hba1c != null && (
+                    <li>
+                      <strong>
+                        HbA1c ({report.extracted.hba1c} {report.extracted.hba1cUnits || "%"})
+                      </strong>{" "}
+                      — {coach.data?.breakdown?.hba1c || "—"}
+                    </li>
+                  )}
+                </ul>
+              </div>
+            </section>
           )}
         </>
       )}

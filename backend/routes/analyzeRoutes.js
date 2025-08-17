@@ -11,11 +11,20 @@ router.post('/analyze', ctrl.runAnalysis);
 // reports
 router.get('/reports/:id', ctrl.getReport);
 
-// ✅ NEW: advice endpoint exactly where the FE calls it
+// advice
 router.get('/reports/:id/advice', ctrl.getAdvice);
 
+// ✅ PREVIEW used by the frontend (GET)
+router.get('/reports/:id/extract-preview', ctrl.previewExtract);
+
+// (optional) keep this for backwards-compat; it calls the same handler
+router.post('/reports/:id/diabetes/preview', ctrl.previewExtract);
+
+// per-report and by-reference analyze endpoints (still fine to keep)
 router.post('/reports/:id/analyze', ctrl.analyzeReport);
 router.post('/references/:referenceNo/analyze', ctrl.analyzeByReference);
+
+// reference fetch
 router.get('/references/:referenceNo', ctrl.getByReference);
 
 module.exports = router;

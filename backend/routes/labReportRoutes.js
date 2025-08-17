@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 
@@ -5,6 +6,7 @@ const router = express.Router();
 // (Ideally they live in a separate publicReportRoutes file.)
 const publicReportCtrl = require('../controllers/publicReportController');
 
+// GET /api/public/reports/:ref   -> meta check
 // ✅ Import ALL handlers from labReportController
 const {
   analyzeReport,
@@ -17,6 +19,7 @@ const {
 router.post('/by-ref/:referenceNo/analyze', analyzeByReference);
 router.get('/by-ref/:referenceNo', getByReference);
 
+// GET /api/public/reports/:ref/download  -> actual file
 // 2) Then /:id
 router.post('/:id/analyze', analyzeReport);
 router.get('/:id', getReport);

@@ -12,8 +12,8 @@ import TrendingUp from "@mui/icons-material/TrendingUp";
 import { useNavigate } from "react-router-dom";
 
 /** props:
- *  reports?: [{ _id, testType, uploadDate, completedAt, isAnalyzed, hasReport, fileName, referenceNo }]
- *  patientId: string (required for analyze POST)
+ *  reports?: [{ _id, reportType|testType, uploadDate, completedAt, isAnalyzed, hasReport, fileName, referenceNo }]
+ *  patientId: string
  *  apiBase?: string (defaults to '/api')
  */
 export default function LabAnalysisTab({
@@ -25,7 +25,7 @@ export default function LabAnalysisTab({
   const [analyzingId, setAnalyzingId] = useState(null);
   const navigate = useNavigate();
 
-  // Mock when no data provided
+  // Fallback data when no reports passed in
   const mock = {
     Cholesterol: {
       hasNewReport: true,
@@ -59,20 +59,26 @@ export default function LabAnalysisTab({
   const data = useMemo(() => {
     if (!reports?.length) return mock;
 
-    const norm = (s = "") => s.toLowerCase();
+    const norm = (s = "") => String(s).toLowerCase();
+
     const pick = (arr) => {
       const sorted = [...arr].sort(
         (a, b) =>
           new Date(b.completedAt || b.uploadDate || 0) -
           new Date(a.completedAt || a.uploadDate || 0)
       );
+
       const newOne = sorted.find((r) => (r.hasReport !== false) && !r.isAnalyzed);
       const lastDone = sorted.find((r) => r.isAnalyzed);
 
       const toCard = (r) => ({
-        id: r._id || r.referenceNo,
+        // be generous about possible id fields so we never get "undefined"
+        id: r._id || r.reportId || r.referenceNo || r.id,
         uploadDate: r.completedAt || r.uploadDate,
-        fileName: r.fileName || r.originalName || `${r.testType}_${r.referenceNo || r._id}.pdf`,
+        fileName:
+          r.fileName ||
+          r.originalName ||
+          `${(r.testType || r.reportType || "Report")}_${r.referenceNo || r._id || ""}.pdf`,
         status: r.isAnalyzed ? "analyzed" : "unanalyzed",
       });
 
@@ -81,7 +87,7 @@ export default function LabAnalysisTab({
         newReport: newOne ? toCard(newOne) : null,
         lastAnalysis: lastDone
           ? {
-              reportId: lastDone._id || lastDone.referenceNo,
+              reportId: lastDone._id || lastDone.reportId || lastDone.referenceNo || lastDone.id,
               analyzedDate: lastDone.completedAt || lastDone.uploadDate,
               summary: "Previous analysis available.",
               trend: "stable",
@@ -91,8 +97,11 @@ export default function LabAnalysisTab({
       };
     };
 
-    const chol = reports.filter((r) => norm(r.testType).includes("chol"));
-    const diab = reports.filter((r) => norm(r.testType).includes("diab"));
+    // Some docs use testType, others reportType — support both
+    const typeOf = (r) => r.testType ?? r.reportType ?? "";
+    const chol = reports.filter((r) => norm(typeOf(r)).includes("chol"));
+    const diab = reports.filter((r) => norm(typeOf(r)).includes("diab"));
+
     return { Cholesterol: pick(chol), Diabetic: pick(diab) };
   }, [reports]);
 
@@ -107,32 +116,41 @@ export default function LabAnalysisTab({
         })
       : "—";
 
- // inside LabAnalysisTab.jsx
+  // Analyze handler calls unified /api/analyze with { key }
+// LabAnalysisTab.js
 
-// helper not required anymore, but you can keep it if you like:
-// const isObjectId = (s) => typeof s === 'string' && /^[a-f0-9]{24}$/i.test(s);
+const getReportIdFrom = (j, fallback) =>
+  j?.reportId ||
+  j?.report?._id ||
+  j?._id ||
+  j?.id ||
+  fallback || null;
 
 const handleAnalyze = async (idOrRef) => {
   if (!idOrRef) return;
   try {
     setAnalyzingId(idOrRef);
+
     const r = await fetch(`${apiBase}/analyze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key: idOrRef }),
     });
 
-    // ✅ treat 409 as success (navigate to saved analysis)
+    // treat 409 (already analyzed) as success
     if (r.status === 409) {
       const j = await r.json().catch(() => ({}));
-      const reportId = j.reportId || idOrRef; // fall back if needed
-      return navigate(`/reports/${encodeURIComponent(reportId)}/analysis`);
+      const repId = getReportIdFrom(j, null);
+      if (!repId) throw new Error("Analyze OK but no report id returned (409).");
+      return navigate(`/reports/${encodeURIComponent(repId)}/analysis`);
     }
 
     const j = await r.json();
     if (!r.ok || !j?.ok) throw new Error(j?.message || "Analyze failed");
 
-    navigate(`/reports/${encodeURIComponent(j.reportId)}/analysis`);
+    const repId = getReportIdFrom(j, null);
+    if (!repId) throw new Error("Analyze OK but no report id returned.");
+    navigate(`/reports/${encodeURIComponent(repId)}/analysis`);
   } catch (e) {
     console.error(e);
     alert(e.message);
@@ -140,7 +158,6 @@ const handleAnalyze = async (idOrRef) => {
     setAnalyzingId(null);
   }
 };
-
 
 
   const TypeCard = ({ active, icon, title, hasNew }) => (
@@ -278,20 +295,25 @@ const handleAnalyze = async (idOrRef) => {
                     </Box>
                   </Stack>
 
-                 <Button
-  onClick={() => handleAnalyze(current.newReport?.id)}
+                  <Button
+  onClick={() =>
+    handleAnalyze(
+      current?.newReport?.id ||
+      current?.newReport?._id ||
+      current?.newReport?.referenceNo
+    )
+  }
   startIcon={<BarChartOutlined />}
-  disabled={!!analyzingId}             // stays disabled during request
-  sx={{
-    px: 2.5, py: 1.25, borderRadius: 2, fontWeight: 800, color: "#fff",
-    textTransform: "none",
-    background: "linear-gradient(135deg,#667eea,#764ba2)",
-    "&:hover": { boxShadow: "0 10px 24px rgba(102,126,234,.35)", transform: "translateY(-1px)" }
-  }}
->
-  {analyzingId ? "Analyzing…" : "Analyze Report"}
-</Button>
-
+  disabled={!!analyzingId}
+                    sx={{
+                      px: 2.5, py: 1.25, borderRadius: 2, fontWeight: 800, color: "#fff",
+                      textTransform: "none",
+                      background: "linear-gradient(135deg,#667eea,#764ba2)",
+                      "&:hover": { boxShadow: "0 10px 24px rgba(102,126,234,.35)", transform: "translateY(-1px)" }
+                    }}
+                  >
+                    {analyzingId ? "Analyzing…" : "Analyze Report"}
+                  </Button>
                 </Stack>
               </Paper>
 

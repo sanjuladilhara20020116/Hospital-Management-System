@@ -1,49 +1,36 @@
 // backend/models/LabReport.js
 const mongoose = require('mongoose');
 
-const ExtractedValuesSchema = new mongoose.Schema({
-  // common
-  testDate: String,
-  labName: String,
-  patientNameOnReport: String,
-  notes: String,
+// ---- NOTE ---------------------------------------------------------------
+// We intentionally use Schema.Types.Mixed for `extracted` so it can store
+// either Cholesterol *or* Diabetes shapes (and future types), matching
+// whatever your extractor returns. This fixes the issue where Diabetes
+// numbers were being dropped by strict schemas.
+// ------------------------------------------------------------------------
 
-  // ---- Cholesterol (existing) ----
-  totalCholesterol: Number,
-  ldl: Number,
-  hdl: Number,
-  triglycerides: Number,
-  units: { type: String, default: 'mg/dL' }, // cholesterol units
+const labReportSchema = new mongoose.Schema(
+  {
+    patientId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    reportType: { type: String, enum: ['Cholesterol', 'Diabetes', 'X-ray'], required: true, index: true },
+    filePath:   { type: String, required: true },
+    uploadDate: { type: Date, default: Date.now },
 
-  // ---- Diabetes (new, all optional; SAFE additions) ----
-  fastingGlucose: Number,          // mg/dL or mmol/L
-  postPrandialGlucose: Number,     // 2-hr PP
-  randomGlucose: Number,           // RBS
-  ogtt2h: Number,                  // 2-hr OGTT
-  hba1c: Number,                   // %
-  glucoseUnits: String,            // 'mg/dL' | 'mmol/L'
-  hba1cUnits: { type: String, default: '%' },
-}, { _id: false });
+    isAnalyzed: { type: Boolean, default: false },
+    analyzedAt: Date,
 
-const labReportSchema = new mongoose.Schema({
-  patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  reportType: { type: String, enum: ['Cholesterol', 'Diabetes', 'X-ray'], required: true, index: true },
-  filePath: { type: String, required: true },
-  uploadDate: { type: Date, default: Date.now },
+    // FLEXIBLE container (Cholesterol or Diabetes fields)
+    extracted:  { type: mongoose.Schema.Types.Mixed, default: {} },
 
-  isAnalyzed: { type: Boolean, default: false },
-  analyzedAt: Date,
-
-  // 👇 allow extracted fields for ANY test type (cholesterol OR diabetes)
-  extracted: { type: mongoose.Schema.Types.Mixed, default: {} },
-
-  // already Mixed so we can keep both legacy/new shapes
-  analysis: { type: mongoose.Schema.Types.Mixed, default: {} },
-}, { timestamps: true });
+    // Allow both legacy status object and new bucket shapes
+    analysis:   { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true }
+);
 
 /**
- * Auto-adapt legacy cholesterol analysis shape -> new UI bucket shape when serializing.
- * (Unchanged; it only touches cholesterol legacy docs. Diabetes uses the new shape directly.)
+ * Auto-adapt legacy analysis shape -> new UI bucket shape when serializing.
+ * Existing docs that still have { ldlStatus, ... } will appear to the frontend
+ * in the structure it expects, without running a migration.
  */
 labReportSchema.set('toJSON', {
   virtuals: true,
@@ -57,6 +44,7 @@ labReportSchema.set('toJSON', {
       !a || !a.ldl || !a.hdl || !a.triglycerides || !a.totalCholesterol;
 
     if (hasLegacy && missingBuckets) {
+      // Map legacy statuses -> UI categories
       const toCategory = (s = '') => {
         const t = String(s).toLowerCase();
         if (!t || t.includes('unknown')) return 'unknown';
@@ -75,18 +63,20 @@ labReportSchema.set('toJSON', {
 
       const ex = ret.extracted || {};
       ret.analysis = {
-        ldl: { value: ex.ldl ?? null, category: toCategory(a.ldlStatus), reference: refs.ldl },
-        hdl: { value: ex.hdl ?? null, category: toCategory(a.hdlStatus), reference: refs.hdl },
-        triglycerides: { value: ex.triglycerides ?? null, category: toCategory(a.triglycerideStatus), reference: refs.tg },
+        ldl:              { value: ex.ldl ?? null,              category: toCategory(a.ldlStatus),              reference: refs.ldl },
+        hdl:              { value: ex.hdl ?? null,              category: toCategory(a.hdlStatus),              reference: refs.hdl },
+        triglycerides:    { value: ex.triglycerides ?? null,    category: toCategory(a.triglycerideStatus),     reference: refs.tg },
         totalCholesterol: { value: ex.totalCholesterol ?? null, category: toCategory(a.totalCholesterolStatus), reference: refs.total },
         notes: a.summary || '',
         nextSteps: Array.isArray(a.tips) ? a.tips : [],
       };
     }
+
     return ret;
   }
 });
 
+// If you also serialize with toObject somewhere:
 labReportSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.models.LabReport || mongoose.model('LabReport', labReportSchema);
