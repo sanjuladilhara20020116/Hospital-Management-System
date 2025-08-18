@@ -13,7 +13,10 @@ const {
   getReport,
   analyzeByReference,
   getByReference,
+  getTimeSeries,           // <-- add this
 } = require('../controllers/labReportController');
+
+router.get('/patients/:patientId/series', getTimeSeries);  // <-- use it directly
 
 // 1) By-ref FIRST
 router.post('/by-ref/:referenceNo/analyze', analyzeByReference);

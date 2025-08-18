@@ -3,6 +3,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
+
 // Auth / public
 import Registration from './pages/Registration';
 import Login from './pages/Login';
@@ -37,6 +38,8 @@ import PatientReportDownload from './pages/PatientReportDownload';
 
 import ReportAnalysisPage from "./pages/ReportAnalysisPage";
 import CholesterolDashboard from "./pages/CholesterolDashboard";
+import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
+
 // src/App.js
 
 
@@ -139,6 +142,8 @@ function App() {
         <Route path="/my-bookings" element={<MyBookings />} />
       <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
      <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
+     <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
+
       </Routes>
     </Router>
   );

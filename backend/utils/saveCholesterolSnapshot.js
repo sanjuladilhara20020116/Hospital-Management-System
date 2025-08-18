@@ -1,3 +1,4 @@
+// backend/utils/saveCholesterolSnapshot.js
 const path = require("path");
 const CholesterolResult = require("../models/CholesterolResult");
 
@@ -13,66 +14,42 @@ const toMgDl = (val, units, kind) => {
     if (kind === "triglycerides") return n * 88.57; // TG
     return n * 38.67;                               // total/LDL/HDL
   }
-  // unknown units -> assume mg/dL
-  return n;
+  return n; // assume mg/dL if unknown
 };
 
 /* ---------- safe date parsing ---------- */
-/**
- * Accepts common report date formats:
- *  - YYYY-MM-DD
- *  - DD/MM/YYYY or D/M/YYYY
- *  - MM/DD/YYYY or M/D/YYYY
- *  - DD-MM-YYYY or MM-DD-YYYY
- *  - "Aug 6, 2025" / "6 Aug 2025"
- *
- * Returns a valid Date or fallback.
- */
 function safeReportDate(input, fallback) {
   if (!input || typeof input !== "string") return fallback;
 
   const s = input.trim();
-  // ISO-like first
   const iso = /^\s*(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s*$/;
   const dmy = /^\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\s*$/;
 
   let d = null;
-
-  // YYYY-MM-DD or YYYY/MM/DD
   let m = s.match(iso);
   if (m) {
     const [_, y, mo, da] = m;
     d = new Date(Number(y), Number(mo) - 1, Number(da));
   } else {
-    // DD/MM/YYYY or MM/DD/YYYY (disambiguate using > 12 as day)
     m = s.match(dmy);
     if (m) {
       let [_, a, b, y] = m;
       a = Number(a); b = Number(b);
-      if (a > 12 && b <= 12) { // DD/MM/YYYY
-        d = new Date(Number(y), b - 1, a);
-      } else if (b > 12 && a <= 12) { // MM/DD/YYYY
-        d = new Date(Number(y), a - 1, b);
-      } else {
-        // ambiguous 05/06/2025 → assume DD/MM/YYYY is common in reports
-        d = new Date(Number(y), b - 1, a);
-      }
+      if (a > 12 && b <= 12) d = new Date(Number(y), b - 1, a);      // DD/MM/YYYY
+      else if (b > 12 && a <= 12) d = new Date(Number(y), a - 1, b); // MM/DD/YYYY
+      else d = new Date(Number(y), b - 1, a);                        // assume DD/MM/YYYY
     }
   }
-
-  // Natural language parse fallback
   if (!d || isNaN(d.getTime())) {
     const parsed = Date.parse(s);
     if (Number.isFinite(parsed)) d = new Date(parsed);
   }
-
-  // If still invalid, use fallback (uploadDate or now)
   if (!d || isNaN(d.getTime())) return fallback;
   return d;
 }
 
 /* ---------- main snapshot saver ---------- */
-module.exports = async function saveCholesterolSnapshot(reportDoc) {
+async function saveCholesterolSnapshot(reportDoc) {
   try {
     if (!reportDoc?.patientId) return;
 
@@ -87,7 +64,6 @@ module.exports = async function saveCholesterolSnapshot(reportDoc) {
     const nonHDL = (total_mg != null && hdl_mg != null) ? (total_mg - hdl_mg) : null;
     const vldl   = (tg_mg != null) ? (tg_mg / 5) : null;
 
-    // robust test date
     const fallbackDate = reportDoc.uploadDate || new Date();
     const testDate = safeReportDate(ex.testDate, fallbackDate);
 
@@ -115,11 +91,13 @@ module.exports = async function saveCholesterolSnapshot(reportDoc) {
           triglycerides: tg_mg,
         },
         derivedStd: { nonHDL, vldl },
+        recordedAt: new Date(),
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   } catch (e) {
-    // Don’t crash the main analyze flow if history write fails.
     console.error("saveCholesterolSnapshot error:", e.message);
   }
-};
+}
+
+module.exports = saveCholesterolSnapshot;

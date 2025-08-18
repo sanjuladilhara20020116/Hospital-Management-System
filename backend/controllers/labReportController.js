@@ -4,6 +4,7 @@ const path = require('path');
 
 const LabReport = require('../models/LabReport');
 const LabJob    = require('../models/LabJob');
+const saveCholesterolSnapshot = require('../utils/saveCholesterolSnapshot');
 
 // Cholesterol utilities (existing)
 const { extractFromReport, analyzeValues } = require('../utils/aiExtract');
@@ -208,6 +209,9 @@ exports.analyzeReport = async (req, res) => {
       { new: true }
     );
 
+    await saveCholesterolSnapshot(updated); // writes/updates the snapshot + enforces last-5
+
+
     return res.json({ ok: true, reportId: updated._id, report: updated });
   } catch (err) {
     console.error('analyzeReport error:', err);
@@ -323,6 +327,9 @@ exports.analyzeByReference = async (req, res) => {
       { $set: payload },
       { new: true }
     );
+
+    await saveCholesterolSnapshot(updated); // writes/updates the snapshot + enforces last-5
+
 
     return res.json({ ok: true, reportId: updated._id, report: updated });
   } catch (err) {

@@ -354,6 +354,12 @@ function CholesterolView({ report, ex, ana, compare, compareErr, coach ,nowTs })
   const latest = calcCholDerived({ ldl: ex?.ldl, hdl: ex?.hdl, triglycerides: ex?.triglycerides });
   const prev = compare?.previousExtracted ? calcCholDerived(compare.previousExtracted) : null;
   const units = ex?.units || "mg/dL";
+  const navigate = useNavigate();
+  // Which patient id to use for the trends page
+const patientIdForTrends =
+  (report?.patientId && typeof report.patientId === "object"
+    ? report.patientId._id
+    : report?.patientId) || null;
 
   const chartData = prev ? [
     { name: "Total", Previous: prev.totalCholesterol, Current: latest.totalCholesterol },
@@ -470,7 +476,27 @@ function CholesterolView({ report, ex, ana, compare, compareErr, coach ,nowTs })
 
       {/* full-width ranges card below the two-column layout */}
       <RangesSection items={CHOL_RANGES} />
+
+      {/* Actions */}
+<div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+  <button
+    className="ra-btn ra-btn-primary"
+    onClick={() => {
+      if (!patientIdForTrends) {
+        alert("No patient id on this report.");
+        return;
+      }
+      navigate(`/cholesterol-trends/${patientIdForTrends}`);
+    }}
+  >
+    📈 See full analysis
+  </button>
+</div>
+
+
     </>
+
+    
   );
 }
 
