@@ -11,14 +11,25 @@ import {
 const API_BASE = "http://localhost:5000/api";
 
 /* -------------------------- tiny shared utilities -------------------------- */
-const formatDistanceToNow = (d) => {
-  const now = new Date();
-  const diff = now - new Date(d);
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days <= 0) return "today";
-  if (days === 1) return "1 day";
-  return `${days} days`;
+// replaces formatDistanceToNow
+
+const timeAgo = (d, nowTs = Date.now()) => {
+  const t = new Date(d).getTime();
+  const diff = Math.max(0, nowTs - t);
+
+  if (diff < 60 * 1000) return "just now";
+  if (diff < 60 * 60 * 1000) {
+    const m = Math.floor(diff / 60000);
+    return `${m} min${m !== 1 ? "s" : ""} ago`;
+  }
+  if (diff < 24 * 60 * 60 * 1000) {
+    const h = Math.floor(diff / 3600000);
+    return `${h} hour${h !== 1 ? "s" : ""} ago`;
+  }
+  const dys = Math.floor(diff / 86400000);
+  return dys === 1 ? "1 day ago" : `${dys} days ago`;
 };
+
 const showNum = (n) => (Number.isFinite(n) ? n : "—");
 
 /* ----------------------------- Cholesterol logic --------------------------- */
@@ -152,6 +163,13 @@ function normalizeDiabetes(analysis, extracted = {}) {
 
 /* ---------------------------------- Page ---------------------------------- */
 export default function ReportAnalysisPage() {
+
+  const [nowTs, setNowTs] = useState(Date.now());
+useEffect(() => {
+  const id = setInterval(() => setNowTs(Date.now()), 60_000); // update every minute
+  return () => clearInterval(id);
+}, []);
+
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -285,7 +303,7 @@ export default function ReportAnalysisPage() {
           {/* header badges */}
           <div className="ra-card ra-header">
             <div className="ra-badges">
-              <Badge label="Report ID" value={report._id} mono />
+              <Badge label="Report ID" value={report.referenceNo || report._id} mono />
               <Badge label="Type" value={report.reportType} />
               <Badge label="Uploaded" value={report.uploadDate ? new Date(report.uploadDate).toLocaleString() : "—"} />
               <Badge label="Analyzed" value={report.isAnalyzed ? "Yes" : "No"} color={report.isAnalyzed ? "#16a34a" : "#ea580c"} />
@@ -305,6 +323,7 @@ export default function ReportAnalysisPage() {
               report={report} ex={ex} ana={ana}
               compare={compare} compareErr={compareErr}
               coach={coach}
+              nowTs={nowTs}
             />
           )}
 
@@ -314,6 +333,7 @@ export default function ReportAnalysisPage() {
               compare={compare} compareErr={compareErr}
               mini={mini} miniErr={miniErr} miniLoading={miniLoading}
               coach={coach}
+              nowTs={nowTs}
             />
           )}
 
@@ -330,7 +350,7 @@ export default function ReportAnalysisPage() {
 }
 
 /* ============================= Cholesterol View ============================ */
-function CholesterolView({ report, ex, ana, compare, compareErr, coach }) {
+function CholesterolView({ report, ex, ana, compare, compareErr, coach ,nowTs }) {
   const latest = calcCholDerived({ ldl: ex?.ldl, hdl: ex?.hdl, triglycerides: ex?.triglycerides });
   const prev = compare?.previousExtracted ? calcCholDerived(compare.previousExtracted) : null;
   const units = ex?.units || "mg/dL";
@@ -372,7 +392,7 @@ function CholesterolView({ report, ex, ana, compare, compareErr, coach }) {
 
         {/* right */}
         <div className="ra-right">
-          <Section title="Latest Report" badge={report?.uploadDate ? `${formatDistanceToNow(report.uploadDate)} ago` : null}>
+          <Section title="Latest Report"   badge={report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : null}>
             <div className="ra-metric-grid">
               {[
                 { label: "Total Cholesterol", value: latest.totalCholesterol, type: "total" },
@@ -456,7 +476,7 @@ function CholesterolView({ report, ex, ana, compare, compareErr, coach }) {
 
 
 /* =============================== Diabetes View ============================ */
-function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, miniLoading, coach }) {
+function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, miniLoading, coach, nowTs  }) {
   const gUnits = ex?.glucoseUnits || "mg/dL";
   const a1cUnits = ex?.hba1cUnits || "%";
 
@@ -487,6 +507,7 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
       <div className="ra-split">
         {/* left */}
         <div className="ra-left">
+           <img src="/img4.jpg" alt="Heart" className="ra-heart" />
           {!report.isAnalyzed && (
             <Card icon="ℹ️" title="Preview Mode">
               {miniLoading ? <p className="ra-muted">Extracting preview…</p>
@@ -514,7 +535,7 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
 
         {/* right */}
         <div className="ra-right">
-          <Section title="Latest Report" badge={report?.uploadDate ? `${formatDistanceToNow(report.uploadDate)} ago` : null}>
+          <Section title="Latest Report"   badge={report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : null}>
             <div className="ra-metric-grid">
               <MetricChip label="Fasting (FPG)" value={cur.fastingGlucose} unit={gUnits} risk={diabetesRisk("fasting", cur.fastingGlucose)} />
               <MetricChip label="2-hr / PP" value={cur.postPrandialGlucose} unit={gUnits} risk={diabetesRisk("pp", cur.postPrandialGlucose)} />

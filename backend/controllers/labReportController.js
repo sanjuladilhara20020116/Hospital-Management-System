@@ -74,29 +74,45 @@ exports.createLabJob = async (req, res) => {
   }
 };
 
+// Upload report (by Lab Admin)
 exports.uploadLabReport = async (req, res) => {
   try {
-    const { patientId, reportType } = req.body;
+    const { patientId, reportType, referenceNo } = req.body; // referenceNo is optional but preferred
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
+    // 1) create the report first
     const report = await LabReport.create({
       patientId,
       reportType,
       filePath: file.path,
       uploadDate: new Date(),
+      // referenceNo will be filled in below if we can link a LabJob
     });
 
-    await LabJob.findOneAndUpdate(
-      { patientId, testType: reportType, status: 'Pending' },
-      { status: 'Completed' }
+    // 2) try to link a pending LabJob and mark it completed
+    const jobFilter = referenceNo
+      ? { referenceNo }
+      : { patientId, testType: reportType, status: 'Pending' };
+
+    const job = await LabJob.findOneAndUpdate(
+      jobFilter,
+      { status: 'Completed', reportFile: file.path, completedAt: new Date() },
+      { new: true }
     );
+
+    // 3) if a job was found, copy its referenceNo onto the report
+    if (job?.referenceNo) {
+      report.referenceNo = job.referenceNo;
+      await report.save();
+    }
 
     res.status(201).json({ message: 'Report uploaded', report });
   } catch (error) {
     res.status(500).json({ error: 'Failed to upload report' });
   }
 };
+
 
 exports.getReportsByPatient = async (req, res) => {
   try {

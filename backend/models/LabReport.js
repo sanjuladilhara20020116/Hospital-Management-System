@@ -14,7 +14,7 @@ const labReportSchema = new mongoose.Schema(
     reportType: { type: String, enum: ['Cholesterol', 'Diabetes', 'X-ray'], required: true, index: true },
     filePath:   { type: String, required: true },
     uploadDate: { type: Date, default: Date.now },
-
+    referenceNo: { type: String, index: true, default: null },
     isAnalyzed: { type: Boolean, default: false },
     analyzedAt: Date,
 
