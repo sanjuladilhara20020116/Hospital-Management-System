@@ -1,0 +1,106 @@
+/* container & basics */
+.ra-wrap{max-width:1200px;margin:20px auto;padding:20px;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;background:#f9f9f9}
+.ra-back{margin-bottom:12px}
+.ra-title{margin:0 0 12px 0}
+.ra-error{color:crimson;margin:8px 0}
+.ra-pre{white-space:pre-wrap}
+
+/* header card & badges */
+.ra-card{margin-bottom:20px;padding:20px;background:#f3f3f3;border-radius:20px;box-shadow:0 2px 6px rgba(0,0,0,.04);border:1px solid transparent}
+.ra-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(30,144,255,.12);border-color:rgba(30,144,255,.18)}
+.ra-header{background:#fff}
+.ra-badges{display:flex;gap:12px;flex-wrap:wrap}
+.ra-badge{border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;background:#f8fafc}
+.ra-badge__label{font-size:12px;color:#64748b}
+.ra-badge__value{font-size:14px;font-weight:700}
+
+/* separate ranges card that aligns with other right-column cards */
+.ra-ranges-outside { margin-top: -4px; } /* optional: pulls it closer to the section above */
+.ra-card-body--flat { background:#fff; border-radius:20px; padding:16px; box-shadow:0 8px 20px rgba(0,0,0,.05); }
+
+/* actions */
+.ra-actions{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ra-btn{border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;color:#fff}
+.ra-btn-primary{background:linear-gradient(135deg,#667eea,#764ba2)}
+.ra-btn-cyan{background:#0ea5e9}
+.ra-hint{color:#64748b;margin:0}
+
+/* section headings */
+.ra-section-head{display:flex;align-items:center;gap:10px;margin-bottom:20px}
+.ra-section-head.ra-justify{justify-content:space-between}
+.ra-section-title{display:flex;align-items:center;gap:10px}
+.ra-dot{height:40px;width:40px;background:linear-gradient(145deg,#f0f4ff,#dbe6ff);border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:18px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.ra-rightbits{display:flex;align-items:center;gap:10px}
+.ra-time{font-size:12px;background:#fff;padding:4px 10px;border-radius:999px;color:#444}
+
+/* two-column layout */
+.ra-split{display:flex;gap:60px;align-items:flex-start}
+.ra-left{width:35%;display:flex;flex-direction:column;gap:20px}
+.ra-right{width:55%;display:flex;flex-direction:column;gap:20px}
+
+/* heart image */
+.ra-heart{width:100%;border-radius:20px;box-shadow:0 4px 12px rgba(0,0,0,.1);background:#fff}
+
+/* card body */
+.ra-card-body{background:#fff;border-radius:20px;padding:20px;box-shadow:0 8px 20px rgba(0,0,0,.05);font-size:16px}
+.ra-par{margin:0}
+.ra-muted{color:#94a3b8;margin:0}
+.ra-list{margin:0;padding-left:20px}
+
+/* metric grid */
+.ra-metric-grid{display:flex;gap:20px;justify-content:space-between;flex-wrap:wrap}
+.ra-metric{background:#fff;border-radius:16px;padding:12px;flex:1 1 150px;min-width:160px;position:relative;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+.ra-metric__title{font-size:14px;font-weight:500;color:#333;margin-bottom:10px;padding-left:6px}
+.ra-metric__inner{background:#f6f9ff;border-radius:12px;padding:20px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ra-badge-pill{position:absolute;top:10px;right:10px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:500;text-transform:capitalize}
+.ra-badge-pill.neutral{background:#f0f0f0;color:#333}
+.ra-badge-pill.good{background:#e8f5e8;color:#2e7d32}
+.ra-badge-pill.mid{background:#fff3e0;color:#f57c00}
+.ra-badge-pill.bad{background:#ffebee;color:#d32f2f}
+.ra-metric__value{display:flex;align-items:baseline;gap:6px}
+.ra-metric__value .n{font-size:28px;font-weight:800;color:#1e90ff;line-height:1}
+.ra-metric__value .u{font-size:14px;color:#555}
+
+/* risk badge roundel in header */
+.ra-risk-badge{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff}
+.ra-risk-badge.safe{background:#4caf50}
+.ra-risk-badge.warning{background:#ff9800}
+.ra-risk-badge.danger{background:#f44336}
+.ra-risk-badge span{font-size:36px}
+
+/* Risk Summary strip */
+.ra-risk{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.05);border:1px solid transparent}
+.ra-risk__icon{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px}
+.ra-risk__text{font-size:16px;color:#1f2937}
+.ra-risk.safe{border-color:#d1fae5;background:linear-gradient(180deg,#ffffff 0%, #f0fff7 100%)}
+.ra-risk.safe .ra-risk__icon{background:#10b981;color:#fff;animation:calmPulse 2.5s ease-in-out infinite}
+.ra-risk.warning{border-color:#ffe9c7;background:linear-gradient(180deg,#ffffff 0%, #fff8ed 100%)}
+.ra-risk.warning .ra-risk__icon{background:#f59e0b;color:#fff}
+.ra-risk.danger{border-color:#fecaca;background:linear-gradient(180deg,#ffffff 0%, #fff0f0 100%);animation:panelAlarm 1.6s ease-in-out infinite}
+.ra-risk.danger .ra-risk__icon{background:#ef4444;color:#fff;animation:alarmPulse .9s ease-in-out infinite}
+
+@keyframes calmPulse{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.35)}50%{box-shadow:0 0 0 12px rgba(16,185,129,0)}}
+@keyframes alarmPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{transform:scale(1.07);box-shadow:0 0 0 14px rgba(239,68,68,0)}}
+@keyframes panelAlarm{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.1)}50%{box-shadow:0 0 0 10px rgba(239,68,68,0)}}
+
+/* compare row */
+.ra-compare{display:flex;justify-content:space-between;align-items:center;gap:20px}
+.ra-chart{flex:1;min-width:200px;height:160px}
+
+/* horizontal reference ranges */
+.ranges-row{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.range-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(0,0,0,.04)}
+.range-type{font-weight:600;color:#1f2937;margin-bottom:8px}
+.range-tags{display:flex;flex-wrap:wrap;gap:8px}
+.range-tag{font-size:12px;line-height:1.2;padding:8px 10px;border-radius:10px;border:1px solid transparent;display:inline-flex;gap:6px;align-items:center}
+.range-tag b{text-transform:capitalize}
+.range-tag.good{background:#e8f5e8;color:#166534;border-color:#b7e0b7}
+.range-tag.mid{background:#fff3e0;color:#9a6700;border-color:#ffe0b3}
+.range-tag.bad{background:#ffebee;color:#9f1239;border-color:#ffc7d1}
+
+/* responsive */
+@media (max-width:768px){
+  .ra-split{flex-direction:column}
+  .ra-left,.ra-right{width:100%}
+  .ra-chart{height:200px}
+}

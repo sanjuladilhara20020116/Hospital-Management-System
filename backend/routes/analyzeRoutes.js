@@ -27,4 +27,11 @@ router.post('/references/:referenceNo/analyze', ctrl.analyzeByReference);
 // reference fetch
 router.get('/references/:referenceNo', ctrl.getByReference);
 
+// time-series for charts
+router.get('/patients/:patientId/series', ctrl.getTimeSeries);
+
+// compare a report with the previous one for same patient/type
+router.get('/reports/:id/compare', ctrl.compareToPrevious);
+
+
 module.exports = router;

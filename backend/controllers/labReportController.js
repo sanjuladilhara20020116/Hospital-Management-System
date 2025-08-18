@@ -31,6 +31,37 @@ const REFS = {
   total: 'Total (mg/dL): desirable <200 · borderline 200–239 · high ≥240',
 };
 
+// --- OpenRouter helpers (used by getAdvice and/or extraction) ---
+const safeParseJSON = (txt) => {
+  try { return JSON.parse(txt); } catch {
+    const m = String(txt || '').match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(m[0]); } catch {} }
+    return {};
+  }
+};
+
+let fetchFn = global.fetch || ((...args) => import('node-fetch').then(({ default: f }) => f(...args)));
+
+async function callOpenRouterJSON(payload) {
+  if (!process.env.OPENROUTER_API_KEY) {
+    throw new Error('Missing OPENROUTER_API_KEY');
+  }
+  const resp = await fetchFn('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'http://localhost',
+      'X-Title': 'Lab Report Advice',
+    },
+    body: JSON.stringify(payload),
+  });
+  const ej = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(ej?.error?.message || `OpenRouter error ${resp.status}`);
+  return ej?.choices?.[0]?.message?.content ?? '{}';
+}
+
+
 // -------------------- CRUD --------------------
 exports.createLabJob = async (req, res) => {
   try {
@@ -335,64 +366,112 @@ exports.runAnalysis = async (req, res) => {
 };
 
 // -------------------- Cholesterol advice --------------------
+// -------------------- AI Coach advice via OpenRouter (LLM) --------------------
 exports.getAdvice = async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await LabReport.findById(id);
     if (!doc) return res.status(404).json({ ok: false, message: 'Report not found' });
 
-    const r = doc.toObject();
+    const r  = doc.toObject();
     const ex = r.extracted || {};
-    let a  = r.analysis || {};
+    let a    = r.analysis || {};
+    const type = String(r.reportType || '').toLowerCase();
 
+    // If cholesterol analysis is legacy shape, adapt to buckets for clarity
     const isLegacy =
       a && typeof a === 'object' &&
       ('ldlStatus' in a || 'hdlStatus' in a || 'triglycerideStatus' in a || 'totalCholesterolStatus' in a);
 
-    if (isLegacy) {
+    const toCategory = (s = '') => {
+      const t = String(s).toLowerCase();
+      if (!t || t.includes('unknown')) return 'unknown';
+      if (t.includes('optimal') || t.includes('protective') || t.includes('desirable') || t.includes('normal') || t.includes('good')) return 'good';
+      if (t.includes('near') || t.includes('borderline')) return 'moderate';
+      if (t.includes('high')) return 'bad';
+      return 'unknown';
+    };
+
+    if (type.includes('chol') && isLegacy) {
       a = {
-        ldl: { value: ex.ldl ?? null, category: toCategory(a.ldlStatus), reference: REFS.ldl },
-        hdl: { value: ex.hdl ?? null, category: toCategory(a.hdlStatus), reference: REFS.hdl },
-        triglycerides: { value: ex.triglycerides ?? null, category: toCategory(a.triglycerideStatus), reference: REFS.tg },
-        totalCholesterol: { value: ex.totalCholesterol ?? null, category: toCategory(a.totalCholesterolStatus), reference: REFS.total },
+        ldl:              { value: ex.ldl ?? null,              category: toCategory(a.ldlStatus) },
+        hdl:              { value: ex.hdl ?? null,              category: toCategory(a.hdlStatus) },
+        triglycerides:    { value: ex.triglycerides ?? null,    category: toCategory(a.triglycerideStatus) },
+        totalCholesterol: { value: ex.totalCholesterol ?? null, category: toCategory(a.totalCholesterolStatus) },
         notes: a.summary || '',
         nextSteps: Array.isArray(a.tips) ? a.tips : [],
       };
     }
 
-    const bullets = [];
-    const catText = (cat) =>
-      cat === 'good' ? 'looks good' :
-      cat === 'moderate' ? 'is borderline—keep an eye on it' :
-      cat === 'bad' ? 'is high—please discuss with your clinician' :
-      'has no category available';
+    // ---------- Build compact payload for the model ----------
+    const payload = { reportType: r.reportType, extracted: ex };
 
-    if (a.ldl) bullets.push(`LDL ${a.ldl.value ?? '—'} mg/dL ${a.ldl.category ? `(${catText(a.ldl.category)})` : ''}.`);
-    if (a.hdl) bullets.push(`HDL ${a.hdl.value ?? '—'} mg/dL ${a.hdl.category ? `(${catText(a.hdl.category)})` : ''}.`);
-    if (a.triglycerides) bullets.push(`Triglycerides ${a.triglycerides.value ?? '—'} mg/dL ${a.triglycerides.category ? `(${catText(a.triglycerides.category)})` : ''}.`);
-    if (a.totalCholesterol) bullets.push(`Total Cholesterol ${a.totalCholesterol.value ?? '—'} mg/dL ${a.totalCholesterol.category ? `(${catText(a.totalCholesterol.category)})` : ''}.`);
+    if (type.includes('chol')) {
+      payload.analysisBuckets = {
+        ldl:              a?.ldl?.category || 'unknown',
+        hdl:              a?.hdl?.category || 'unknown',
+        triglycerides:    a?.triglycerides?.category || 'unknown',
+        totalCholesterol: a?.totalCholesterol?.category || 'unknown',
+      };
+    } else {
+      // Diabetes: compute statuses so model has clear context
+      const gUnit = ex.glucoseUnits || 'mg/dL';
+      const toMgDl = (v) => (v == null ? null : (gUnit === 'mmol/L' ? Number(v) * 18 : Number(v)));
+      const fasting = toMgDl(ex.fastingGlucose);
+      const pp      = toMgDl(ex.postPrandialGlucose ?? ex.ogtt2h);
+      const random  = toMgDl(ex.randomGlucose);
+      const a1c     = ex.hba1c != null ? Number(ex.hba1c) : null;
 
-    const headline =
-      a?.ldl?.category === 'bad'
-        ? 'Your LDL is high—consider lifestyle changes and follow up with your clinician.'
-        : a?.hdl?.category === 'good'
-        ? 'Your HDL is in a protective range.'
-        : 'Review your latest lipid profile below.';
+      const classify = {
+        fasting(v){ if (v==null) return 'unknown'; if (v>=126) return 'Diabetes'; if (v>=100) return 'Prediabetes'; return 'Normal'; },
+        pp2h(v){    if (v==null) return 'unknown'; if (v>=200) return 'Diabetes'; if (v>=140) return 'Prediabetes'; return 'Normal'; },
+        random(v){  if (v==null) return 'unknown'; if (v>=200) return 'Diabetes'; if (v>=140) return 'Prediabetes'; return 'Normal'; },
+        a1c(p){     if (p==null) return 'unknown'; if (p>=6.5)  return 'Diabetes'; if (p>=5.7)  return 'Prediabetes'; return 'Normal'; },
+      };
+      payload.statuses = {
+        fasting: classify.fasting(fasting),
+        postPrandial: classify.pp2h(pp),
+        random: classify.random(random),
+        hba1c: classify.a1c(a1c),
+      };
+      payload.glucoseMgDl = { fasting, postPrandial: pp, random, hba1c: a1c };
+    }
 
-    return res.json({
-      ok: true,
-      advice: {
-        headline,
-        bullets,
-        notes: a.notes || '',
-        nextSteps: Array.isArray(a.nextSteps) ? a.nextSteps : [],
-      }
+    // ---------- LLM call (OpenRouter) ----------
+    const system = `
+You are a careful medical explainer. Return ONLY compact JSON, no markdown.
+Keys required:
+- "healthStatus": short sentence.
+- "reasons": array (2-5 short, neutral bullets).
+- "recommendations": array (3-6 short, non-medical-advice bullets).
+- "breakdown": object of one-sentence meanings for each provided marker.
+Avoid diagnoses; be educational and neutral. Use units provided (assume mg/dL for glucose, % for HbA1c if missing).
+`.trim();
+
+    const user = `Lab context:\n${JSON.stringify(payload)}\n\nReturn ONLY the JSON with the required keys.`;
+
+    const content = await callOpenRouterJSON({
+      model: 'openai/gpt-4o-mini',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user',   content: user  },
+      ],
+      temperature: 0.2,
     });
+
+    const out = safeParseJSON(content) || {};
+    // normalize shape defensively
+    out.reasons = Array.isArray(out.reasons) ? out.reasons : [];
+    out.recommendations = Array.isArray(out.recommendations) ? out.recommendations : [];
+    out.breakdown = out.breakdown && typeof out.breakdown === 'object' ? out.breakdown : {};
+
+    return res.json({ ok: true, advice: out });
   } catch (err) {
     console.error('getAdvice error:', err);
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
+
 
 // -------------------- READ-ONLY PREVIEW for FE --------------------
 // GET /api/reports/:id/extract-preview
@@ -423,5 +502,127 @@ exports.previewExtract = async (req, res) => {
   } catch (e) {
     console.error("previewExtract error:", e);
     return res.status(500).json({ ok: false, message: e.message });
+  }
+};
+
+// ================== TIME SERIES & COMPARE (for charts/summary) ==================
+
+/** Build a compact numeric snapshot from a report's extracted values. */
+function _snapshot(report) {
+  const ex = report?.extracted || {};
+  const type = String(report?.reportType || '');
+  const snap = { date: report?.uploadDate || report?.createdAt || null };
+
+  if (/chol/i.test(type)) {
+    // Cholesterol
+    if (ex.totalCholesterol != null) snap.totalCholesterol = Number(ex.totalCholesterol);
+    if (ex.ldl != null)             snap.ldl = Number(ex.ldl);
+    if (ex.hdl != null)             snap.hdl = Number(ex.hdl);
+    if (ex.triglycerides != null)   snap.triglycerides = Number(ex.triglycerides);
+  } else if (/diab/i.test(type)) {
+    // Diabetes
+    if (ex.fastingGlucose != null)      snap.fastingGlucose = Number(ex.fastingGlucose);
+    if (ex.postPrandialGlucose != null) snap.postPrandialGlucose = Number(ex.postPrandialGlucose);
+    if (ex.randomGlucose != null)       snap.randomGlucose = Number(ex.randomGlucose);
+    if (ex.ogtt2h != null)              snap.ogtt2h = Number(ex.ogtt2h);
+    if (ex.hba1c != null)               snap.hba1c = Number(ex.hba1c);
+  }
+
+  return snap;
+}
+
+/** GET /api/patients/:patientId/series?type=Cholesterol|Diabetes
+ *  Returns arrays you can use for charts. If `type` omitted, returns both.
+ */
+exports.getTimeSeries = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { type } = req.query; // optional
+
+    const filter = { patientId };
+    if (type) filter.reportType = type;
+
+    const reports = await LabReport
+      .find(filter, { extracted: 1, reportType: 1, uploadDate: 1, createdAt: 1 })
+      .sort({ uploadDate: 1, createdAt: 1 });
+
+    const chol = [];
+    const diab = [];
+
+    for (const r of reports) {
+      const snap = _snapshot(r);
+      if (/chol/i.test(r.reportType)) chol.push(snap);
+      if (/diab/i.test(r.reportType)) diab.push(snap);
+    }
+
+    // If client asked a specific type, send just that
+    if (type && /chol/i.test(type)) return res.json({ ok: true, type: 'Cholesterol', series: chol });
+    if (type && /diab/i.test(type)) return res.json({ ok: true, type: 'Diabetes', series: diab });
+
+    // Otherwise both (handy for dashboards)
+    return res.json({ ok: true, cholesterol: chol, diabetes: diab });
+  } catch (err) {
+    console.error('getTimeSeries error:', err);
+    return res.status(500).json({ ok: false, message: err.message });
+  }
+};
+
+/** GET /api/reports/:id/compare
+ *  Compares this report to the previous one (same patient & type).
+ *  Returns deltas per metric for your “increase/decrease” UI.
+ */
+exports.compareToPrevious = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const current = await LabReport.findById(id);
+    if (!current) return res.status(404).json({ ok: false, message: 'Report not found' });
+
+    // find the immediately previous report of the same type for the same patient
+    const prev = await LabReport.findOne({
+      patientId: current.patientId,
+      reportType: current.reportType,
+      // earlier uploadDate (fallback to createdAt if uploadDate missing)
+      $or: [
+        { uploadDate: { $lt: current.uploadDate || current.createdAt } },
+        { createdAt: { $lt: current.uploadDate || current.createdAt } },
+      ],
+    }).sort({ uploadDate: -1, createdAt: -1 });
+
+    const type = String(current.reportType || '');
+    const exCur  = current.extracted || {};
+    const exPrev = prev?.extracted || {};
+
+    // choose fields by type
+    const fields = /chol/i.test(type)
+      ? ['totalCholesterol', 'ldl', 'hdl', 'triglycerides']
+      : ['fastingGlucose', 'postPrandialGlucose', 'randomGlucose', 'ogtt2h', 'hba1c'];
+
+    const deltas = {};
+    for (const k of fields) {
+      const curV  = (exCur[k]  != null) ? Number(exCur[k])  : null;
+      const prevV = (exPrev[k] != null) ? Number(exPrev[k]) : null;
+
+      // Only compute delta when we have both numbers
+      const has = Number.isFinite(curV) && Number.isFinite(prevV);
+      deltas[k] = {
+        current: Number.isFinite(curV)  ? curV  : null,
+        previous: Number.isFinite(prevV) ? prevV : null,
+        delta: has ? Number((curV - prevV).toFixed(2)) : null,
+        direction: has ? (curV > prevV ? 'up' : (curV < prevV ? 'down' : 'same')) : 'unknown',
+      };
+    }
+
+    return res.json({
+      ok: true,
+      type: current.reportType,
+      currentId: current._id,
+      previousId: prev?._id || null,
+      previousDate: prev?.uploadDate || prev?.createdAt || null,
+      deltas,
+      previousExtracted: prev ? prev.extracted : null,
+    });
+  } catch (err) {
+    console.error('compareToPrevious error:', err);
+    return res.status(500).json({ ok: false, message: err.message });
   }
 };

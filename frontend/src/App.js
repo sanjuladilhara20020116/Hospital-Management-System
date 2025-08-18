@@ -34,8 +34,12 @@ import MyBookings from './pages/MyBookings';
 import MyLabReports from './pages/MyLabReports';
 import PatientReportDownload from './pages/PatientReportDownload';
 
+
 import ReportAnalysisPage from "./pages/ReportAnalysisPage";
 import CholesterolDashboard from "./pages/CholesterolDashboard";
+// src/App.js
+
+
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
