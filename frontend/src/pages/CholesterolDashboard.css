@@ -1,0 +1,119 @@
+/* src/pages/CholesterolDashboard.css */
+/* === BASE LAYOUT === */
+.dashboard-container {
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f9f9f9;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.dashboard-split {
+  display: flex;
+  gap: 60px;
+  align-items: flex-start;
+  border-radius: 20px;
+  overflow: visible;
+}
+
+.dashboard-left { width: 35%; display: flex; flex-direction: column; gap: 20px; }
+.dashboard-right { width: 55%; display: flex; flex-direction: column; gap: 20px; border-radius: 20px; overflow: visible; }
+
+.dashboard-row { display: flex; flex-direction: column; gap: 20px; }
+.full-width { width: 100%; }
+.half-width { width: 100%; }
+
+/* === HEART IMAGE === */
+.heart-image {
+  width: 100%;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* === SECTION CARDS === */
+.dashboard-section {
+  margin-bottom: 25px;
+  padding: 20px;
+  background: #f3f3f3;
+  border-radius: 20px;
+  position: relative;
+  overflow: visible;
+  animation: fadeIn 0.6s ease-in-out;
+  transition: transform 0.25s ease, box-shadow 0.3s ease;
+  border: 1px solid transparent;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.dashboard-section:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 20px rgba(30, 144, 255, 0.15);
+  border-color: rgba(30, 144, 255, 0.2);
+}
+.dashboard-section.advice { background-color: #f5f8ff; }
+.dashboard-section.warning { background-color: #fff4f4; }
+
+/* === SECTION HEADERS === */
+.section-header { display: flex; align-items: center; justify-content: flex-start; gap: 10px; margin-bottom: 20px; }
+.section-header .dot {
+  height: 40px; width: 40px; background: linear-gradient(145deg, #f0f4ff, #dbe6ff);
+  border-radius: 50%; display: flex; justify-content: center; align-items: center;
+  font-size: 18px; margin-right: 10px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.section-header h3 { font-size: 16px; font-weight: 500; color: #333; margin: 0; }
+
+/* === TIMESTAMP === */
+.timestamp { position: absolute; top: 20px; right: 20px; font-size: 12px; background: #ffffff; padding: 4px 10px; border-radius: 999px; color: #444; }
+
+/* === METRIC CARDS === */
+.metric-grid { display: flex; gap: 20px; justify-content: space-between; flex-wrap: wrap; }
+.metric-box {
+  background: #ffffff; border-radius: 16px; padding: 12px;
+  flex: 1 1 150px; min-width: 160px; position: relative; text-align: left;
+  transition: transform 0.25s ease, box-shadow 0.3s ease; border: 1px solid transparent; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+.metric-box:hover { transform: translateY(-4px); box-shadow: 0 6px 20px rgba(30, 144, 255, 0.15); border-color: rgba(30, 144, 255, 0.2); }
+.metric-title { font-size: 14px; font-weight: 500; color: #333; margin-bottom: 10px; padding-left: 6px; }
+.metric-inner { background: #f6f9ff; border-radius: 12px; padding: 20px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.metric-badge { position: absolute; top: 10px; right: 10px; background: #f0f0f0; padding: 2px 10px; font-size: 12px; border-radius: 999px; color: #333; }
+.metric-value-group { display: flex; align-items: baseline; gap: 6px; }
+.metric-value { font-size: 28px; font-weight: bold; color: #1e90ff; line-height: 1; }
+.metric-unit { font-size: 14px; color: #555; }
+
+/* === RISK SUMMARY === */
+.risk-summary-header { display: flex; align-items: center; justify-content: space-between; }
+.risk-summary-header .left-group { display: flex; align-items: center; gap: 10px; }
+.risk-icon { position: absolute; top: 50%; right: 20px; transform: translateY(-50%); width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.risk-icon svg { width: 36px; height: 36px; fill: white; }
+.risk-icon.status-warning { background-color: #ff9800; }
+.risk-icon.status-danger { background-color: #f44336; }
+.risk-icon.status-safe { background-color: #4caf50; }
+.risk-message-box { background: white; color: #333; border-radius: 20px; padding: 12px 16px; margin-top: 12px; font-size: 16px; display: inline-block; }
+
+/* === ADVICE BOXES === */
+.advice-box { background: #ffffff; border-radius: 20px; padding: 20px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05); font-size: 16px; }
+.advice-box ul { margin: 0; padding-left: 20px; list-style-type: disc; }
+.advice-box li { margin-bottom: 8px; }
+
+/* === FOOTER BUTTONS === */
+.dashboard-footer { margin-top: 30px; text-align: center; }
+.dashboard-footer button {
+  background-color: #4e8cff; color: white; font-weight: bold; padding: 12px 24px;
+  border: none; border-radius: 10px; margin: 10px; cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.3s ease;
+}
+.dashboard-footer button:hover { background-color: #2e6fff; transform: scale(1.04); }
+
+/* === RISK COLORS === */
+.low { color: green; } .moderate { color: orange; } .high { color: red; }
+
+/* === FADE IN === */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }
+
+/* === RESPONSIVE === */
+@media screen and (max-width: 768px) {
+  .metric-grid { flex-direction: column; }
+  .dashboard-footer button { width: 100%; margin: 10px 0; }
+  .dashboard-split { flex-direction: column; }
+  .dashboard-left, .dashboard-right { width: 100%; }
+}

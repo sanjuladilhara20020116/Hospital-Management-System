@@ -19,18 +19,22 @@ export default function Login() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+  e.preventDefault();
+  try {
+    const res = await axios.post('http://localhost:5000/api/auth/login', { email, password });
 
-      showAlert('success', '✅ Login successful!');
-      localStorage.setItem('user', JSON.stringify(res.data.user));
+    showAlert('success', '✅ Login successful!');
 
-      setTimeout(() => navigate('/dashboard'), 2000); // redirect after short delay
-    } catch (err) {
-      showAlert('error', err.response?.data?.message || '❌ Invalid email or password');
-    }
-  };
+    // Save user and token
+    localStorage.setItem('user', JSON.stringify(res.data.user));
+    localStorage.setItem('token', res.data.token); // ✅ Token saved
+
+    setTimeout(() => navigate('/dashboard'), 2000);
+  } catch (err) {
+    showAlert('error', err.response?.data?.message || '❌ Invalid email or password');
+  }
+};
+
 
   return (
     <Grid container justifyContent="center" alignItems="center" sx={{ minHeight: '100vh', backgroundColor: '#eef2f7' }}>
