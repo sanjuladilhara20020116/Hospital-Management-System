@@ -1,0 +1,37 @@
+/* hero header gradient */
+.lab-hero {
+  background: radial-gradient(1200px 400px at 85% -10%, rgba(255,255,255,0.18), transparent),
+              radial-gradient(900px 300px at 15% 10%, rgba(255,255,255,0.14), transparent),
+              linear-gradient(180deg, #165DFF 0%, #0A47C4 100%); /* blue */
+  color: #fff;
+  border-radius: 20px;
+}
+
+/* stat cards inside hero */
+.lab-stat {
+  background: rgba(255,255,255,0.95);
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(16,24,40,0.12);
+}
+
+/* tabs look like pills */
+.lab-tabs .MuiTab-root {
+  border-radius: 12px;
+  min-height: 44px;
+}
+.lab-tabs .MuiTabs-indicator { display: none; }
+.lab-tabs .MuiTab-root.Mui-selected {
+  background: #E7EEFF; /* light blue */
+  color: #0A47C4;
+  font-weight: 700;
+}
+
+/* table utilities (zebra + sticky) */
+.table--zebra tbody tr:nth-of-type(even) { background: rgba(148,163,184,0.08); }
+.table--sticky thead th { position: sticky; top: 0; z-index: 2; }
+
+/* compact icon buttons in table */
+.icon-btn--compact { padding: 6px !important; }
+
+/* nicer empty state */
+.empty-state { text-align: center; padding: 24px; color: #64748B; }
