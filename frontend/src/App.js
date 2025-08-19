@@ -1,6 +1,8 @@
+
 // src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
 
 // Auth / public
 import Registration from './pages/Registration';
@@ -28,6 +30,18 @@ import ManagePackages from './pages/ManagePackages';
 import HealthcarePackages from './pages/HealthcarePackages';
 import Cart from './pages/Cart';
 import MyBookings from './pages/MyBookings';
+
+// ✅ Your additional pages
+import MyLabReports from './pages/MyLabReports';
+import PatientReportDownload from './pages/PatientReportDownload';
+
+
+import ReportAnalysisPage from "./pages/ReportAnalysisPage";
+import CholesterolDashboard from "./pages/CholesterolDashboard";
+import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
+
+// src/App.js
+
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
@@ -80,6 +94,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registration />} />
 
+        {/* ✅ Your extra public route for report download page */}
+        <Route path="/lab-report" element={<PatientReportDownload />} />
+
         {/* Unified dashboard route with role guard + switch */}
         <Route
           path="/dashboard"
@@ -94,6 +111,16 @@ function App() {
               ]}
             >
               <DashboardSwitch />
+            </RoleRoute>
+          }
+        />
+
+        {/* ✅ Your patient-only My Lab Reports route */}
+        <Route
+          path="/my-reports"
+          element={
+            <RoleRoute allowedRoles={['Patient']}>
+              <MyLabReports />
             </RoleRoute>
           }
         />
@@ -113,6 +140,10 @@ function App() {
         <Route path="/packages" element={<HealthcarePackages />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/my-bookings" element={<MyBookings />} />
+      <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
+     <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
+     <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
+
       </Routes>
     </Router>
   );
