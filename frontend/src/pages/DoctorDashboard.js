@@ -1,8 +1,9 @@
+// DoctorDashboard.js
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, Button,
   TextField, Avatar, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions,
-  Divider, Stack, Chip, InputAdornment, useTheme
+  Divider, Stack, Chip, InputAdornment, useTheme, Grid
 } from '@mui/material';
 import axios from 'axios';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
@@ -21,6 +22,18 @@ export default function DoctorDashboard({ userId }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const theme = useTheme();
+
+  // ✅ NEW: availability dialog state (doesn't change existing functions)
+  const [availOpen, setAvailOpen] = useState(false);
+  const [availabilityForm, setAvailabilityForm] = useState({
+    date: new Date().toISOString().slice(0, 10), // YYYY-MM-DD
+    startTime: '09:00',
+    endTime: '12:00',
+    slotMinutes: 15,
+    patientLimit: 20,
+    hospital: 'Asiri Central - Colombo',
+  });
+  const [savingAvailability, setSavingAvailability] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -91,6 +104,47 @@ export default function DoctorDashboard({ userId }) {
     window.location.href = '/';
   };
 
+  // ✅ NEW: availability field change (keeps old functions intact)
+  const handleAvailabilityChange = (e) => {
+    const { name, value } = e.target;
+    setAvailabilityForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  // ✅ UPDATED: save availability with required headers to pass role gate
+  const saveAvailability = async () => {
+    try {
+      setSavingAvailability(true);
+      const payload = {
+        doctorId: userId, // sending explicitly is fine
+        date: availabilityForm.date,
+        startTime: availabilityForm.startTime,
+        endTime: availabilityForm.endTime,
+        slotMinutes: Number(availabilityForm.slotMinutes),
+        patientLimit: Number(availabilityForm.patientLimit),
+        hospital: availabilityForm.hospital
+      };
+
+      await axios.post(
+        'http://localhost:5000/api/availability/doctor/day',
+        payload,
+        {
+          headers: {
+            'X-Role': 'Doctor',
+            'X-User-Id': (profile?.userId || userId || '').toString()
+          }
+        }
+      );
+
+      showAlert('success', 'Availability saved');
+      setAvailOpen(false);
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Failed to save availability';
+      showAlert('error', msg);
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
+
   if (!profile) return <Typography sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>Loading...</Typography>;
 
   const labelStyle = { fontWeight: 600, color: 'text.secondary', minWidth: 180 };
@@ -150,6 +204,16 @@ export default function DoctorDashboard({ userId }) {
             </>
           ) : (
             <>
+              {/* ✅ NEW: My Appointments / Set Availability */}
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => setAvailOpen(true)}
+                sx={{ textTransform: 'none', fontWeight: 700 }}
+              >
+                My Appointments
+              </Button>
+
               <Button variant="contained" onClick={() => setEditMode(true)} sx={{ textTransform: 'none', fontWeight: 700 }}>
                 Edit Profile
               </Button>
@@ -230,6 +294,95 @@ export default function DoctorDashboard({ userId }) {
           </Button>
           <Button color="error" onClick={handleDelete} sx={{ textTransform: 'none', fontWeight: 700 }}>
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ✅ NEW: Set Availability / My Appointments dialog */}
+      <Dialog open={availOpen} onClose={() => setAvailOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 800 }}>Set Availability</DialogTitle>
+        <DialogContent dividers>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                type="date"
+                label="Date"
+                name="date"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={availabilityForm.date}
+                onChange={handleAvailabilityChange}
+              />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField
+                type="time"
+                label="Start"
+                name="startTime"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={availabilityForm.startTime}
+                onChange={handleAvailabilityChange}
+              />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <TextField
+                type="time"
+                label="End"
+                name="endTime"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={availabilityForm.endTime}
+                onChange={handleAvailabilityChange}
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <TextField
+                type="number"
+                label="Slot (minutes)"
+                name="slotMinutes"
+                fullWidth
+                inputProps={{ min: 5, max: 120 }}
+                value={availabilityForm.slotMinutes}
+                onChange={handleAvailabilityChange}
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <TextField
+                type="number"
+                label="Patient limit"
+                name="patientLimit"
+                fullWidth
+                inputProps={{ min: 1, max: 200 }}
+                value={availabilityForm.patientLimit}
+                onChange={handleAvailabilityChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={12}>
+              <TextField
+                label="Hospital"
+                name="hospital"
+                fullWidth
+                value={availabilityForm.hospital}
+                onChange={handleAvailabilityChange}
+              />
+            </Grid>
+          </Grid>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
+            Patients will see available times and a live booking count. Once the limit is reached, new bookings are blocked automatically.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setAvailOpen(false)} sx={{ textTransform: 'none', fontWeight: 700 }}>
+            Close
+          </Button>
+          <Button
+            variant="contained"
+            onClick={saveAvailability}
+            disabled={savingAvailability}
+            sx={{ textTransform: 'none', fontWeight: 700 }}
+          >
+            {savingAvailability ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

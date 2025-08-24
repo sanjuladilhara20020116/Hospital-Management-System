@@ -109,7 +109,12 @@ app.use('/api', analyzeRoutes);
 
 app.use("/api", require("./routes/cholesterol"));
 
+const appointmentRoutes = require('./routes/appointmentRoutes');
+app.use('/api/appointments', appointmentRoutes);
 
+// ✅ Added routes:
+app.use('/api/availability', require('./routes/availabilityRoutes'));
+app.use('/api/appointments', require('./routes/bookingRoutes'));
 
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {
