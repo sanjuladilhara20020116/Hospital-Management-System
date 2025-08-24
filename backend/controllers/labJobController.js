@@ -43,6 +43,8 @@ exports.createLabJob = async (req, res) => {
 };
 
 // LIST (only own jobs)
+// LIST (only own jobs)
+// LIST (only own jobs)  -- partial search + referenceNo
 exports.getLabJobs = async (req, res) => {
   try {
     const ownerId = req.actorLabAdminId;
@@ -54,18 +56,17 @@ exports.getLabJobs = async (req, res) => {
 
     const filter = { createdBy: ownerId };
 
-    const { status, patientId, testType, dateFrom, dateTo } = req.query;
-    if (status) filter.status = status;
-    if (patientId) filter.patientId = patientId;
-    if (testType)  filter.testType  = testType;
+    // helper to escape regex specials for safe contains search
+    const escape = (s = '') => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    if (dateFrom || dateTo) {
-      const range = {};
-      if (dateFrom) range.$gte = new Date(dateFrom);
-      if (dateTo)   range.$lte = new Date(dateTo + 'T23:59:59.999Z');
-      if (status === 'Completed') filter.completedAt  = range;
-      else                        filter.scheduledDate = range;
-    }
+    const { status, patientId, testType, referenceNo } = req.query;
+
+    if (status) filter.status = status;
+
+    // contains (case-insensitive): works for last-digits typing
+    if (patientId)   filter.patientId   = { $regex: escape(patientId),   $options: 'i' };
+    if (testType)    filter.testType    = { $regex: escape(testType),    $options: 'i' };
+    if (referenceNo) filter.referenceNo = { $regex: escape(referenceNo), $options: 'i' };
 
     const [items, total] = await Promise.all([
       LabJob.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
@@ -78,6 +79,8 @@ exports.getLabJobs = async (req, res) => {
     res.status(500).json({ message: 'Server error fetching jobs' });
   }
 };
+
+
 
 // UPDATE (Pending only, owner-only)
 exports.updateLabJob = async (req, res) => {

@@ -11,7 +11,8 @@ const mongoose = require('mongoose');
 const labReportSchema = new mongoose.Schema(
   {
     patientId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    reportType: { type: String, enum: ['Cholesterol', 'Diabetes', 'X-ray'], required: true, index: true },
+// ✅ CHANGED: remove enum so any validated PDF test name can be saved
+reportType: { type: String, required: true, index: true },
     filePath:   { type: String, required: true },
     uploadDate: { type: Date, default: Date.now },
     referenceNo: { type: String, index: true, default: null },

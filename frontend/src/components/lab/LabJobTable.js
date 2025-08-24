@@ -33,16 +33,7 @@ import InsertPhotoOutlined from "@mui/icons-material/InsertPhotoOutlined";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
 
 import { alpha } from "@mui/material/styles";
-
-const TEST_TYPES = [
-  "Cholesterol",
-  "Diabetes",
-  "X-ray",
-  "Full Blood Count",
-  "Liver Function",
-  "Kidney Function",
-  "Other",
-];
+import Autocomplete from "@mui/material/Autocomplete";
 
 const TIME_SLOTS = ["Morning", "Afternoon", "Evening", "Night"];
 
@@ -138,9 +129,9 @@ export default function LabJobTable({
   };
 
   const doUpload = async () => {
-    if (!file) return setError("Please choose a PDF/Image file");
-    const ok = /\.(pdf|png|jpg|jpeg)$/i.test(file.name);
-    if (!ok) return setError("Only PDF/PNG/JPG allowed");
+    if (!file) return setError("Please choose a PDF");
+    const ok = /\.pdf$/i.test(file.name);
+    if (!ok) return setError("Only PDF allowed");
     await onUpload(selectedJob._id, file);
     setUploadOpen(false);
   };
@@ -149,7 +140,26 @@ export default function LabJobTable({
     const e = {};
     if (!editVals.patientName.trim()) e.patientName = "Required";
     if (!editVals.patientId.trim()) e.patientId = "Required";
-    if (!editVals.testType) e.testType = "Required";
+
+    // TestType validation: PDF-only names, no imaging, no special chars
+    const cleaned = (editVals.testType || "").trim().replace(/\s+/g, " ");
+    const ALLOW_DOT = false;
+    const ALLOWED_REGEX = ALLOW_DOT
+      ? /^[A-Za-z0-9][A-Za-z0-9\s/\-\+\(\)\.]{0,79}$/
+      : /^[A-Za-z0-9][A-Za-z0-9\s/\-\+\(\)]{0,79}$/;
+    const IMAGING_BLOCK = /(?:^|\b)(xray|x-ray|ultrasound|ct\b|mri\b|dicom)(?:\b|$)/i;
+
+    if (!cleaned) {
+      e.testType = "Required";
+    } else if (IMAGING_BLOCK.test(cleaned)) {
+      e.testType =
+        "PDF tests only. Imaging tests (X-ray/CT/MRI/Ultrasound) are not allowed.";
+    } else if (!ALLOWED_REGEX.test(cleaned)) {
+      e.testType = ALLOW_DOT
+        ? "Only letters, numbers, spaces, / - + ( ) and . allowed (max 80)."
+        : "Only letters, numbers, spaces, / - + ( ) allowed (max 80).";
+    }
+
     if (!editVals.scheduledDate) e.scheduledDate = "Required";
     setEditErrs(e);
     return Object.keys(e).length === 0;
@@ -358,7 +368,7 @@ export default function LabJobTable({
         <DialogContent>
           <input
             type="file"
-            accept=".pdf,.png,.jpg,.jpeg"
+            accept=".pdf"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
           {error && (
@@ -397,23 +407,57 @@ export default function LabJobTable({
             error={!!editErrs.patientId}
             helperText={editErrs.patientId}
           />
-          <TextField
-            select
-            fullWidth
-            sx={{ mb: 2 }}
-            label="Test Type"
-            name="testType"
+
+          {/* Test Type (PDF only) — Autocomplete */}
+          <Autocomplete
+            freeSolo
+            disableClearable
+            autoHighlight
+            options={[
+  "Cholesterol",
+  "Diabetes",
+  "Lipid Profile",
+  "Full Blood Count",
+  "Liver Function",
+  "Kidney Function",
+  "Creatinine",
+  "Urea",
+  "Bilirubin",
+  "Electrolytes",
+  "HbA1c",
+  "Fasting Glucose",
+  "Random Glucose",
+  "Thyroid Profile",
+  "Hemoglobin",
+  "Vitamin D",
+  "CRP",
+  "ESR",
+  "Urine Routine",
+  "Stool Culture",
+]}
+
             value={editVals.testType}
-            onChange={(e) => setEditVals((v) => ({ ...v, testType: e.target.value }))}
-            error={!!editErrs.testType}
-            helperText={editErrs.testType}
-          >
-            {TEST_TYPES.map((t) => (
-              <MenuItem key={t} value={t}>
-                {t}
-              </MenuItem>
-            ))}
-          </TextField>
+            onChange={(_, newVal) =>
+              setEditVals((v) => ({
+                ...v,
+                testType: (typeof newVal === "string" ? newVal : (newVal || "")),
+              }))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                fullWidth
+                sx={{ mb: 2 }}
+                label="Test Type (PDF only)"
+                name="testType"
+                error={!!editErrs.testType}
+                helperText={editErrs.testType}
+                onKeyDown={(e) => {
+                  if (e.key.length === 1 && !/^[A-Za-z0-9\s/\-\+\(\)]$/.test(e.key)) e.preventDefault();
+                }}
+              />
+            )}
+          />
 
           <TextField
             fullWidth
