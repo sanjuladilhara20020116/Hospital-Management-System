@@ -3,7 +3,8 @@ import {
   Box, Typography, Card, CardContent, CardActions, Button,
   TextField, Avatar, Snackbar, Alert, Dialog, DialogTitle, 
   DialogContent, DialogActions, Fab, Grid, Paper,
-  InputAdornment, useTheme, Badge, Container, CircularProgress
+  InputAdornment, useTheme, Badge, Container, CircularProgress,
+  Chip, Divider
 } from '@mui/material';
 import {
   Chat as ChatIcon,
@@ -39,6 +40,10 @@ export default function PatientDashboard({ userId }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
 
+  // ✅ NEW: appointments list state (safe)
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
+
   useEffect(() => {
     async function fetchProfile() {
       try {
@@ -53,6 +58,30 @@ export default function PatientDashboard({ userId }) {
       }
     }
     fetchProfile();
+  }, [userId]);
+
+  // ✅ NEW: fetch patient appointments (safe – won’t crash if endpoint missing)
+  const fetchAppointments = async () => {
+    try {
+      setLoadingAppointments(true);
+      // TODO: Adjust endpoint if your backend differs
+      // Expected response shape: [{ _id, referenceNo, doctorId/name, date, startTime, endTime, status }]
+      const res = await axios.get(
+        `http://localhost:5000/api/appointments/mine`,
+        { params: { patientId: userId } }
+      );
+      setAppointments(Array.isArray(res.data?.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []));
+    } catch (e) {
+      // Silent fallback; don’t break dashboard if route isn’t available yet
+      // Optionally show: showAlert('info', 'Appointments not available yet.');
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const showAlert = (severity, message) => {
@@ -107,6 +136,18 @@ export default function PatientDashboard({ userId }) {
       }, 2000);
     } catch (err) {
       showAlert('error', 'Failed to delete profile');
+    }
+  };
+
+  // ✅ NEW: cancel handler (SAFE MODE; uses your specified endpoint)
+  const handleCancelAppointment = async (appointmentId) => {
+    try {
+      await axios.post(`http://localhost:5000/api/appointments/${appointmentId}/cancel`);
+      showAlert('success', 'Appointment cancelled');
+      fetchAppointments(); // refresh list
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Failed to cancel appointment';
+      showAlert('error', msg);
     }
   };
 
@@ -364,6 +405,64 @@ export default function PatientDashboard({ userId }) {
                       <Typography>{profile.address || 'Not provided'}</Typography>
                     </Paper>
                   </Grid>
+                </Grid>
+              )}
+            </Box>
+
+            {/* ✅ NEW: My Appointments (safe, collapsible feel via divider) */}
+            <Box sx={{ px: 3, pb: 3 }}>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
+                My Appointments
+              </Typography>
+
+              {loadingAppointments ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : appointments.length === 0 ? (
+                <Typography color="text.secondary">
+                  You have no appointments yet.
+                </Typography>
+              ) : (
+                <Grid container spacing={1.5}>
+                  {appointments.map((a) => (
+                    <Grid item xs={12} key={a._id || a.referenceNo}>
+                      <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                        <Box>
+                          <Typography variant="body1" fontWeight={600}>
+                            Ref: {a.referenceNo}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {a.date} {a.startTime}{a.endTime ? ` - ${a.endTime}` : ''} • Queue {a.queueNo ?? '-'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Doctor: {a.doctorName || a.doctorId}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip
+                            size="small"
+                            label={a.status || 'Pending'}
+                            color={
+                              a.status === 'Confirmed' ? 'success' :
+                              a.status === 'Cancelled' ? 'default' : 'warning'
+                            }
+                          />
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            startIcon={<CancelIcon />}
+                            disabled={a.status === 'Cancelled'}
+                            onClick={() => handleCancelAppointment(a._id)}
+                          >
+                            Cancel
+                          </Button>
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  ))}
                 </Grid>
               )}
             </Box>
