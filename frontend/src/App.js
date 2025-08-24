@@ -43,7 +43,7 @@ import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 // src/App.js
 
 
-/** -------- Small helpers (no UI) -------- */
+/** --------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
     const raw = localStorage.getItem('user');
@@ -150,3 +150,6 @@ function App() {
 }
 
 export default App;
+
+
+
