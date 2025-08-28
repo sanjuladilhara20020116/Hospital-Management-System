@@ -1,4 +1,3 @@
-
 // server.js
 require('dotenv').config();
 const express = require('express');
@@ -10,8 +9,6 @@ const app = express();
 
 // CORS for React on :3000 (adjust CLIENT_ORIGIN if needed)
 // ---- CORS (allow localhost AND your LAN IPs) ----
-
-
 const STATIC_ALLOWED = new Set(
   [
     'http://localhost:3000',
@@ -40,17 +37,13 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-
-
-
-
 // Static for uploaded images
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// Routes
+// -------------------- Routes --------------------
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const chatRoutes = require('./routes/chatRoutes');
@@ -62,6 +55,10 @@ const pharmacyRoutes = require('./routes/pharmacyRoutes');
 const packageRoutes = require('./routes/packageRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const vaccinationRoutes = require('./routes/vaccinations');
+
+// ✅ NEW: patient lookup route (Doctor-only, header auth)
+const userLookupRoutes = require('./routes/userLookup'); // <-- added
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -74,24 +71,23 @@ app.use('/api/pharmacy', pharmacyRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/vaccinations', vaccinationRoutes);
 
+// ✅ Mount the new lookup route BEFORE the 404 handler
+app.use('/api/user-lookup', userLookupRoutes); // <-- added
 
 /* -------------------- Lab module (NO JWT) -------------------- */
-// These are your new routes. Ensure these files exist:
 const labJobRoutes = require('./routes/labJobRoutes');           // uses middleware/actorLabAdmin inside
-//const publicReportRoutes = require('./routes/publicReportRoutes');// public download by reference
+// const publicReportRoutes = require('./routes/publicReportRoutes');// public download by reference
 app.use('/api/lab-jobs', labJobRoutes);
-//app.use('/api/public/reports', publicReportRoutes);
+// app.use('/api/public/reports', publicReportRoutes);
 
 /* -------------------- Optional: silence HomePage 404s -------------------- */
-// Remove if you later build real handlers.
 app.get('/api/stats', (_req, res) => res.json({ patients: 0, doctors: 0, labs: 0 }));
 app.get('/api/doctors/featured', (_req, res) => res.json([]));
 app.get('/api/testimonials', (_req, res) => res.json([]));
 
 app.use('/api', require('./routes/diabetesRoutes'));
-
-
 
 const userReportRoutes = require('./routes/userReportRoutes');
 const publicReportRoutes = require('./routes/publicReportRoutes');
@@ -99,24 +95,18 @@ const publicReportRoutes = require('./routes/publicReportRoutes');
 app.use('/api/users', userReportRoutes);
 app.use('/api/public/reports', publicReportRoutes);
 
-
 const labReportRoutes = require('./routes/labReportRoutes');
 app.use('/api/reports', labReportRoutes);
-
 
 const analyzeRoutes = require('./routes/analyzeRoutes');
 app.use('/api', analyzeRoutes);
 
-app.use("/api", require("./routes/cholesterol"));
-
-
+app.use('/api', require('./routes/cholesterol'));
 
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API route not found' });
 });
-
-
 
 // Global error handler (optional but helpful)
 app.use((err, req, res, next) => {

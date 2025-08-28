@@ -1,4 +1,3 @@
-
 // src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -35,13 +34,18 @@ import MyBookings from './pages/MyBookings';
 import MyLabReports from './pages/MyLabReports';
 import PatientReportDownload from './pages/PatientReportDownload';
 
-
 import ReportAnalysisPage from "./pages/ReportAnalysisPage";
 import CholesterolDashboard from "./pages/CholesterolDashboard";
 import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
-// src/App.js
+// ✅ Vaccination pages (added)
+import DoctorVaccinatePage from './pages/DoctorVaccinatePage';
+import DoctorVaccinations from './pages/DoctorVaccinations';
+import PatientVaccinations from './pages/PatientVaccinations';
+import VaccinationDetail from './pages/VaccinationDetail';
 
+// ✅ NEW: Vaccination search page (doctor-only)
+import DoctorVaccinationSearch from './pages/DoctorVaccinationSearch';
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
@@ -140,10 +144,53 @@ function App() {
         <Route path="/packages" element={<HealthcarePackages />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/my-bookings" element={<MyBookings />} />
-      <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
-     <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
-     <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
 
+        {/* Report analysis */}
+        <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
+        <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
+        <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
+
+        {/* ✅ Vaccination routes (with role guards) */}
+        <Route
+          path="/vaccinations/new"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <DoctorVaccinatePage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/vaccinations/doctor"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <DoctorVaccinations />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/vaccinations/mine"
+          element={
+            <RoleRoute allowedRoles={['Patient']}>
+              <PatientVaccinations />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/vaccinations/:id"
+          element={
+            <RoleRoute allowedRoles={['Doctor', 'Patient']}>
+              <VaccinationDetail />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/vaccinations/search"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <DoctorVaccinationSearch />
+            </RoleRoute>
+          }
+        />
       </Routes>
     </Router>
   );

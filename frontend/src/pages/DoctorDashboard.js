@@ -5,6 +5,7 @@ import {
   Divider, Stack, Chip, InputAdornment, useTheme
 } from '@mui/material';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import BadgeIcon from '@mui/icons-material/Badge';
 import EmailIcon from '@mui/icons-material/Email';
@@ -12,6 +13,7 @@ import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import HomeIcon from '@mui/icons-material/Home';
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import CakeIcon from '@mui/icons-material/Cake';
+import VaccinesIcon from '@mui/icons-material/Vaccines';
 
 export default function DoctorDashboard({ userId }) {
   const [profile, setProfile] = useState(null);
@@ -150,6 +152,18 @@ export default function DoctorDashboard({ userId }) {
             </>
           ) : (
             <>
+              {/* ✅ New Vaccination button */}
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<VaccinesIcon />}
+                component={Link}
+                to="/vaccinations/search"
+                sx={{ textTransform: 'none', fontWeight: 700 }}
+              >
+                Vaccination
+              </Button>
+
               <Button variant="contained" onClick={() => setEditMode(true)} sx={{ textTransform: 'none', fontWeight: 700 }}>
                 Edit Profile
               </Button>
