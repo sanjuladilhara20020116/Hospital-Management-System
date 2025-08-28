@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Vaccination } from "../vaccinationApi";
+import "./DoctorVaccinatePage.css"; // ← add this line
 
 const onlyLettersSpaces = /^[A-Za-z ]+$/;
 const safeText = /^[A-Za-z0-9 \-_/.,]+$/;
@@ -87,116 +88,172 @@ export default function DoctorVaccinatePage() {
     }
   }
 
+  const isError =
+    status &&
+    (status.startsWith("Failed") || status.toLowerCase().includes("error"));
+
   return (
-    <div style={{ maxWidth: 720, margin: "24px auto" }}>
-      <h2>Create Vaccination Certificate (Doctor)</h2>
+    <div className="vaccinate-page">
+      <div className="page-header">
+        <div className="title-wrap">
+          <h2>Create Vaccination Certificate</h2>
+          <span className="subtitle">Doctor Panel</span>
+        </div>
+      </div>
 
       {status && (
-        <div
-          style={{
-            color:
-              status.startsWith("Failed") ||
-              status.toLowerCase().includes("error")
-                ? "crimson"
-                : "green",
-            marginBottom: 8,
-          }}
-        >
+        <div className={`alert ${isError ? "error" : "success"}`} role="status">
           {status}
         </div>
       )}
 
-      <form
-        onSubmit={onSubmit}
-        className="grid"
-        style={{ display: "grid", gap: 8 }}
-      >
-        <label>Patient ID*</label>
-        <input
-          value={form.patientUserId}
-          onChange={(e) => setVal("patientUserId", e.target.value)}
-          required
-          disabled={loading}
-        />
+      <div className="card">
+        <form onSubmit={onSubmit} className="form-grid" noValidate>
+          {/* Patient */}
+          <div className="section two-col">
+            <div className="form-control">
+              <label htmlFor="patientUserId">Patient ID<span className="req">*</span></label>
+              <input
+                id="patientUserId"
+                value={form.patientUserId}
+                onChange={(e) => setVal("patientUserId", e.target.value)}
+                required
+                disabled={loading}
+                placeholder="e.g., PAT-000123"
+              />
+            </div>
 
-        <label>Vaccine Name*</label>
-        <input
-          value={form.vaccineName}
-          onChange={(e) => setVal("vaccineName", e.target.value)}
-          required
-          disabled={loading}
-        />
+            <div className="form-control">
+              <label htmlFor="dateAdministered">Date/Time Administered</label>
+              <input
+                id="dateAdministered"
+                type="datetime-local"
+                value={form.dateAdministered}
+                onChange={(e) => setVal("dateAdministered", e.target.value)}
+                disabled={loading}
+              />
+            </div>
+          </div>
 
-        <label>Manufacturer</label>
-        <input
-          value={form.manufacturer}
-          onChange={(e) => setVal("manufacturer", e.target.value)}
-          disabled={loading}
-        />
+          {/* Vaccine */}
+          <div className="section">
+            <div className="section-title">Vaccine Details</div>
+            <div className="two-col">
+              <div className="form-control">
+                <label htmlFor="vaccineName">Vaccine Name<span className="req">*</span></label>
+                <input
+                  id="vaccineName"
+                  value={form.vaccineName}
+                  onChange={(e) => setVal("vaccineName", e.target.value)}
+                  required
+                  disabled={loading}
+                  placeholder="e.g., Hepatitis B"
+                />
+              </div>
 
-        <label>Batch/Lot No*</label>
-        <input
-          value={form.batchLotNo}
-          onChange={(e) => setVal("batchLotNo", e.target.value)}
-          required
-          disabled={loading}
-        />
+              <div className="form-control">
+                <label htmlFor="manufacturer">Manufacturer</label>
+                <input
+                  id="manufacturer"
+                  value={form.manufacturer}
+                  onChange={(e) => setVal("manufacturer", e.target.value)}
+                  disabled={loading}
+                  placeholder="e.g., GSK"
+                />
+              </div>
+            </div>
 
-        <label>Expiry Date</label>
-        <input
-          type="date"
-          value={form.expiryDate}
-          onChange={(e) => setVal("expiryDate", e.target.value)}
-          disabled={loading}
-        />
+            <div className="two-col">
+              <div className="form-control">
+                <label htmlFor="batchLotNo">Batch/Lot No<span className="req">*</span></label>
+                <input
+                  id="batchLotNo"
+                  value={form.batchLotNo}
+                  onChange={(e) => setVal("batchLotNo", e.target.value)}
+                  required
+                  disabled={loading}
+                  placeholder="e.g., BATCH-24-0912"
+                />
+              </div>
 
-        <label>Dose Number</label>
-        <input
-          type="number"
-          min="1"
-          max="10"
-          value={form.doseNumber}
-          onChange={(e) => setVal("doseNumber", e.target.value)}
-          disabled={loading}
-        />
+              <div className="form-control">
+                <label htmlFor="expiryDate">Expiry Date</label>
+                <input
+                  id="expiryDate"
+                  type="date"
+                  value={form.expiryDate}
+                  onChange={(e) => setVal("expiryDate", e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            </div>
+          </div>
 
-        <label>Route</label>
-        <select
-          value={form.route}
-          onChange={(e) => setVal("route", e.target.value)}
-          disabled={loading}
-        >
-          <option>IM</option>
-          <option>SC</option>
-        </select>
+          {/* Administration */}
+          <div className="section">
+            <div className="section-title">Administration</div>
+            <div className="two-col">
+              <div className="form-control">
+                <label htmlFor="doseNumber">Dose Number</label>
+                <input
+                  id="doseNumber"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={form.doseNumber}
+                  onChange={(e) => setVal("doseNumber", e.target.value)}
+                  disabled={loading}
+                />
+              </div>
 
-        <label>Site</label>
-        <input
-          value={form.site}
-          onChange={(e) => setVal("site", e.target.value)}
-          disabled={loading}
-        />
+              <div className="form-control">
+                <label htmlFor="route">Route</label>
+                <select
+                  id="route"
+                  value={form.route}
+                  onChange={(e) => setVal("route", e.target.value)}
+                  disabled={loading}
+                >
+                  <option>IM</option>
+                  <option>SC</option>
+                </select>
+              </div>
+            </div>
 
-        <label>Date/Time Administered</label>
-        <input
-          type="datetime-local"
-          value={form.dateAdministered}
-          onChange={(e) => setVal("dateAdministered", e.target.value)}
-          disabled={loading}
-        />
+            <div className="form-control">
+              <label htmlFor="site">Site</label>
+              <input
+                id="site"
+                value={form.site}
+                onChange={(e) => setVal("site", e.target.value)}
+                disabled={loading}
+                placeholder="e.g., Left Deltoid"
+              />
+            </div>
+          </div>
 
-        <label>Notes</label>
-        <textarea
-          rows={3}
-          value={form.notes}
-          onChange={(e) => setVal("notes", e.target.value)}
-          disabled={loading}
-        />
+          {/* Notes */}
+          <div className="section">
+            <div className="form-control">
+              <label htmlFor="notes">Notes</label>
+              <textarea
+                id="notes"
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setVal("notes", e.target.value)}
+                disabled={loading}
+                placeholder="Optional clinical notes"
+              />
+            </div>
+          </div>
 
-        <button disabled={loading} type="submit">
-          {loading ? "Saving..." : "Create & Email PDF"}
-        </button>
-      </form>
+          <div className="actions">
+            <button disabled={loading} type="submit" className="btn-primary">
+              {loading ? "Saving..." : "Create & Email PDF"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

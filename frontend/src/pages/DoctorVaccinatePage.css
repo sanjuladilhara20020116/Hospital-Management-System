@@ -1,0 +1,185 @@
+:root {
+  --bg: #f5f8ff;               /* app background */
+  --card: #ffffff;             /* cards/forms */
+  --muted: #5a6b87;            /* secondary text */
+  --text: #1f2a44;             /* primary text */
+  --accent: #2f6fed;           /* primary blue */
+  --accent-strong: #2255d4;    /* deeper blue for hover */
+  --ring: rgba(47, 111, 237, 0.25);
+  --success: #32b5a6;          /* teal success */
+  --error: #e25555;
+  --border: #e5ecf6;           /* subtle card/input borders */
+  --chip: #eef4ff;             /* light chips/pills */
+  --highlight: #f7c948;        /* small required dot, hints */
+}
+
+.vaccinate-page {
+  max-width: 900px;
+  margin: 24px auto 40px;
+  padding: 0 16px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  margin: 6px 0 16px;
+}
+
+.title-wrap h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: 0.2px;
+  color: var(--text);
+}
+
+.subtitle {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow:
+    0 2px 6px rgba(17, 24, 39, 0.06),
+    0 12px 24px rgba(17, 24, 39, 0.04);
+}
+
+.alert {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  border: 1px solid var(--border);
+}
+.alert.success {
+  background: linear-gradient(0deg, rgba(50,181,166,0.08), rgba(50,181,166,0.08)), #fff;
+  color: #106a61;
+  border-color: #bfece6;
+}
+.alert.error {
+  background: linear-gradient(0deg, rgba(226,85,85,0.08), rgba(226,85,85,0.08)), #fff;
+  color: #7a1c1c;
+  border-color: #ffd7d7;
+}
+
+.form-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.section {
+  display: grid;
+  gap: 14px;
+}
+
+.section-title {
+  font-size: 0.95rem;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+  margin-top: 4px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 720px) {
+  .two-col { grid-template-columns: 1fr 1fr; }
+}
+
+.form-control {
+  display: grid;
+  gap: 8px;
+}
+
+label {
+  font-size: 0.95rem;
+  color: #334766;
+  font-weight: 600;
+}
+.req {
+  color: var(--highlight);
+  margin-left: 4px;
+}
+
+input, select, textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text);
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s;
+}
+
+textarea { resize: vertical; }
+
+input::placeholder,
+textarea::placeholder {
+  color: #8aa0bf;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--ring);
+  background: #ffffff;
+}
+
+select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 18px) calc(1.05em),
+    calc(100% - 14px) calc(1.05em),
+    100% 0;
+  background-size: 6px 6px, 6px 6px, 2.5em 2.5em;
+  background-repeat: no-repeat;
+  padding-right: 40px;
+}
+
+input[disabled], select[disabled], textarea[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: #f9fbff;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.btn-primary {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: white;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.15s ease, filter 0.2s ease;
+  box-shadow: 0 10px 24px rgba(47, 111, 237, 0.28);
+}
+.btn-primary:hover { filter: brightness(1.06); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled {
+  cursor: wait;
+  filter: grayscale(0.15) brightness(0.9);
+  box-shadow: none;
+}
