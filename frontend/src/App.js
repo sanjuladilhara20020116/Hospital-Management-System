@@ -7,6 +7,7 @@ import Registration from './pages/Registration';
 import Login from './pages/Login';
 import HomePage from './pages/HomePage';
 import AppointmentSearchPage from "./pages/appointments/AppointmentSearchPage";
+
 // Feature pages
 import WardManagement from './pages/WardManagement';
 import DepartmentManagement from './pages/DepartmentManagement';
@@ -39,6 +40,10 @@ import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
 // ✅ added safely
 import PaymentSuccess from './pages/appointments/PaymentSuccess';
+
+// Patient Details (doctor view)
+import PatientDetails from "./pages/record/PatientDetails";
+import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
@@ -93,7 +98,6 @@ function App() {
 
         {/* Appointment flow */}
         <Route path="/appointments" element={<AppointmentSearchPage />} />
-        {/* ✅ added safely */}
         <Route path="/appointments/success" element={<PaymentSuccess />} />
 
         {/* Public route for report download */}
@@ -127,6 +131,24 @@ function App() {
           }
         />
 
+        {/* Doctor-only Patient Details routes */}
+        <Route
+          path="/doctor/patients"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <PatientDetailsPlaceholder />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/doctor/patients/:patientId"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <PatientDetails />
+            </RoleRoute>
+          }
+        />
+
         {/* Manager-only pages */}
         <Route path="/manager-dashboard" element={<HospitalManagerDashboard />} />
         <Route path="/wards" element={<WardManagement />} />
@@ -151,5 +173,4 @@ function App() {
   );
 }
 
-export default App;                     
-
+export default App;

@@ -116,6 +116,12 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/availability', require('./routes/availabilityRoutes'));
 app.use('/api/appointments', require('./routes/bookingRoutes'));
 
+
+//allergyRoutes
+const allergyRoutes = require('./routes/allergyRoutes');
+app.use('/api', allergyRoutes);
+
+
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API route not found' });
