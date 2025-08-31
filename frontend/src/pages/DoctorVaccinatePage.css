@@ -307,3 +307,365 @@ input,select,textarea{box-sizing:border-box}
 .btn-secondary:hover:not(:disabled) {
   background-color: #bdc3c7;
 }
+
+/* DoctorVaccinations.css */
+
+.doctor-vaccinations-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  color: var(--text);
+  margin: 0 0 4px 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Status Toast */
+.status-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  color: white;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease;
+}
+
+.status-toast.success {
+  background-color: #4caf50;
+}
+
+.status-toast.error {
+  background-color: #f44336;
+}
+
+.status-toast.info {
+  background-color: #2196f3;
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Filters Card */
+.filters-card {
+  margin-bottom: 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-header .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.toggle-icon {
+  transition: transform 0.3s ease;
+}
+
+.toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.filters-content {
+  padding: 20px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.form-control label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.form-control input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-outline {
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-outline:hover {
+  background-color: var(--accent-ghost);
+}
+
+/* Records Card */
+.records-card {
+  margin-bottom: 24px;
+}
+
+.records-card .card-header {
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+
+.results-count {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+.records-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.records-table th {
+  padding: 16px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 2px solid var(--border);
+}
+
+.records-table td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.even-row {
+  background-color: #fff;
+}
+
+.odd-row {
+  background-color: #fbfdff;
+}
+
+.odd-row:hover, .even-row:hover {
+  background-color: #f0f7ff;
+}
+
+.date-cell .date {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.date-cell .time {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.patient-cell.clickable {
+  cursor: pointer;
+}
+
+.patient-cell.clickable:hover {
+  background-color: var(--accent-ghost);
+}
+
+.patient-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.patient-id {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vaccine-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dose-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-ghost);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cert-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.empty-field {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background-color: #f5f5f5;
+}
+
+.btn-icon.danger {
+  color: #d32f2f;
+  border-color: #ffcdd2;
+}
+
+.btn-icon.danger:hover {
+  background-color: #ffebee;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.processing-text {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.no-data-row td {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-state h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .doctor-vaccinations-page {
+    padding: 16px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-actions {
+    flex-direction: column;
+  }
+  
+  .action-buttons {
+    flex-wrap: wrap;
+  }
+  
+  .records-table {
+    font-size: 14px;
+  }
+  
+  .records-table th,
+  .records-table td {
+    padding: 12px 8px;
+  }
+}

@@ -158,7 +158,7 @@ export default function DoctorDashboard({ userId }) {
                 color="success"
                 startIcon={<VaccinesIcon />}
                 component={Link}
-                to="/vaccinations/search"
+                to="/vaccinations/home"
                 sx={{ textTransform: 'none', fontWeight: 700 }}
               >
                 Vaccination

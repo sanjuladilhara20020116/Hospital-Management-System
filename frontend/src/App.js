@@ -43,8 +43,6 @@ import DoctorVaccinatePage from './pages/DoctorVaccinatePage';
 import DoctorVaccinations from './pages/DoctorVaccinations';
 import PatientVaccinations from './pages/PatientVaccinations';
 import VaccinationDetail from './pages/VaccinationDetail';
-
-// ✅ NEW: Vaccination search page (doctor-only)
 import DoctorVaccinationSearch from './pages/DoctorVaccinationSearch';
 
 /** -------- Small helpers (no UI) -------- */
@@ -184,7 +182,7 @@ function App() {
           }
         />
         <Route
-          path="/vaccinations/search"
+          path="/vaccinations/home"
           element={
             <RoleRoute allowedRoles={['Doctor']}>
               <DoctorVaccinationSearch />

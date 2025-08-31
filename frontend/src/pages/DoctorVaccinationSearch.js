@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../api";
+import { Vaccination, openVaccinationPdfInNewTab } from "../vaccinationApi";
 
 // MUI
 import {
@@ -51,29 +52,20 @@ import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import HistoryIcon from "@mui/icons-material/History";
 
-// -------- Palette (from your strip) --------
-const BLUE = {
-  main: "#2C69F0",
-  mid: "#4D8DF7",
-  light: "#C7D9FE",
-};
-const GREEN = {
-  start: "#34D399",
-  end: "#10B981",
-};
+// -------- Palette --------
+const BLUE = { main: "#2C69F0", mid: "#4D8DF7", light: "#C7D9FE" };
+const GREEN = { start: "#34D399", end: "#10B981" };
 
 // -------- Validation & Sanitization --------
 const validateInput = (value, type) => {
   if (!value || typeof value !== "string") return false;
   const sanitized = value.trim();
   if (!sanitized) return false;
-
-  if (type === "id") {
-    return /^P\d{4}\/\d{1,4}\/\d{1,4}$/.test(sanitized);
-  } else if (type === "nic") {
-    return /^\d{9}[vVxX]$|^\d{12}$/.test(sanitized);
-  }
+  if (type === "id") return /^P\d{4}\/\d{1,4}\/\d{1,4}$/.test(sanitized);
+  if (type === "nic") return /^\d{9}[vVxX]$|^\d{12}$/.test(sanitized);
   return false;
 };
 
@@ -127,7 +119,7 @@ const AnimatedCard = ({ children, delay = 0, ...props }) => {
   );
 };
 
-// -------- Gradient Button (now forces white label + icon) --------
+// -------- Gradient Button --------
 const GradientButton = ({ children, variant = "primary", ...props }) => {
   const theme = useTheme();
   const gradients = {
@@ -135,7 +127,6 @@ const GradientButton = ({ children, variant = "primary", ...props }) => {
     secondary: `linear-gradient(135deg, ${BLUE.mid} 0%, ${BLUE.light} 100%)`,
     success: `linear-gradient(135deg, ${GREEN.start} 0%, ${GREEN.end} 100%)`,
   };
-
   return (
     <Button
       {...props}
@@ -144,8 +135,8 @@ const GradientButton = ({ children, variant = "primary", ...props }) => {
         borderRadius: 4,
         textTransform: "none",
         fontWeight: 700,
-        color: "#fff",                                // <-- white text
-        "& .MuiSvgIcon-root": { color: "#fff" },     // <-- white icon
+        color: "#fff",
+        "& .MuiSvgIcon-root": { color: "#fff" },
         "&:disabled": { color: "rgba(255,255,255,0.7)" },
         boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -215,8 +206,27 @@ export default function DoctorVaccinationSearch() {
   const [patient, setPatient] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Vaccination history
+  const [history, setHistory] = useState([]);
+  const [historyStatus, setHistoryStatus] = useState("");
+
   // Validation
   const isValidInput = useMemo(() => validateInput(query, mode), [query, mode]);
+
+  const loadHistory = useCallback(async (userId) => {
+    if (!userId) return;
+    setHistory([]);
+    setHistoryStatus("Loading history…");
+    try {
+      const rows = await Vaccination.listForDoctor({ patientUserId: userId });
+      const list = Array.isArray(rows) ? rows : [];
+      list.sort((a, b) => new Date(b.dateAdministered) - new Date(a.dateAdministered));
+      setHistory(list);
+      setHistoryStatus(list.length ? "" : "No prior vaccinations found.");
+    } catch {
+      setHistoryStatus("Failed to load history");
+    }
+  }, []);
 
   // Search
   const handleSearch = useCallback(
@@ -242,15 +252,15 @@ export default function DoctorVaccinationSearch() {
 
       try {
         const params = mode === "id" ? { userId: normalized } : { nic: normalized };
-        const { data } = await API.get("/api/user-lookup", {
-          params,
-          timeout: 10000,
-        });
+        const { data } = await API.get("/api/user-lookup", { params, timeout: 10000 });
 
         if (!data || typeof data !== "object") throw new Error("Invalid response from server");
 
         setPatient(data);
         setShowSuccess(true);
+
+        // load vaccination history right away
+        loadHistory(data.userId);
       } catch (err) {
         console.error("Search error:", err);
         const msg =
@@ -264,10 +274,10 @@ export default function DoctorVaccinationSearch() {
         setLoading(false);
       }
     },
-    [query, mode]
+    [query, mode, loadHistory]
   );
 
-  // Navigate
+  // Navigate to create vaccination (blank)
   const handleCreateVaccination = useCallback(() => {
     if (!patient?.userId) {
       setError("Patient information is not available.");
@@ -282,6 +292,29 @@ export default function DoctorVaccinationSearch() {
     }
   }, [patient, navigate]);
 
+  /**
+   * Prefilled next dose:
+   * Send CURRENT dose (as `currentDose`); the create page will auto-increment to next dose.
+   * Also pass vaccine, manufacturer, batch, and route for prefill.
+   */
+  const handleNextDose = useCallback(
+    (rec) => {
+      if (!patient?.userId) return;
+      const params = new URLSearchParams({
+        patientUserId: patient.userId,
+        vaccineName: rec?.vaccineName || "",
+        manufacturer: rec?.manufacturer || "",
+        batchLotNo: rec?.batchLotNo || "",
+        route: rec?.route || "",
+        // 👉 send currentDose so DoctorVaccinatePage adds +1
+        currentDose: String(rec?.doseNumber || 1),
+        prefillNextDose: "1",
+      });
+      navigate(`/vaccinations/new?${params.toString()}`);
+    },
+    [navigate, patient]
+  );
+
   // Mode change
   const handleModeChange = useCallback(
     (_, newMode) => {
@@ -290,6 +323,8 @@ export default function DoctorVaccinationSearch() {
         setQuery("");
         setError("");
         setPatient(null);
+        setHistory([]);
+        setHistoryStatus("");
       }
     },
     [mode]
@@ -300,23 +335,27 @@ export default function DoctorVaccinationSearch() {
     setPatient(null);
     setQuery("");
     setError("");
+    setHistory([]);
+    setHistoryStatus("");
   }, []);
 
-  // Safe date format
+  // Date formatting helpers
   const formatDate = useCallback((dateString) => {
     if (!dateString) return "Not specified";
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return "Invalid date";
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     } catch {
       return "Invalid date";
     }
   }, []);
+  const formatDateTime = (s) => {
+    if (!s) return "-";
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return "-";
+    return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+  };
 
   return (
     <>
@@ -333,7 +372,8 @@ export default function DoctorVaccinationSearch() {
             content: '""',
             position: "absolute",
             inset: 0,
-            background: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            background:
+              "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
           },
           zIndex: -2,
         }}
@@ -530,7 +570,6 @@ export default function DoctorVaccinationSearch() {
                   }}
                 />
 
-                {/* White label + icon via GradientButton defaults */}
                 <GradientButton
                   type="submit"
                   variant="primary"
@@ -696,7 +735,7 @@ export default function DoctorVaccinationSearch() {
                   </Box>
                 </Box>
 
-                {/* Green "Verified Patient" */}
+                {/* Verified */}
                 <Chip
                   icon={<VerifiedUserIcon />}
                   label="Verified Patient"
@@ -716,7 +755,7 @@ export default function DoctorVaccinationSearch() {
 
               <Divider sx={{ my: 4, borderWidth: 1 }} />
 
-              {/* Details */}
+              {/* Demographics */}
               <Grid container spacing={4}>
                 {[
                   { icon: <BadgeIcon />, label: "NIC", value: patient.nicNumber || "Not provided" },
@@ -988,6 +1027,77 @@ export default function DoctorVaccinationSearch() {
                   Clear Search
                 </Button>
               </Box>
+
+              {/* --- Vaccination History --- */}
+              <Divider sx={{ my: 6 }} />
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
+                <HistoryIcon sx={{ color: "text.secondary" }} />
+                <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                  Vaccination History
+                </Typography>
+              </Box>
+
+              {historyStatus && (
+                <Typography color="text.secondary" sx={{ mb: 2 }}>
+                  {historyStatus}
+                </Typography>
+              )}
+
+              {!!history.length && (
+                <Box sx={{ overflowX: "auto", borderRadius: 2, border: "1px solid #eef2ff" }}>
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      background: "white",
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ background: "#f8fafc" }}>
+                        <th style={{ textAlign: "left", padding: 12 }}>Date/Time</th>
+                        <th style={{ textAlign: "left", padding: 12 }}>Vaccine</th>
+                        <th style={{ textAlign: "left", padding: 12 }}>Manufacturer</th>
+                        <th style={{ textAlign: "left", padding: 12 }}>Dose</th>
+                        <th style={{ textAlign: "left", padding: 12 }}>Batch</th>
+                        <th style={{ textAlign: "left", padding: 12 }}>Certificate</th>
+                        <th style={{ textAlign: "left", padding: 12 }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((r) => (
+                        <tr key={r._id} style={{ borderTop: "1px solid #eef2ff" }}>
+                          <td style={{ padding: 12 }}>{formatDateTime(r.dateAdministered)}</td>
+                          <td style={{ padding: 12 }}>{r.vaccineName || "-"}</td>
+                          <td style={{ padding: 12 }}>{r.manufacturer || "-"}</td>
+                          <td style={{ padding: 12 }}>Dose {r.doseNumber ?? "-"}</td>
+                          <td style={{ padding: 12 }}>{r.batchLotNo || "-"}</td>
+                          <td style={{ padding: 12 }}>{r.certificateNumber || "-"}</td>
+                          <td style={{ padding: 12, display: "flex", gap: 8 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<PictureAsPdfIcon />}
+                              disabled={!r.certificatePdfFile}
+                              onClick={() => openVaccinationPdfInNewTab(r._id)}
+                            >
+                              Open PDF
+                            </Button>
+                            <GradientButton
+                              size="small"
+                              variant="secondary"
+                              startIcon={<VaccinesIcon />}
+                              onClick={() => handleNextDose(r)}
+                              sx={{ px: 2 }}
+                            >
+                              Create next dose
+                            </GradientButton>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Box>
+              )}
             </CardContent>
           </AnimatedCard>
         )}

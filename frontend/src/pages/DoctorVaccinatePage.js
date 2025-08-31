@@ -1,5 +1,5 @@
 // src/pages/DoctorVaccinatePage.js
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Vaccination } from "../vaccinationApi";
 import "./DoctorVaccinatePage.css";
@@ -73,23 +73,22 @@ const manufacturersByVaccine = {
   // Children / Core
   "BCG (Tuberculosis)": ["Serum Institute of India", "AJ Vaccines"],
   "Hepatitis B": ["GSK (Engerix-B)", "Merck (Recombivax HB)", "Serum Institute of India"],
-  HepB: ["GSK (Engerix-B)", "Merck (Recombivax HB)", "Serum Institute of India"], // synonym
+  HepB: ["GSK (Engerix-B)", "Merck (Recombivax HB)", "Serum Institute of India"],
   "Polio (IPV/OPV)": ["Sanofi Pasteur", "Bharat Biotech"],
   "DTaP / DTP (Diphtheria, Tetanus, Pertussis)": ["Sanofi Pasteur", "GSK", "Serum Institute of India"],
   "Hib (Haemophilus influenzae type b)": ["Sanofi Pasteur (ActHIB)", "GSK (Hiberix)"],
   "PCV (Pneumococcal conjugate)": ["Pfizer (Prevnar)", "GSK (Synflorix)"],
   Rotavirus: ["Merck (RotaTeq)", "GSK (Rotarix)", "Bharat Biotech (Rotavac)"],
   "MMR (Measles, Mumps, Rubella)": ["Merck (MMR II)", "GSK (Priorix)"],
-  MMR: ["Merck (MMR II)", "GSK (Priorix)"], // synonym
+  MMR: ["Merck (MMR II)", "GSK (Priorix)"],
   "Varicella (Chickenpox)": ["Merck (Varivax)", "GSK (Varilrix)"],
-  Varicella: ["Merck (Varivax)", "GSK (Varilrix)"], // synonym
+  Varicella: ["Merck (Varivax)", "GSK (Varilrix)"],
   "Hepatitis A": ["GSK (Havrix)", "Merck (Vaqta)"],
-  HepA: ["GSK (Havrix)", "Merck (Vaqta)"], // synonym
+  HepA: ["GSK (Havrix)", "Merck (Vaqta)"],
 
   // Teens / Adults
   "HPV (Human Papillomavirus)": ["Merck (Gardasil 9)", "GSK (Cervarix)"],
   "Meningococcal ACWY": ["Sanofi Pasteur (Menactra)", "GSK (Menveo)"],
-  Meningococcal: ["Sanofi Pasteur (Menactra)", "GSK (Menveo)"], // travel synonym
   "Tdap (Tetanus, Diphtheria, Pertussis booster)": ["Sanofi Pasteur (Adacel)", "GSK (Boostrix)"],
   "Td/Tdap booster": ["Sanofi Pasteur (Adacel/TD)", "GSK (Boostrix/Td)"],
   "Influenza (Flu shot)": ["Sanofi Pasteur", "CSL Seqirus", "GSK"],
@@ -104,7 +103,7 @@ const manufacturersByVaccine = {
 
   // Seniors
   "Shingles (Shingrix)": ["GSK (Shingrix)"],
-  "Herpes Zoster": ["GSK (Shingrix)"], // synonym
+  "Herpes Zoster": ["GSK (Shingrix)"],
   "Pneumococcal vaccines (PCV15/PCV20,PPSV23)": ["Pfizer (Prevnar 20/13)", "Merck (Pneumovax 23)"],
 
   // Travel
@@ -142,7 +141,7 @@ const sites = [
   "N/A",
 ];
 
-// ✅ Smart defaults (don’t force, just guide)
+// ✅ Smart defaults (don't force, just guide)
 const adminHints = {
   MMR: { route: "SC" },
   "MMR (Measles, Mumps, Rubella)": { route: "SC" },
@@ -165,7 +164,7 @@ const adminHints = {
 
 /**
  * --- Standard Batch Lots by (vaccine, manufacturer) ---
- * One canonical lot per pair. Doctor can override; a soft note appears if it differs.
+ * One canonical lot per pair. Doctor can override; (we no longer warn).
  * Keys must exactly match manufacturersByVaccine values (including synonyms).
  */
 const standardBatchLots = {
@@ -218,8 +217,6 @@ const standardBatchLots = {
 
   "Meningococcal ACWY|Sanofi Pasteur (Menactra)": "SAN-MEN-25A12",
   "Meningococcal ACWY|GSK (Menveo)": "GSK-MEN-25V04",
-  "Meningococcal|Sanofi Pasteur (Menactra)": "SAN-MEN-25A12",
-  "Meningococcal|GSK (Menveo)": "GSK-MEN-25V04",
 
   "Tdap (Tetanus, Diphtheria, Pertussis booster)|Sanofi Pasteur (Adacel)": "SAN-TDAP-25A03",
   "Tdap (Tetanus, Diphtheria, Pertussis booster)|GSK (Boostrix)": "GSK-TDAP-25B06",
@@ -288,7 +285,12 @@ const getStandardBatch = (vaccine, manufacturer) => {
 export default function DoctorVaccinatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
   const prefillId = searchParams.get("patientUserId") || "";
+
+  // Flags to avoid clobbering explicit deep-link values
+  const routePrefilledRef = useRef(!!searchParams.get("route"));
+  const initialPrefillDoneRef = useRef(false); // block "clear batch on change" during first apply
 
   const [form, setForm] = useState({
     patientUserId: prefillId,
@@ -307,6 +309,54 @@ export default function DoctorVaccinatePage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
   const [touched, setTouched] = useState({});
+
+  // ---- READ PREFILLS from query string (supports multiple names) ----
+  useEffect(() => {
+    // vaccine / mfr / lot / route
+    const vaccineName = searchParams.get("vaccineName") || "";
+    const manufacturer = searchParams.get("manufacturer") || "";
+    const batchLotNo =
+      searchParams.get("batchLotNo") ||
+      searchParams.get("batch") ||
+      "";
+
+    const routeQS = searchParams.get("route") || "";
+    const hasRoute = !!routeQS;
+
+    // ------- Dose handling (NEXT DOSE) -------
+    const qsNextDose = Number(searchParams.get("nextDose"));
+    const qsCurrentDose =
+      Number(searchParams.get("doseNumber")) ||
+      Number(searchParams.get("currentDose")) ||
+      Number(searchParams.get("lastDose"));
+    const prefillNext = searchParams.get("prefillNextDose");
+
+    let nextDose = 1;
+    if (prefillNext && Number.isFinite(qsCurrentDose)) {
+      nextDose = qsCurrentDose + 1;
+    } else if (Number.isFinite(qsNextDose)) {
+      nextDose = qsNextDose;
+    } else if (Number.isFinite(qsCurrentDose)) {
+      nextDose = qsCurrentDose + 1;
+    }
+    nextDose = Math.min(Math.max(nextDose || 1, 1), 10);
+
+    // Build prefill object
+    const prefill = {};
+    if (prefillId) prefill.patientUserId = prefillId;
+    if (vaccineName) prefill.vaccineName = vaccineName;
+    if (manufacturer) prefill.manufacturer = manufacturer;
+    if (batchLotNo) prefill.batchLotNo = batchLotNo;
+    if (hasRoute) prefill.route = routeQS;
+    if (nextDose) prefill.doseNumber = nextDose;
+
+    if (Object.keys(prefill).length) {
+      setForm((prev) => ({ ...prev, ...prefill }));
+    }
+
+    // mark that we've applied initial prefill so other effects can proceed normally
+    initialPrefillDoneRef.current = true;
+  }, [searchParams, prefillId]);
 
   // Derived: filtered manufacturer list for the selected vaccine
   const manufacturerOptions = useMemo(() => {
@@ -329,12 +379,14 @@ export default function DoctorVaccinatePage() {
     const hint = adminHints[form.vaccineName];
     if (!hint) return;
 
+    // If route was explicitly prefilled from deep-link, do not override with hint
+    if (routePrefilledRef.current) return;
+
     setForm((prev) => {
       const nextRoute = hint.route || prev.route || "IM";
       const siteShouldBeNA = nextRoute === "Oral" || nextRoute === "Nasal";
       const nextSite =
         siteShouldBeNA ? "N/A" : (prev.site && prev.site !== "N/A" ? prev.site : "Left Deltoid");
-
       return { ...prev, route: nextRoute, site: nextSite };
     });
   }, [form.vaccineName]);
@@ -348,31 +400,29 @@ export default function DoctorVaccinatePage() {
     }
   }, [form.route, form.site]);
 
-  // --- NEW: Clear batch/lot whenever vaccine OR manufacturer changes
+  // --- Clear batch/lot whenever vaccine OR manufacturer changes
+  //     BUT skip this during the first prefill apply (so deep-link batch isn't wiped)
+  const alreadyMountedRef = useRef(false);
   useEffect(() => {
-    setForm((prev) => ({ ...prev, batchLotNo: "" }));           // empty it
-    setTouched((prev) => ({ ...prev, batchLotNo: false }));      // avoid instant error highlight
+    if (!alreadyMountedRef.current) {
+      alreadyMountedRef.current = true;
+      return;
+    }
+    if (!initialPrefillDoneRef.current) return;
+
+    setForm((prev) => ({ ...prev, batchLotNo: "" })); // empty it
+    setTouched((prev) => ({ ...prev, batchLotNo: false })); // avoid instant error highlight
   }, [form.vaccineName, form.manufacturer]);
 
-  // --- Auto-fill batch lot when both vaccine & manufacturer selected
+  // --- Auto-fill batch lot when both vaccine & manufacturer selected (only if empty)
   useEffect(() => {
     const std = getStandardBatch(form.vaccineName, form.manufacturer);
     if (!std) return;
     setForm((prev) => {
-      if (!prev.batchLotNo?.trim()) return { ...prev, batchLotNo: std }; // only if empty
+      if (!prev.batchLotNo?.trim()) return { ...prev, batchLotNo: std };
       return prev;
     });
   }, [form.vaccineName, form.manufacturer]);
-
-  // --- compute standard & mismatch flag for UI/validation
-  const standardBatch = useMemo(
-    () => getStandardBatch(form.vaccineName, form.manufacturer),
-    [form.vaccineName, form.manufacturer]
-  );
-  const batchDiffersFromStandard = useMemo(() => {
-    if (!standardBatch || !form.batchLotNo?.trim()) return false;
-    return standardBatch !== form.batchLotNo.trim();
-  }, [standardBatch, form.batchLotNo]);
 
   // Validation
   useEffect(() => {
@@ -406,9 +456,6 @@ export default function DoctorVaccinatePage() {
       } else if (!safeText.test(form.batchLotNo)) {
         newErrors.batchLotNo = "Batch/Lot number contains invalid characters";
       }
-      if (!newErrors.batchLotNo && standardBatch && form.batchLotNo.trim() !== standardBatch) {
-        newErrors.batchLotNoSoft = `Note: standard lot for this selection is “${standardBatch}”.`;
-      }
     }
 
     if (touched.expiryDate && form.expiryDate) {
@@ -436,7 +483,7 @@ export default function DoctorVaccinatePage() {
     }
 
     setErrors(newErrors);
-  }, [form, touched, standardBatch]);
+  }, [form, touched]);
 
   function setVal(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -478,8 +525,6 @@ export default function DoctorVaccinatePage() {
       newErrors.batchLotNo = "Batch/Lot number is required";
     } else if (!safeText.test(form.batchLotNo)) {
       newErrors.batchLotNo = "Batch/Lot number contains invalid characters";
-    } else if (standardBatch && form.batchLotNo.trim() !== standardBatch) {
-      newErrors.batchLotNoSoft = `Note: standard lot for this selection is “${standardBatch}”.`;
     }
 
     if (form.expiryDate) {
@@ -505,8 +550,7 @@ export default function DoctorVaccinatePage() {
     }
 
     setErrors(newErrors);
-    // Soft note doesn't block submit
-    return Object.keys(newErrors).filter((k) => k !== "batchLotNoSoft").length === 0;
+    return Object.keys(newErrors).length === 0;
   }
 
   async function onSubmit(e) {
@@ -541,8 +585,8 @@ export default function DoctorVaccinatePage() {
       setTimeout(() => {
         if (res?._id) navigate(`/vaccinations/${res._id}`);
       }, 1200);
-    } catch (e) {
-      setStatus(e?.response?.data?.message || "Failed to create vaccination record");
+    } catch (e2) {
+      setStatus(e2?.response?.data?.message || "Failed to create vaccination record");
     } finally {
       setLoading(false);
     }
@@ -675,9 +719,7 @@ export default function DoctorVaccinatePage() {
                   </optgroup>
                 </select>
 
-                {errors.vaccineName && (
-                  <span className="field-error">{errors.vaccineName}</span>
-                )}
+                {errors.vaccineName && <span className="field-error">{errors.vaccineName}</span>}
               </div>
 
               {/* Manufacturer with filtered datalist */}
@@ -721,22 +763,6 @@ export default function DoctorVaccinatePage() {
                   placeholder="e.g., PFZ-COV-25B01"
                   className={errors.batchLotNo ? "error" : ""}
                 />
-                {/* soft note if different from standard */}
-                {!errors.batchLotNo && errors.batchLotNoSoft && (
-                  <span className="field-error">{errors.batchLotNoSoft}</span>
-                )}
-                {/* quick reset helper */}
-                {standardBatch && batchDiffersFromStandard && !errors.batchLotNo && (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ alignSelf: "flex-start", marginTop: "6px", padding: "6px 10px" }}
-                    onClick={() => setVal("batchLotNo", standardBatch)}
-                    disabled={loading}
-                  >
-                    Use standard: {standardBatch}
-                  </button>
-                )}
                 {errors.batchLotNo && (
                   <span className="field-error">{errors.batchLotNo}</span>
                 )}
