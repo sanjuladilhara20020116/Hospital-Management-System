@@ -4,7 +4,7 @@ const fs = require('fs');
 const VaccinationRecord = require('../models/VaccinationRecord');
 const User = require('../models/User');
 const generateVaccinationCertNo = require('../utils/generateVaccinationCertNo');
-const { buildVaccinationCertificatePDF } = require('../utils/certificatePdf');
+const { buildVaccinationCertificatePDF } = require('../utils/VacciCertificatePdf');
 const { sendMail } = require('../utils/mailer');
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');

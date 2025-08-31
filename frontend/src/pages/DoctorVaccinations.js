@@ -61,7 +61,7 @@ export default function DoctorVaccinations() {
   }
 
   async function del(id) {
-    if (!window.confirm("Delete this vaccination record? This cannot be undone.")) return;
+    if (!window.confirm("Are you sure want to delete this vaccination record?")) return;
     try {
       await Vaccination.remove(id);
       setList((s) => s.filter((x) => x._id !== id));
