@@ -121,6 +121,10 @@ app.use('/api/appointments', require('./routes/bookingRoutes'));
 const allergyRoutes = require('./routes/allergyRoutes');
 app.use('/api', allergyRoutes);
 
+// Clinical Records (doctor visit notes) - additive
+app.use('/api/clinical-records', require('./routes/clinicalRecordRoutes'));
+
+
 
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {

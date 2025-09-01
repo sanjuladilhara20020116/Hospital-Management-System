@@ -8,6 +8,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import AllergiesCard from "../../components/record/AllergiesCard";
+import MedicalRecordsHub from "../../components/record/MedicalRecordsHub";
+
 
 const API_BASE = "http://localhost:5000";
 
@@ -184,6 +186,16 @@ export default function PatientDetails() {
       </Box>
 
       <Divider sx={{ my: 4 }} />
+      {/* Medical Records hub (UI-only) */}
+      <MedicalRecordsHub
+        patientId={data.userId}
+        isDoctor={isDoctor}
+        onAdd={(activeKey) => {
+        // Optional: wire up navigation later
+        // e.g., navigate(`/doctor/patients/${encodeURIComponent(data.userId)}/records/${activeKey}/new`);
+        console.log("Add clicked for:", activeKey);
+        }}
+      />
     </Box>
   );
 }
