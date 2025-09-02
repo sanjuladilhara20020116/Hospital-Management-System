@@ -1,4 +1,4 @@
-/// src/components/lab/LabJobForm.jsx
+// src/components/lab/LabJobForm.jsx
 import React, { useState } from "react";
 import {
   Box,
@@ -48,8 +48,8 @@ const sanitize = (s = "", charOK) => s.split("").filter(charOK).join("");
 const IMAGING_BLOCK =
   /(?:^|\b)(xray|x-ray|ultrasound|ct\b|mri\b|dicom)(?:\b|$)/i;
 
-// Final validation (submit-time)
-const PID_FINAL_RE = /^P2025\/\d{3}\/\d{3,4}$/i;
+// ✅ Final validation (submit-time): last block 2–4 digits
+const PID_FINAL_RE = /^P2025\/\d{3}\/\d{2,4}$/i;
 
 // Live typing/paste guard (allows partial stages)
 // P2025 / N{0..3} [ / N{0..4} ]
@@ -59,15 +59,11 @@ const PID_PREFIX = "P2025/";
 const PID_MAX = 14; // P2025/ + 3 + / + 4
 
 function expectAt(idx) {
-  // 0..5: P2025/
-  if (idx < 6) return PID_PREFIX[idx];
-  // 6..8: digits
-  if (idx >= 6 && idx <= 8) return "digit";
-  // 9: slash
-  if (idx === 9) return "/";
-  // 10..13: digits (max 4)
-  if (idx >= 10 && idx <= 13) return "digit";
-  return null; // beyond max
+  if (idx < 6) return PID_PREFIX[idx];      // P2025/
+  if (idx >= 6 && idx <= 8) return "digit"; // 3 digits
+  if (idx === 9) return "/";                // slash
+  if (idx >= 10 && idx <= 13) return "digit"; // last 2–4 digits (max 4)
+  return null;
 }
 
 export default function LabJobForm({ onSubmit }) {
@@ -113,7 +109,7 @@ export default function LabJobForm({ onSubmit }) {
     if (!pid) e.patientId = "Required";
     else if (!PID_FINAL_RE.test(pid)) {
       e.patientId =
-        "Must be P2025/NNN/NNN or P2025/NNN/NNNN (e.g., P2025/123/4567).";
+        "Must be P2025/NNN/NN–NNNN (e.g., P2025/123/45 or P2025/123/4567).";
     }
 
     // Test type
@@ -147,27 +143,18 @@ export default function LabJobForm({ onSubmit }) {
     const start = e.currentTarget.selectionStart ?? v.length;
     const end = e.currentTarget.selectionEnd ?? v.length;
 
-    // Always allow control/navigation keys
     const ctrl =
       e.ctrlKey || e.metaKey ||
       ["Backspace", "Delete", "Tab", "Enter", "Escape", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key);
     if (ctrl) return;
 
-    // if inserting beyond max length (and no selection to replace) → block
     if (v.length >= PID_MAX && start === end) {
       e.preventDefault();
       return;
     }
 
-    // Expected token at insertion point
     const exp = expectAt(start);
-    if (exp == null) {
-      e.preventDefault();
-      return;
-    }
-
-    // If cursor is after holes (user jumped), block
-    if (start > v.length) {
+    if (exp == null || start > v.length) {
       e.preventDefault();
       return;
     }
@@ -183,8 +170,6 @@ export default function LabJobForm({ onSubmit }) {
       return;
     }
 
-    // Specific prefix character (P 2 0 2 5 /)
-    // Accept lowercase 'p' for the first char
     if (exp === "P") {
       if (!/^p$/i.test(ch)) e.preventDefault();
     } else if (ch !== exp) {
@@ -199,7 +184,6 @@ export default function LabJobForm({ onSubmit }) {
     const after = input.value.slice(input.selectionEnd ?? input.value.length);
     const proposed = (before + text + after).toUpperCase();
 
-    // Disallow if not matching partial or too long
     if (!PID_PARTIAL_RE.test(proposed) || proposed.length > PID_MAX) {
       e.preventDefault();
     }
@@ -272,19 +256,23 @@ export default function LabJobForm({ onSubmit }) {
           />
         </Box>
 
-        {/* Patient ID (no auto-fill; strict key/paste filter) */}
+        {/* Patient ID */}
         <Box sx={{ width: "100%" }}>
           <Box sx={{ fontSize: 16, fontWeight: 600, color: "#333", mb: 1 }}>
             Patient ID (e.g., P2025/123/4567)
           </Box>
           <TextField
             fullWidth
-            placeholder="P2025/123/4567"
+            placeholder="P2025/123/45 or P2025/123/4567"
             name="patientId"
             value={values.patientId}
             onChange={(e) => setField("patientId", e.target.value)}
             onBlur={(e) => setField("patientId", e.target.value.trim())}
             error={!!errors.patientId}
+            helperText={
+              errors.patientId ||
+              "Format: P2025/NNN/NN–NNNN (e.g., P2025/123/45 or P2025/123/4567)"
+            }
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -322,7 +310,6 @@ export default function LabJobForm({ onSubmit }) {
                 fullWidth
                 placeholder="e.g., Cholesterol or Diabetes"
                 error={!!errors.testType}
-                
                 InputProps={{
                   ...params.InputProps,
                   startAdornment: (
