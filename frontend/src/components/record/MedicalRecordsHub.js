@@ -1,5 +1,7 @@
 // src/components/record/MedicalRecordsHub.jsx
 import React, { useMemo, useState } from "react";
+import PrescriptionList from "./prescriptions/PrescriptionList";
+
 import {
   Box,
   Paper,
@@ -28,6 +30,7 @@ export default function MedicalRecordsHub({
   const [section, setSection] = useState("med"); // "med" | "lab"
   const [active, setActive] = useState("record");
   const [createSignal, setCreateSignal] = useState(0); // increments only on Add
+  const [createSignalPresc, setCreateSignalPresc] = useState(0); // ✅ for Prescription
 
   const activeLabel = useMemo(() => {
     const found = SUBPARTS.find((s) => s.key === active);
@@ -37,18 +40,23 @@ export default function MedicalRecordsHub({
   // Ensure the create signal is cleared whenever we leave the "Record" view
   const goSection = (value) => {
     setSection(value);
-    if (value !== "med") setCreateSignal(0); // leaving med -> clear
+    if (value !== "med") {
+      setCreateSignal(0);        // leaving med -> clear record signal
+      setCreateSignalPresc(0);   // leaving med -> clear prescription signal
+    }
   };
 
   const goActive = (value) => {
     setActive(value);
-    if (value !== "record") setCreateSignal(0); // leaving record tab -> clear
+    if (value !== "record") setCreateSignal(0);             // leaving record tab -> clear
+    if (value !== "prescription") setCreateSignalPresc(0);  // leaving prescription tab -> clear
   };
 
   const handleAdd = () => {
     if (section !== "med") return;
     if (typeof onAdd === "function") onAdd(active);
-    if (active === "record") setCreateSignal((n) => n + 1); // open create dialog
+    if (active === "record") setCreateSignal((n) => n + 1);             // open record create
+    if (active === "prescription") setCreateSignalPresc((n) => n + 1); // open prescription create
   };
 
   const Segment = ({ value, children }) => {
@@ -194,6 +202,12 @@ export default function MedicalRecordsHub({
                   patientId={patientId}
                   isDoctor={isDoctor}
                   createSignal={createSignal} // only changes on Add click
+                />
+              ) : active === "prescription" ? (
+                <PrescriptionList
+                  patientId={patientId}
+                  isDoctor={isDoctor}
+                  createSignal={createSignalPresc} // only changes on Add click
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">

@@ -124,6 +124,9 @@ app.use('/api', allergyRoutes);
 // Clinical Records (doctor visit notes) - additive
 app.use('/api/clinical-records', require('./routes/clinicalRecordRoutes'));
 
+// Prescriptions (medical records) - additive
+app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
+
 
 
 /* -------------------- 404 for unknown API routes -------------------- */

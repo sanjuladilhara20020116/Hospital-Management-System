@@ -1,4 +1,3 @@
-// src/components/record/records/RecordFormDialog.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -15,11 +14,11 @@ function getCurrentUser() {
   } catch { return null; }
 }
 
-export default function RecordFormDialog({
+export default function PrescriptionFormDialog({
   open,
   onClose,
   patientUserId,
-  initialItem,              // if present -> edit mode
+  initialItem,              // edit mode if present
   onCreated,
   onUpdated,
 }) {
@@ -27,12 +26,10 @@ export default function RecordFormDialog({
   const [doctor, setDoctor] = useState(null);
   const [form, setForm] = useState({
     chiefComplaint: "",
-    presentSymptoms: "",
-    examination: "",
-    assessment: "",
+    medicines: "",
     instructions: "",
-    vitalSigns: "",
-    doctorNotes: "",
+    requestedLabReports: "",
+    duration: "",
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
@@ -40,13 +37,9 @@ export default function RecordFormDialog({
   const isEdit = !!initialItem;
   const viewer = getCurrentUser();
 
-  // Convenience props so labels are always shown above inputs
-  const tfCommon = {
-    fullWidth: true,
-    InputLabelProps: { shrink: true },
-  };
+  const tfCommon = { fullWidth: true, InputLabelProps: { shrink: true } };
 
-  // load patient + doctor to auto-fill labels/ids
+  // Load auto-fill info
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -64,28 +57,24 @@ export default function RecordFormDialog({
     })();
   }, [open, patientUserId, viewer?.userId]);
 
-  // initialize form for edit/create
+  // Initialize form
   useEffect(() => {
     if (!open) return;
     if (isEdit && initialItem) {
       setForm({
         chiefComplaint: initialItem.chiefComplaint || "",
-        presentSymptoms: initialItem.presentSymptoms || "",
-        examination: initialItem.examination || "",
-        assessment: initialItem.assessment || "",
+        medicines: initialItem.medicines || "",
         instructions: initialItem.instructions || "",
-        vitalSigns: initialItem.vitalSigns || "",
-        doctorNotes: initialItem.doctorNotes || "",
+        requestedLabReports: initialItem.requestedLabReports || "",
+        duration: initialItem.duration || "",
       });
     } else {
       setForm({
         chiefComplaint: "",
-        presentSymptoms: "",
-        examination: "",
-        assessment: "",
+        medicines: "",
         instructions: "",
-        vitalSigns: "",
-        doctorNotes: "",
+        requestedLabReports: "",
+        duration: "",
       });
     }
   }, [isEdit, initialItem, open]);
@@ -95,18 +84,15 @@ export default function RecordFormDialog({
   const payload = useMemo(() => {
     if (!patient || !doctor) return null;
     return {
-      // auto-fill fields stored by backend
       patientUserId: patient.userId,
       patientName: `${patient.firstName || ""} ${patient.lastName || ""}`.trim(),
       age: patient.age ?? undefined,
-      gender: patient.gender || undefined,
 
       doctorUserId: doctor.userId,
       doctorName: `${doctor.firstName || ""} ${doctor.lastName || ""}`.trim(),
 
-      // visitDateTime: backend default at create
+      // Date auto-filled by backend
 
-      // editable form fields
       ...form,
     };
   }, [patient, doctor, form]);
@@ -120,16 +106,16 @@ export default function RecordFormDialog({
 
       if (isEdit) {
         const res = await axios.put(
-          `${API_BASE}/api/clinical-records/${encodeURIComponent(initialItem._id)}`,
+          `${API_BASE}/api/prescriptions/${encodeURIComponent(initialItem._id)}`,
           payload
         );
         onUpdated && onUpdated(res.data.item);
       } else {
-        const res = await axios.post(`${API_BASE}/api/clinical-records`, payload);
+        const res = await axios.post(`${API_BASE}/api/prescriptions`, payload);
         onCreated && onCreated(res.data.item);
       }
     } catch (e) {
-      setErr(e?.response?.data?.message || "Unable to save record");
+      setErr(e?.response?.data?.message || "Unable to save prescription");
     } finally {
       setSaving(false);
     }
@@ -137,11 +123,11 @@ export default function RecordFormDialog({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{isEdit ? "Edit Record" : "Add Record"}</DialogTitle>
+      <DialogTitle>{isEdit ? "Edit Prescription" : "Add Prescription"}</DialogTitle>
       <DialogContent dividers>
         {err && <Alert severity="error" sx={{ mb: 2 }}>{err}</Alert>}
 
-        {/* Patient / Doctor details (labels above inputs) */}
+        {/* Patient / Doctor auto details */}
         <Grid container spacing={2} sx={{ mb: 1 }}>
           <Grid item xs={12} md={6}>
             <TextField
@@ -163,39 +149,24 @@ export default function RecordFormDialog({
 
         <Divider sx={{ my: 1.5 }} />
 
-        {/* Editable fields stacked one by one with labels always on top */}
+        {/* Editable fields (stacked, with labels above) */}
         <Stack spacing={2}>
           <TextField
-            label="Chief complaint / reason for visit"
+            label="Chief complaint"
             value={form.chiefComplaint}
             onChange={setVal("chiefComplaint")}
             {...tfCommon}
             multiline
-            minRows={3}
+            minRows={2}
           />
           <TextField
-            label="Present symptoms"
-            value={form.presentSymptoms}
-            onChange={setVal("presentSymptoms")}
+            label="Medicine Name and dosage"
+            value={form.medicines}
+            onChange={setVal("medicines")}
             {...tfCommon}
             multiline
-            minRows={3}
-          />
-          <TextField
-            label="Examination / Observation"
-            value={form.examination}
-            onChange={setVal("examination")}
-            {...tfCommon}
-            multiline
-            minRows={3}
-          />
-          <TextField
-            label="Assessment / Impression"
-            value={form.assessment}
-            onChange={setVal("assessment")}
-            {...tfCommon}
-            multiline
-            minRows={3}
+            minRows={5} // more space
+            placeholder="e.g., Amoxicillin 500 mg — 1 capsule three times daily"
           />
           <TextField
             label="Instructions"
@@ -206,20 +177,19 @@ export default function RecordFormDialog({
             minRows={3}
           />
           <TextField
-            label="Vital signs"
-            value={form.vitalSigns}
-            onChange={setVal("vitalSigns")}
+            label="Requested lab reports"
+            value={form.requestedLabReports}
+            onChange={setVal("requestedLabReports")}
             {...tfCommon}
             multiline
             minRows={2}
           />
           <TextField
-            label="Doctor notes"
-            value={form.doctorNotes}
-            onChange={setVal("doctorNotes")}
+            label="Duration"
+            value={form.duration}
+            onChange={setVal("duration")}
             {...tfCommon}
-            multiline
-            minRows={3}
+            placeholder="e.g., 7 days"
           />
         </Stack>
       </DialogContent>
