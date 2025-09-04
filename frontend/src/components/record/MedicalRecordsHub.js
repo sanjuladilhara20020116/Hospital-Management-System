@@ -1,6 +1,7 @@
 // src/components/record/MedicalRecordsHub.jsx
 import React, { useMemo, useState } from "react";
 import PrescriptionList from "./prescriptions/PrescriptionList";
+import DiagnosisList from "./diagnosis/DiagnosisList";
 
 import {
   Box,
@@ -29,34 +30,39 @@ export default function MedicalRecordsHub({
 }) {
   const [section, setSection] = useState("med"); // "med" | "lab"
   const [active, setActive] = useState("record");
-  const [createSignal, setCreateSignal] = useState(0); // increments only on Add
-  const [createSignalPresc, setCreateSignalPresc] = useState(0); // ✅ for Prescription
+  const [createSignal, setCreateSignal] = useState(0); // increments only on Add (Record)
+  const [createSignalPresc, setCreateSignalPresc] = useState(0); // increments only on Add (Prescription)
+  const [createSignalDiag, setCreateSignalDiag] = useState(0); // increments only on Add (Diagnosis)
 
   const activeLabel = useMemo(() => {
     const found = SUBPARTS.find((s) => s.key === active);
     return found ? found.label : "Record";
   }, [active]);
 
-  // Ensure the create signal is cleared whenever we leave the "Record" view
+  // Clear create signals when switching sections
   const goSection = (value) => {
     setSection(value);
     if (value !== "med") {
-      setCreateSignal(0);        // leaving med -> clear record signal
-      setCreateSignalPresc(0);   // leaving med -> clear prescription signal
+      setCreateSignal(0);
+      setCreateSignalPresc(0);
+      setCreateSignalDiag(0);
     }
   };
 
+  // Clear unrelated create signals when switching tabs
   const goActive = (value) => {
     setActive(value);
-    if (value !== "record") setCreateSignal(0);             // leaving record tab -> clear
-    if (value !== "prescription") setCreateSignalPresc(0);  // leaving prescription tab -> clear
+    if (value !== "record") setCreateSignal(0);
+    if (value !== "prescription") setCreateSignalPresc(0);
+    if (value !== "diagnosis") setCreateSignalDiag(0);
   };
 
   const handleAdd = () => {
     if (section !== "med") return;
     if (typeof onAdd === "function") onAdd(active);
-    if (active === "record") setCreateSignal((n) => n + 1);             // open record create
-    if (active === "prescription") setCreateSignalPresc((n) => n + 1); // open prescription create
+    if (active === "record") setCreateSignal((n) => n + 1);
+    if (active === "prescription") setCreateSignalPresc((n) => n + 1);
+    if (active === "diagnosis") setCreateSignalDiag((n) => n + 1);
   };
 
   const Segment = ({ value, children }) => {
@@ -140,7 +146,7 @@ export default function MedicalRecordsHub({
                   border: (t) => `1px solid ${t.palette.divider}`,
                   color: "text.primary", // unselected label color
                 },
-                // selected pill: blue bg + white text
+                // selected pill (kept as in your current file)
                 "& .MuiTab-root.Mui-selected": {
                   bgcolor: "primary.main",
                   borderColor: "primary.main",
@@ -208,6 +214,12 @@ export default function MedicalRecordsHub({
                   patientId={patientId}
                   isDoctor={isDoctor}
                   createSignal={createSignalPresc} // only changes on Add click
+                />
+              ) : active === "diagnosis" ? (
+                <DiagnosisList
+                  patientId={patientId}
+                  isDoctor={isDoctor}
+                  createSignal={createSignalDiag} // only changes on Add click
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">

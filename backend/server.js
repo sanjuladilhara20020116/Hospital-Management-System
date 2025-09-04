@@ -127,6 +127,9 @@ app.use('/api/clinical-records', require('./routes/clinicalRecordRoutes'));
 // Prescriptions (medical records) - additive
 app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
 
+// Diagnosis card
+app.use('/api/diagnosis-cards', require('./routes/diagnosisCardRoutes'));
+
 
 
 /* -------------------- 404 for unknown API routes -------------------- */
