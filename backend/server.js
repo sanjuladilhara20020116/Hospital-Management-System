@@ -130,6 +130,9 @@ app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
 // Diagnosis card
 app.use('/api/diagnosis-cards', require('./routes/diagnosisCardRoutes'));
 
+// Admission Note
+app.use('/api/admission-notes', require('./routes/admissionNoteRoutes'));
+
 
 
 /* -------------------- 404 for unknown API routes -------------------- */

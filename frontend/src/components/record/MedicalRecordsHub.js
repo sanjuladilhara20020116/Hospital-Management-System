@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import PrescriptionList from "./prescriptions/PrescriptionList";
 import DiagnosisList from "./diagnosis/DiagnosisList";
+import AdmissionList from "./admission/AdmissionList";
 
 import {
   Box,
@@ -30,9 +31,10 @@ export default function MedicalRecordsHub({
 }) {
   const [section, setSection] = useState("med"); // "med" | "lab"
   const [active, setActive] = useState("record");
-  const [createSignal, setCreateSignal] = useState(0); // increments only on Add (Record)
-  const [createSignalPresc, setCreateSignalPresc] = useState(0); // increments only on Add (Prescription)
-  const [createSignalDiag, setCreateSignalDiag] = useState(0); // increments only on Add (Diagnosis)
+  const [createSignal, setCreateSignal] = useState(0);         // Record
+  const [createSignalPresc, setCreateSignalPresc] = useState(0); // Prescription
+  const [createSignalDiag, setCreateSignalDiag] = useState(0);   // Diagnosis
+  const [createSignalAdm, setCreateSignalAdm] = useState(0);     // Admission
 
   const activeLabel = useMemo(() => {
     const found = SUBPARTS.find((s) => s.key === active);
@@ -46,6 +48,7 @@ export default function MedicalRecordsHub({
       setCreateSignal(0);
       setCreateSignalPresc(0);
       setCreateSignalDiag(0);
+      setCreateSignalAdm(0);
     }
   };
 
@@ -55,6 +58,7 @@ export default function MedicalRecordsHub({
     if (value !== "record") setCreateSignal(0);
     if (value !== "prescription") setCreateSignalPresc(0);
     if (value !== "diagnosis") setCreateSignalDiag(0);
+    if (value !== "admission") setCreateSignalAdm(0);
   };
 
   const handleAdd = () => {
@@ -63,6 +67,7 @@ export default function MedicalRecordsHub({
     if (active === "record") setCreateSignal((n) => n + 1);
     if (active === "prescription") setCreateSignalPresc((n) => n + 1);
     if (active === "diagnosis") setCreateSignalDiag((n) => n + 1);
+    if (active === "admission") setCreateSignalAdm((n) => n + 1);
   };
 
   const Segment = ({ value, children }) => {
@@ -146,7 +151,7 @@ export default function MedicalRecordsHub({
                   border: (t) => `1px solid ${t.palette.divider}`,
                   color: "text.primary", // unselected label color
                 },
-                // selected pill (kept as in your current file)
+                // selected pill (kept consistent with your current styling)
                 "& .MuiTab-root.Mui-selected": {
                   bgcolor: "primary.main",
                   borderColor: "primary.main",
@@ -220,6 +225,12 @@ export default function MedicalRecordsHub({
                   patientId={patientId}
                   isDoctor={isDoctor}
                   createSignal={createSignalDiag} // only changes on Add click
+                />
+              ) : active === "admission" ? (
+                <AdmissionList
+                  patientId={patientId}
+                  isDoctor={isDoctor}
+                  createSignal={createSignalAdm} // only changes on Add click
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">
