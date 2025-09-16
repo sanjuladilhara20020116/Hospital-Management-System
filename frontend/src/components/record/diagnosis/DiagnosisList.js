@@ -10,6 +10,9 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import axios from "axios";
 import DiagnosisFormDialog from "./DiagnosisFormDialog";
 import DiagnosisViewDialog from "./DiagnosisViewDialog";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import { downloadFile } from "../../../utils/download";
+
 
 const API_BASE = "http://localhost:5000";
 
@@ -117,6 +120,19 @@ export default function DiagnosisList({ patientId, isDoctor, createSignal = 0 })
                   </IconButton>
                 </>
               )}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                  downloadFile(
+                    `http://localhost:5000/api/diagnosis-cards/${encodeURIComponent(it._id)}/pdf`,
+                    `DiagnosisCard_${it.diagnosisCardId || it._id}.pdf`
+                  )
+                }
+              >
+                Download PDF
+              </Button>
+
             </CardActions>
           </Card>
         ))}

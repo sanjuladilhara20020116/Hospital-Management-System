@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const ClinicalRecord = require("../models/ClinicalRecord");
+const { startDoc, addField, finishDoc, line } = require("../utils/pdf");
 
 // Create
 router.post("/", async (req, res) => {
@@ -60,6 +61,39 @@ router.delete("/:id", async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     return res.status(400).json({ message: "Unable to delete record" });
+  }
+});
+
+// ⬇️ NEW: Download PDF
+router.get("/:id/pdf", async (req, res) => {
+  try {
+    const item = await ClinicalRecord.findById(req.params.id).lean();
+    if (!item) return res.status(404).json({ message: "Record not found" });
+
+    const filename = `Record_${item.recordId || item._id}.pdf`;
+    const doc = startDoc(res, filename, "Clinical Record");
+
+    // Meta
+    addField(doc, "Record ID", item.recordId || item._id);
+    addField(doc, "Date & Time", new Date(item.visitDateTime).toLocaleString());
+    addField(doc, "Patient", `${item.patientName || ""} (${item.patientUserId || ""})`);
+    addField(doc, "Age / Gender", [item.age, item.gender].filter(Boolean).join(" / "));
+    addField(doc, "Doctor", `${item.doctorName || ""} (${item.doctorUserId || ""})`);
+
+    line(doc);
+
+    // Clinical
+    addField(doc, "Chief complaint / reason for visit", item.chiefComplaint);
+    addField(doc, "Present symptoms", item.presentSymptoms);
+    addField(doc, "Examination / Observation", item.examination);
+    addField(doc, "Assessment / Impression", item.assessment);
+    addField(doc, "Instructions", item.instructions);
+    addField(doc, "Vital signs", item.vitalSigns);
+    addField(doc, "Doctor notes", item.doctorNotes);
+
+    finishDoc(doc);
+  } catch (e) {
+    res.status(500).json({ message: "Unable to generate PDF" });
   }
 });
 

@@ -10,6 +10,9 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import axios from "axios";
 import PrescriptionFormDialog from "./PrescriptionFormDialog";
 import PrescriptionViewDialog from "./PrescriptionViewDialog";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import { downloadFile } from "../../../utils/download";
+
 
 const API_BASE = "http://localhost:5000";
 
@@ -127,6 +130,19 @@ export default function PrescriptionList({ patientId, isDoctor, createSignal = 0
                   </IconButton>
                 </>
               )}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                  downloadFile(
+                    `http://localhost:5000/api/prescriptions/${encodeURIComponent(it._id)}/pdf`,
+                    `Prescription_${it.prescriptionId || it._id}.pdf`
+                  )
+                }
+              >
+                Download PDF
+              </Button>
+
             </CardActions>
           </Card>
         ))}

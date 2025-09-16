@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const AdmissionNote = require("../models/AdmissionNote");
+const { startDoc, addField, finishDoc, line } = require("../utils/pdf");
 
 // Create
 router.post("/", async (req, res) => {
@@ -62,5 +63,40 @@ router.delete("/:id", async (req, res) => {
     return res.status(400).json({ message: "Unable to delete admission note" });
   }
 });
+
+// ⬇️ NEW: Download PDF
+router.get("/:id/pdf", async (req, res) => {
+    try {
+      const item = await AdmissionNote.findById(req.params.id).lean();
+      if (!item) return res.status(404).json({ message: "Admission note not found" });
+  
+      const filename = `AdmissionNote_${item.admissionNoteId || item._id}.pdf`;
+      const doc = startDoc(res, filename, "Admission Note");
+  
+      // Meta
+      addField(doc, "AdmissionNote ID", item.admissionNoteId || item._id);
+      addField(doc, "Date & Time", new Date(item.visitDateTime).toLocaleString());
+      addField(doc, "Patient", `${item.patientName || ""} (${item.patientUserId || ""})`);
+      addField(doc, "Age", item.age);
+      addField(doc, "Doctor", `${item.doctorName || ""} (${item.doctorUserId || ""})`);
+  
+      line(doc);
+  
+      // Clinical
+      addField(doc, "Chife complaint", item.chiefComplaint);
+      addField(doc, "Preliminary Diagnosis", item.preliminaryDiagnosis);
+      addField(doc, "Recommended ward/unit", item.recommendedUnit);
+      addField(doc, "Present symptoms", item.presentSymptoms);
+      addField(doc, "Examination Findings", item.examinationFindings);
+      addField(doc, "Existing conditions", item.existingConditions);
+      addField(doc, "Immediat Managements", item.immediateManagements);
+      addField(doc, "Emergency Medical care", item.emergencyCare);
+      addField(doc, "Doctor Notes", item.doctorNotes);
+  
+      finishDoc(doc);
+    } catch (e) {
+      res.status(500).json({ message: "Unable to generate PDF" });
+    }
+  });
 
 module.exports = router;

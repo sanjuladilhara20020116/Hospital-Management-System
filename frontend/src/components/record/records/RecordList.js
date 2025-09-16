@@ -11,6 +11,9 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import axios from "axios";
 import RecordFormDialog from "./RecordFormDialog";
 import RecordViewDialog from "./RecordViewDialog";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import { downloadFile } from "../../../utils/download";
+
 
 const API_BASE = "http://localhost:5000";
 
@@ -148,6 +151,19 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
                   </IconButton>
                 </>
               )}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                  downloadFile(
+                    `http://localhost:5000/api/clinical-records/${encodeURIComponent(it._id)}/pdf`,
+                    `Record_${it.recordId || it._id}.pdf`
+                  )
+                }
+              >
+                Download PDF
+              </Button>
+
             </CardActions>
           </Card>
         ))}

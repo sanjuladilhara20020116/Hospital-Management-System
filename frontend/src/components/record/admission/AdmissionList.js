@@ -10,6 +10,9 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import axios from "axios";
 import AdmissionFormDialog from "./AdmissionFormDialog";
 import AdmissionViewDialog from "./AdmissionViewDialog";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import { downloadFile } from "../../../utils/download";
+
 
 const API_BASE = "http://localhost:5000";
 
@@ -115,6 +118,19 @@ export default function AdmissionList({ patientId, isDoctor, createSignal = 0 })
                   </IconButton>
                 </>
               )}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                    downloadFile(
+                    `http://localhost:5000/api/admission-notes/${encodeURIComponent(it._id)}/pdf`,
+                    `AdmissionNote_${it.admissionNoteId || it._id}.pdf`
+                    )
+                }
+                >
+                Download PDF
+                </Button>
+
             </CardActions>
           </Card>
         ))}
