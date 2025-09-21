@@ -269,10 +269,7 @@ export default function LabJobForm({ onSubmit }) {
             onChange={(e) => setField("patientId", e.target.value)}
             onBlur={(e) => setField("patientId", e.target.value.trim())}
             error={!!errors.patientId}
-            helperText={
-              errors.patientId ||
-              "Format: P2025/NNN/NN–NNNN (e.g., P2025/123/45 or P2025/123/4567)"
-            }
+            
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
