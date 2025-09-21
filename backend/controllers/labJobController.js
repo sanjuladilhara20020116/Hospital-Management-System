@@ -31,7 +31,7 @@ exports.createLabJob = async (req, res) => {
       patientRef: patient._id,
       testType,
       scheduledDate: scheduledDate ? new Date(scheduledDate) : new Date(),
-      timeSlot,
+      timeSlot: timeSlot || undefined,
       createdBy: ownerId
     });
 
@@ -98,7 +98,9 @@ exports.updateLabJob = async (req, res) => {
     if (patientName !== undefined) job.patientName = patientName;
     if (testType    !== undefined) job.testType    = testType;
     if (scheduledDate !== undefined) job.scheduledDate = new Date(scheduledDate);
-    if (timeSlot    !== undefined) job.timeSlot    = timeSlot;
+    if (timeSlot !== undefined) {
+  job.timeSlot = timeSlot ? timeSlot : undefined;   // ← empty string unsets it
+}
 
     if (patientId !== undefined && patientId !== job.patientId) {
       const patient = await User.findOne({ userId: patientId, role: 'Patient' }).select('_id');

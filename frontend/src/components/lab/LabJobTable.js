@@ -37,6 +37,8 @@ import Autocomplete from "@mui/material/Autocomplete";
 
 const TIME_SLOTS = ["Morning", "Afternoon", "Evening", "Night"];
 
+
+
 // -------------------------------------------------------------
 // VALIDATION POLICY (mirrors Create form in LabJobForm.jsx)
 // -------------------------------------------------------------
@@ -49,10 +51,10 @@ const IMAGING_BLOCK =
   /(?:^|\b)(xray|x-ray|ultrasound|ct\b|mri\b|dicom)(?:\b|$)/i;
 
 // Final submit-time PID rule: P2025/NNN/NN–NNNN
-const PID_FINAL_RE = /^P2025\/\d{3}\/\d{2,4}$/i;
+const PID_FINAL_RE = /^P2025\/\d{3}\/\d{2,4}$/;
 
 // Partial mask for typing/paste
-const PID_PARTIAL_RE = /^P2025(?:\/\d{0,3}(?:\/\d{0,4})?)?$/i;
+const PID_PARTIAL_RE = /^P2025(?:\/\d{0,3}(?:\/\d{0,4})?)?$/;
 
 const PID_PREFIX = "P2025/";
 const PID_MAX = 14; // P2025/ + 3 + / + 4
@@ -119,8 +121,8 @@ function handleEditPidKeyDown(e) {
   }
 
   if (exp === "P") {
-    if (!/^p$/i.test(ch)) e.preventDefault();
-  } else if (ch !== exp) {
+   if (ch !== "P") e.preventDefault();          // only uppercase P
+ } else if (ch !== exp) {
     e.preventDefault();
   }
 }
@@ -279,6 +281,7 @@ export default function LabJobTable({
     // If you want it required during viva, uncomment:
     // if (!editVals.scheduledDate) e.scheduledDate = "Required";
 
+    
     setEditErrs(e);
     return Object.keys(e).length === 0;
   };
@@ -291,6 +294,9 @@ export default function LabJobTable({
       patientName: oneSpace(editVals.patientName),
       patientId: (editVals.patientId || "").trim(),
       testType: oneSpace(editVals.testType),
+      scheduledDate: editVals.scheduledDate ? editVals.scheduledDate : undefined,
+    timeSlot: editVals.timeSlot ? editVals.timeSlot : undefined,
+      
     });
     setEditOpen(false);
   };

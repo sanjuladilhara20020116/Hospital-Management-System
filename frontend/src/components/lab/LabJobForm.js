@@ -38,6 +38,19 @@ const SUGGESTIONS = [
 
 const TIME_SLOTS = ["Morning", "Afternoon", "Evening", "Night"];
 
+// Tests that *require* picking a time slot
+const SLOT_REQUIRED_FOR = [
+  "Fasting Glucose",
+  "Random Glucose",
+  "Post Prandial Glucose",
+  "OGTT",
+  "Glucose Tolerance",
+  "Insulin"
+];
+const isSlotRequired = (label = "") =>
+  SLOT_REQUIRED_FOR.some(t => label.toLowerCase().includes(t.toLowerCase()));
+
+
 /* ---------------- helpers ---------------- */
 
 const oneSpace = (s = "") => s.trim().replace(/\s+/g, " ");
@@ -49,11 +62,11 @@ const IMAGING_BLOCK =
   /(?:^|\b)(xray|x-ray|ultrasound|ct\b|mri\b|dicom)(?:\b|$)/i;
 
 // ✅ Final validation (submit-time): last block 2–4 digits
-const PID_FINAL_RE = /^P2025\/\d{3}\/\d{2,4}$/i;
+const PID_FINAL_RE = /^P2025\/\d{3}\/\d{2,4}$/;
 
 // Live typing/paste guard (allows partial stages)
 // P2025 / N{0..3} [ / N{0..4} ]
-const PID_PARTIAL_RE = /^P2025(?:\/\d{0,3}(?:\/\d{0,4})?)?$/i;
+ const PID_PARTIAL_RE = /^P2025(?:\/\d{0,3}(?:\/\d{0,4})?)?$/; 
 
 const PID_PREFIX = "P2025/";
 const PID_MAX = 14; // P2025/ + 3 + / + 4
@@ -122,6 +135,11 @@ export default function LabJobForm({ onSubmit }) {
       e.testType = "Letters and spaces only.";
     }
 
+    // NEW: only require slot for timed tests
+if (isSlotRequired(tt) && !values.timeSlot) {
+  e.timeSlot = "Time Slot is required for this test.";
+}
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -133,7 +151,7 @@ export default function LabJobForm({ onSubmit }) {
       patientName: oneSpace(values.patientName),
       patientId: values.patientId.trim(),
       testType: oneSpace(values.testType),
-      timeSlot: values.timeSlot,
+      timeSlot: values.timeSlot  || undefined,
     });
   };
 
@@ -171,8 +189,8 @@ export default function LabJobForm({ onSubmit }) {
     }
 
     if (exp === "P") {
-      if (!/^p$/i.test(ch)) e.preventDefault();
-    } else if (ch !== exp) {
+   if (ch !== "P") e.preventDefault();          // only uppercase P allowed
+ } else if (ch !== exp) {
       e.preventDefault();
     }
   };
@@ -338,20 +356,21 @@ export default function LabJobForm({ onSubmit }) {
             Time Slot (optional)
           </Box>
           <TextField
-            fullWidth
-            select
-            name="timeSlot"
-            value={values.timeSlot}
-            onChange={(e) => setField("timeSlot", e.target.value)}
-            sx={inputSx}
-          >
-            <MenuItem value="">— None —</MenuItem>
-            {TIME_SLOTS.map((s) => (
-              <MenuItem key={s} value={s}>
-                {s}
-              </MenuItem>
-            ))}
-          </TextField>
+  fullWidth
+  select
+  name="timeSlot"
+  value={values.timeSlot}
+  onChange={(e) => setField("timeSlot", e.target.value)}
+  error={!!errors.timeSlot}
+  helperText={errors.timeSlot}
+  sx={inputSx}
+>
+  <MenuItem value="">— None —</MenuItem>
+  {TIME_SLOTS.map((s) => (
+    <MenuItem key={s} value={s}>{s}</MenuItem>
+  ))}
+</TextField>
+
         </Box>
 
         {/* Submit */}
