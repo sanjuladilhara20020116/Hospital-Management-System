@@ -7,6 +7,7 @@ import Registration from './pages/Registration';
 import Login from './pages/Login';
 import HomePage from './pages/HomePage';
 import AppointmentSearchPage from "./pages/appointments/AppointmentSearchPage";
+
 // Feature pages
 import WardManagement from './pages/WardManagement';
 import DepartmentManagement from './pages/DepartmentManagement';
@@ -39,6 +40,7 @@ import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
 // ✅ added safely
 import PaymentSuccess from './pages/appointments/PaymentSuccess';
+import PaymentCheckout from './pages/appointments/PaymentCheckout'; // ✅ NEW
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
@@ -93,7 +95,7 @@ function App() {
 
         {/* Appointment flow */}
         <Route path="/appointments" element={<AppointmentSearchPage />} />
-        {/* ✅ added safely */}
+        <Route path="/appointments/checkout" element={<PaymentCheckout />} /> {/* ✅ NEW */}
         <Route path="/appointments/success" element={<PaymentSuccess />} />
 
         {/* Public route for report download */}
@@ -151,5 +153,4 @@ function App() {
   );
 }
 
-export default App;                     
-
+export default App;
