@@ -1,13 +1,12 @@
-
 // src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-
 
 // Auth / public
 import Registration from './pages/Registration';
 import Login from './pages/Login';
 import HomePage from './pages/HomePage';
+import AppointmentSearchPage from "./pages/appointments/AppointmentSearchPage";
 
 // Feature pages
 import WardManagement from './pages/WardManagement';
@@ -35,13 +34,13 @@ import MyBookings from './pages/MyBookings';
 import MyLabReports from './pages/MyLabReports';
 import PatientReportDownload from './pages/PatientReportDownload';
 
-
 import ReportAnalysisPage from "./pages/ReportAnalysisPage";
 import CholesterolDashboard from "./pages/CholesterolDashboard";
 import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
-// src/App.js
-
+// ✅ added safely
+import PaymentSuccess from './pages/appointments/PaymentSuccess';
+import PaymentCheckout from './pages/appointments/PaymentCheckout'; // ✅ NEW
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
@@ -70,15 +69,15 @@ function DashboardSwitch() {
 
   switch (user.role) {
     case 'Patient':
-      return <PatientDashboard userId={user.userId} />;          // ✅ pass userId
+      return <PatientDashboard userId={user.userId} />;
     case 'Doctor':
-      return <DoctorDashboard userId={user.userId} />;            // (safe to pass)
+      return <DoctorDashboard userId={user.userId} />;
     case 'Pharmacist':
-      return <PharmacistDashboard userId={user.userId} />;        // (safe to pass)
+      return <PharmacistDashboard userId={user.userId} />;
     case 'HospitalManager':
-      return <HospitalManagerDashboard userId={user.userId} />;   // (safe to pass)
+      return <HospitalManagerDashboard userId={user.userId} />;
     case 'LabAdmin':
-      return <LabAdminDashboard userId={user.userId} />;          // (safe to pass)
+      return <LabAdminDashboard userId={user.userId} />;
     default:
       return <div style={{ padding: 24, color: '#c00' }}>Unauthorized Role</div>;
   }
@@ -94,7 +93,12 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registration />} />
 
-        {/* ✅ Your extra public route for report download page */}
+        {/* Appointment flow */}
+        <Route path="/appointments" element={<AppointmentSearchPage />} />
+        <Route path="/appointments/checkout" element={<PaymentCheckout />} /> {/* ✅ NEW */}
+        <Route path="/appointments/success" element={<PaymentSuccess />} />
+
+        {/* Public route for report download */}
         <Route path="/lab-report" element={<PatientReportDownload />} />
 
         {/* Unified dashboard route with role guard + switch */}
@@ -115,7 +119,7 @@ function App() {
           }
         />
 
-        {/* ✅ Your patient-only My Lab Reports route */}
+        {/* Patient-only My Lab Reports */}
         <Route
           path="/my-reports"
           element={
@@ -140,10 +144,10 @@ function App() {
         <Route path="/packages" element={<HealthcarePackages />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/my-bookings" element={<MyBookings />} />
-      <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
-     <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
-     <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
 
+        <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
+        <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
+        <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
       </Routes>
     </Router>
   );
