@@ -77,13 +77,9 @@ function TabPanel({ value, index, children }) {
 }
 
 /* ---- Table ---- */
-function ReportTable({ rows, onDownload, maxHeight = 520 }) {
+function ReportTable({ rows, onDownload, onView, maxHeight = 520 }) {
   return (
-    <Paper sx={{
-      borderRadius: 3, overflow: 'hidden',
-      bgcolor: 'rgba(255,255,255,.96)', border: '1px solid rgba(255,255,255,0.3)',
-      boxShadow: '0 20px 40px rgba(0,0,0,.1)', backdropFilter: 'blur(20px)'
-    }}>
+    <Paper sx={{ borderRadius: 3, overflow: 'hidden', bgcolor: 'rgba(255,255,255,.96)', border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 20px 40px rgba(0,0,0,.1)', backdropFilter: 'blur(20px)' }}>
       <TableContainer sx={{ maxHeight, overflowY:'auto' }}>
         <Table stickyHeader>
           <TableHead>
@@ -92,55 +88,74 @@ function ReportTable({ rows, onDownload, maxHeight = 520 }) {
               <TableCell>Test Type</TableCell>
               <TableCell>Completed</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>View</TableCell>
               <TableCell align="right">Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                   No reports found
                 </TableCell>
               </TableRow>
             )}
-            {rows.map((r) => (
-              <TableRow key={r.referenceNo || r._id} hover
-                sx={{
-                  '&:hover': { bgcolor: 'rgba(118,75,162,0.02)' },
-                  '& td': { py: 2.25 }
-                }}>
-                <TableCell sx={{ fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace',
-                  bgcolor:'#F8FAFC', borderRadius:2, fontWeight:700 }}>
-                  {r.referenceNo || r._id}
-                </TableCell>
-                <TableCell><TestTypePill type={r.testType} /></TableCell>
-                <TableCell>
-                  <Typography sx={{ fontWeight:700 }}>
-                    {r.completedAt ? new Date(r.completedAt).toLocaleDateString() : '—'}
-                  </Typography>
-                  <Typography sx={{ fontSize:12, color:'#64748B' }}>
-                    {r.completedAt ? new Date(r.completedAt).toLocaleTimeString() : ''}
-                  </Typography>
-                </TableCell>
-                <TableCell><StatusPill ok={!!r.hasReport} /></TableCell>
-                <TableCell align="right">
-                  <Button
-                    size="small"
-                    onClick={() => onDownload(r)}
-                    disabled={!r.portalDownloadUrl && !r.downloadUrl}
-                    sx={{
-                      px: 2, py: 1, borderRadius: 2, fontWeight: 700,
-                      color:'#fff',
-                      background: 'linear-gradient(135deg,#667eea,#764ba2)',
-                      textTransform: 'none',
-                      '&:hover': { boxShadow:'0 6px 20px rgba(118,75,162,.35)', transform:'translateY(-1px)' }
-                    }}
-                  >
-                    ↓ Download
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {rows.map((r) => {
+              const canView = !!(r._id || r.referenceNo);
+              return (
+                <TableRow key={r.referenceNo || r._id} hover
+                  sx={{ '&:hover': { bgcolor: 'rgba(118,75,162,0.02)' }, '& td': { py: 2.25 } }}>
+                  <TableCell sx={{ fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace', bgcolor:'#F8FAFC', borderRadius:2, fontWeight:700 }}>
+                    {r.referenceNo || r._id}
+                  </TableCell>
+                  <TableCell><TestTypePill type={r.testType} /></TableCell>
+                  <TableCell>
+                    <Typography sx={{ fontWeight:700 }}>
+                      {r.completedAt ? new Date(r.completedAt).toLocaleDateString() : '—'}
+                    </Typography>
+                    <Typography sx={{ fontSize:12, color:'#64748B' }}>
+                      {r.completedAt ? new Date(r.completedAt).toLocaleTimeString() : ''}
+                    </Typography>
+                  </TableCell>
+                  <TableCell><StatusPill ok={!!r.hasReport} /></TableCell>
+
+                  {/* 👁 View */}
+                  <TableCell>
+                    <Button
+                      size="small"
+                      disabled={!canView}
+                      onClick={() => canView && onView && onView(r)}
+                      sx={{
+                        px: 2, py: 1, borderRadius: 2, fontWeight: 700,
+                        textTransform: 'none',
+                        bgcolor: canView ? 'rgba(102,126,234,.12)' : 'rgba(148,163,184,.15)',
+                        color: canView ? '#667eea' : 'rgba(100,116,139,.7)',
+                        '&:hover': canView ? { bgcolor:'rgba(102,126,234,.2)', transform:'translateY(-1px)' } : undefined
+                      }}
+                    >
+                      👁 View
+                    </Button>
+                  </TableCell>
+
+                  <TableCell align="right">
+                    <Button
+                      size="small"
+                      onClick={() => onDownload(r)}
+                      disabled={!r.portalDownloadUrl && !r.downloadUrl}
+                      sx={{
+                        px: 2, py: 1, borderRadius: 2, fontWeight: 700,
+                        color:'#fff',
+                        background: 'linear-gradient(135deg,#667eea,#764ba2)',
+                        textTransform: 'none',
+                        '&:hover': { boxShadow:'0 6px 20px rgba(118,75,162,.35)', transform:'translateY(-1px)' }
+                      }}
+                    >
+                      ↓ Download
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
@@ -201,6 +216,17 @@ export default function MyLabReports() {
     window.location.href = `http://localhost:5000${url}`;
   };
 
+  // 👉 NEW: inline PDF view
+  const handleView = (r) => {
+  const base = 'http://localhost:5000';
+  const url = r._id
+    ? `${base}/api/reports/${encodeURIComponent(r._id)}/view`
+    : `${base}/api/reports/by-ref/${encodeURIComponent(r.referenceNo)}/view`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
+
+
   // derive new vs read for your table tabs
   const newReports = rows.filter(r => (typeof r.isNew === 'boolean') ? r.isNew : !!r.hasReport);
   const readReports = rows.filter(r => (typeof r.isNew === 'boolean') ? !r.isNew : false);
@@ -208,7 +234,7 @@ export default function MyLabReports() {
   // ✅ normalize rows for the analysis tab (ensuring an id and dates)
   const reportCards = useMemo(() => {
     return (rows || []).map((r) => ({
-      _id: r._id || r.labReportId || r.referenceNo, // analysis expects LabReport _id ideally
+      _id: r._id || r.labReportId || r.referenceNo,
       testType: r.testType,
       uploadDate: r.completedAt || r.uploadDate || null,
       completedAt: r.completedAt || null,
@@ -384,21 +410,20 @@ export default function MyLabReports() {
 
           <Box sx={{ p: 2 }}>
             <TabPanel value={tab} index={0}>
-              <ReportTable rows={newReports} onDownload={handleDownload} />
+              <ReportTable rows={newReports} onDownload={handleDownload} onView={handleView} />
             </TabPanel>
 
             <TabPanel value={tab} index={1}>
-              <ReportTable rows={readReports} onDownload={handleDownload} />
+              <ReportTable rows={readReports} onDownload={handleDownload} onView={handleView} />
             </TabPanel>
 
             {/* ✅ Analysis panel wired with patientId and apiBase */}
             <TabPanel value={tab} index={2}>
               <LabAnalysisTab
-  reports={reportCards}
-   patientId={patientObjectId}
-  apiBase="http://localhost:5000/api"
-/>
-
+                reports={reportCards}
+                patientId={patientObjectId}
+                apiBase={apiBase}
+              />
             </TabPanel>
           </Box>
         </Paper>
