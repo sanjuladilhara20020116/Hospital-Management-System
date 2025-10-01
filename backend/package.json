@@ -14,6 +14,7 @@
     "axios": "^1.10.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "express-validator": "^7.2.1",
@@ -25,7 +26,7 @@
     "nodemailer": "^7.0.5",
     "pdf-parse": "^1.1.1",
     "pdf-poppler": "^0.2.1",
-    "pdfkit": "^0.17.1",
+    "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",
     "stripe": "^18.4.0"
   }

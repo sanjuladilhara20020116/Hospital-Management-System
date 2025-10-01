@@ -31,7 +31,7 @@ exports.createLabJob = async (req, res) => {
       patientRef: patient._id,
       testType,
       scheduledDate: scheduledDate ? new Date(scheduledDate) : new Date(),
-      timeSlot,
+      timeSlot: timeSlot || undefined,
       createdBy: ownerId
     });
 
@@ -43,6 +43,8 @@ exports.createLabJob = async (req, res) => {
 };
 
 // LIST (only own jobs)
+// LIST (only own jobs)
+// LIST (only own jobs)  -- partial search + referenceNo
 exports.getLabJobs = async (req, res) => {
   try {
     const ownerId = req.actorLabAdminId;
@@ -54,18 +56,17 @@ exports.getLabJobs = async (req, res) => {
 
     const filter = { createdBy: ownerId };
 
-    const { status, patientId, testType, dateFrom, dateTo } = req.query;
-    if (status) filter.status = status;
-    if (patientId) filter.patientId = patientId;
-    if (testType)  filter.testType  = testType;
+    // helper to escape regex specials for safe contains search
+    const escape = (s = '') => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    if (dateFrom || dateTo) {
-      const range = {};
-      if (dateFrom) range.$gte = new Date(dateFrom);
-      if (dateTo)   range.$lte = new Date(dateTo + 'T23:59:59.999Z');
-      if (status === 'Completed') filter.completedAt  = range;
-      else                        filter.scheduledDate = range;
-    }
+    const { status, patientId, testType, referenceNo } = req.query;
+
+    if (status) filter.status = status;
+
+    // contains (case-insensitive): works for last-digits typing
+    if (patientId)   filter.patientId   = { $regex: escape(patientId),   $options: 'i' };
+    if (testType)    filter.testType    = { $regex: escape(testType),    $options: 'i' };
+    if (referenceNo) filter.referenceNo = { $regex: escape(referenceNo), $options: 'i' };
 
     const [items, total] = await Promise.all([
       LabJob.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
@@ -78,6 +79,8 @@ exports.getLabJobs = async (req, res) => {
     res.status(500).json({ message: 'Server error fetching jobs' });
   }
 };
+
+
 
 // UPDATE (Pending only, owner-only)
 exports.updateLabJob = async (req, res) => {
@@ -95,7 +98,9 @@ exports.updateLabJob = async (req, res) => {
     if (patientName !== undefined) job.patientName = patientName;
     if (testType    !== undefined) job.testType    = testType;
     if (scheduledDate !== undefined) job.scheduledDate = new Date(scheduledDate);
-    if (timeSlot    !== undefined) job.timeSlot    = timeSlot;
+    if (timeSlot !== undefined) {
+  job.timeSlot = timeSlot ? timeSlot : undefined;   // ← empty string unsets it
+}
 
     if (patientId !== undefined && patientId !== job.patientId) {
       const patient = await User.findOne({ userId: patientId, role: 'Patient' }).select('_id');
