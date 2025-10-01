@@ -142,3 +142,4 @@ mongoose.connect(MONGO_URI)
     console.error('❌ MongoDB connection error:', err.message);
     process.exit(1);
   });
+ 
