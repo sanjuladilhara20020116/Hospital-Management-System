@@ -39,6 +39,7 @@ import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
 // ✅ added safely
 import PaymentSuccess from './pages/appointments/PaymentSuccess';
+import AppointmentDetails from './pages/appointments/AppointmentDetails';
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
@@ -87,7 +88,7 @@ function App() {
     <Router>
       <Routes>
         {/* Public */}
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<HomePage />} />    
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registration />} />
 
@@ -95,6 +96,9 @@ function App() {
         <Route path="/appointments" element={<AppointmentSearchPage />} />
         {/* ✅ added safely */}
         <Route path="/appointments/success" element={<PaymentSuccess />} />
+
+  {/* Appointment details page */}
+  <Route path="/appointments/details" element={<AppointmentDetails />} />
 
         {/* Public route for report download */}
         <Route path="/lab-report" element={<PatientReportDownload />} />

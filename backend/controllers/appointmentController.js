@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const DoctorAvailability = require('../models/DoctorAvailability');
@@ -22,7 +21,7 @@ function withinRanges(hhmm, ranges) {
   }
   return false;
 }
-
+//api ekak
 async function getDoctorAndAvailability(doctorId) {
   const doctor = await User.findOne({ userId: doctorId, role: 'Doctor' }).select('_id userId firstName lastName');
   if (!doctor) throw new Error('Doctor not found');
@@ -73,6 +72,62 @@ async function computeSessions(doctorRef, dateStr, avail) {
     };
   });
 }
+
+// PATCH: Edit appointment (reschedule time only)
+exports.editAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startTime } = req.body;
+    const appointment = await Appointment.findById(id);
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+
+    // Only allow changing startTime (and recalculate endTime)
+    if (!startTime) return res.status(400).json({ message: 'Missing startTime' });
+    appointment.startTime = startTime;
+    // Recalculate endTime based on durationMinutes
+    const avail = await DoctorAvailability.findOne({ doctorRef: appointment.doctorRef });
+    if (!avail) return res.status(409).json({ message: 'Doctor availability not configured' });
+    const endTimeMin = toMinutes(startTime) + avail.durationMinutes;
+    appointment.endTime = `${String(Math.floor(endTimeMin/60)).padStart(2,'0')}:${String(endTimeMin%60).padStart(2,'0')}`;
+    await appointment.save();
+    res.json({ message: 'Appointment updated', appointment });
+  } catch (e) {
+    console.error('editAppointment error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// GET: Slot duration for a doctor on a given date (doctorId as query param to support slashes)
+exports.getSlotDuration = async (req, res) => {
+  try {
+    const { doctorId, date } = req.query;
+    if (!doctorId) return res.status(400).json({ message: 'Missing doctorId' });
+    const { doctor, avail } = await getDoctorAndAvailability(doctorId);
+    res.json({ durationMinutes: avail.durationMinutes, date, doctorId: doctor.userId });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to get slot duration' });
+  }
+};
+
+// DELETE: Delete a specific appointment by id (Patient)
+exports.deleteAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Optionally, check if the actorPatient owns this appointment
+    const appt = await Appointment.findById(id);
+    if (!appt) return res.status(404).json({ message: 'Appointment not found' });
+    // If you want to restrict to only the patient who owns the appointment:
+    if (req.actorPatient && String(appt.patientId) !== String(req.actorPatient.userId)) {
+      return res.status(403).json({ message: 'Forbidden: Not your appointment' });
+    }
+    await Appointment.findByIdAndDelete(id);
+    res.json({ message: 'Appointment deleted' });
+  } catch (e) {
+    console.error('deleteAppointment error:', e);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 
 // PUBLIC: Sessions summary for a doctor&date (capacity & active counts)
 exports.getSessions = async (req, res) => {
@@ -137,7 +192,7 @@ exports.getSlots = async (req, res) => {
     res.status(500).json({ message: e.message || 'Failed to load slots' });
   }
 };
-
+//this part 
 // BOOK (Patient)
 exports.create = async (req, res) => {
   const session = await mongoose.startSession();
@@ -145,12 +200,13 @@ exports.create = async (req, res) => {
     const actor = req.actorPatient; // from actorPatient middleware
     if (!actor) return res.status(401).json({ message: 'Unauthorized' });
 
-    const { patientId, doctorId, date, startTime, name, phone, nic, passport, email, reason = '' } = req.body;
+    const { patientId, doctorId, date, startTime, name, phone, nic, passport, email, reason, paymentMethod, priceLkr } = req.body;
     // Resolve patient + doctor
-    const patient = await User.findOne({ userId: patientId, role: 'Patient' }).select('_id userId');
-    if (!patient) return res.status(404).json({ message: 'Patient not found' });
-    const doctor  = await User.findOne({ userId: doctorId, role: 'Doctor' }).select('_id userId');
-    if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
+  const patient = await User.findOne({ userId: patientId, role: 'Patient' }).select('_id userId');
+  if (!patient) return res.status(404).json({ message: 'Patient not found' });
+  // Fetch doctor with name fields
+  const doctor  = await User.findOne({ userId: doctorId, role: 'Doctor' }).select('_id userId firstName lastName');
+  if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
 
     // Load availability
     const avail = await DoctorAvailability.findOne({ doctorRef: doctor._id });
@@ -192,12 +248,20 @@ exports.create = async (req, res) => {
         patientId: patient.userId,
         doctorRef: doctor._id,
         doctorId: doctor.userId,
+        doctorName: `${doctor.firstName} ${doctor.lastName}`,
         date,
         startTime,
         endTime,
         status: 'Booked',
+        paymentMethod: paymentMethod || '',
+        priceLkr: priceLkr || 0,
         queueNo: sessionAppts.length + 1,
-        reason: reason || ''
+        reason: reason || '',
+        patientName: name || '',
+        patientPhone: phone || '',
+        patientEmail: email || '',
+        patientNIC: nic || '',
+        patientPassport: passport || ''
       }], { session });
 
       res.status(201).json({ message: 'Appointment booked', appointment: appt[0] });
@@ -217,8 +281,8 @@ exports.create = async (req, res) => {
 // LIST for Patient
 exports.listForPatient = async (req, res) => {
   try {
-    const { patientId } = req.params;
-    const { status, from, to, doctorId } = req.query;
+    const { patientId, status, from, to, doctorId } = req.query;
+    if (!patientId) return res.status(400).json({ message: 'Missing patientId' });
     const p = await User.findOne({ userId: patientId, role: 'Patient' }).select('_id');
     if (!p) return res.status(404).json({ message: 'Patient not found' });
 
@@ -368,5 +432,150 @@ exports.setAvailability = async (req, res) => {
     res.json({ message: 'Availability saved', availability: up });
   } catch (e) {
     res.status(500).json({ message: 'Failed to save availability' });
+  }
+};
+
+// GET: Doctor's current appointments for a specific date and time range
+exports.getDoctorAppointments = async (req, res) => {
+  console.log('🚀 getDoctorAppointments function called!');
+  try {
+    const { doctorId, date, startTime, endTime } = req.query;
+
+    // Add detailed logging for debugging
+    console.log('=== getDoctorAppointments Debug ===');
+    console.log('Full req.query:', req.query);
+    console.log('Extracted doctorId:', doctorId);
+    console.log('Extracted date:', date);
+    console.log('Type of doctorId:', typeof doctorId);
+    console.log('doctorId length:', doctorId ? doctorId.length : 'undefined');
+
+    // Validate required parameters
+    if (!doctorId) {
+      console.log('ERROR: Doctor ID is missing from request');
+      return res.status(400).json({ message: 'Doctor ID is required' });
+    }
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      console.log('ERROR: Invalid date format');
+      return res.status(400).json({ message: 'Valid date (YYYY-MM-DD) is required' });
+    }
+
+    console.log('About to search for doctor with userId:', doctorId);
+
+    // Get doctor and validate
+    const doctor = await User.findOne({ userId: doctorId, role: 'Doctor' })
+      .select('_id userId firstName lastName specialty');
+    
+    console.log('Doctor query result:', doctor);
+
+    if (!doctor) {
+      console.log('ERROR: No doctor found with userId:', doctorId);
+      // Let's also search without role filter to see if doctor exists with different role
+      const anyUser = await User.findOne({ userId: doctorId });
+      console.log('User with any role:', anyUser);
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    console.log('Found doctor:', {
+      id: doctor._id,
+      userId: doctor.userId,
+      name: `${doctor.firstName} ${doctor.lastName}`
+    });
+
+    // Build query for appointments
+    let appointmentQuery = {
+      doctorRef: doctor._id,
+      date: date,
+      status: { $ne: 'Cancelled' } // Exclude cancelled appointments
+    };
+
+    // Add time range filter if provided
+    if (startTime && endTime) {
+      // Validate time format
+      const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+      if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+        return res.status(400).json({ message: 'Valid time format (HH:mm) is required' });
+      }
+      
+      appointmentQuery.startTime = { $gte: startTime };
+      appointmentQuery.endTime = { $lte: endTime };
+    } else if (startTime) {
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(startTime)) {
+        return res.status(400).json({ message: 'Valid start time format (HH:mm) is required' });
+      }
+      appointmentQuery.startTime = { $gte: startTime };
+    } else if (endTime) {
+      if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(endTime)) {
+        return res.status(400).json({ message: 'Valid end time format (HH:mm) is required' });
+      }
+      appointmentQuery.endTime = { $lte: endTime };
+    }
+
+    // Fetch appointments
+    const appointments = await Appointment.find(appointmentQuery)
+      .populate('patientRef', 'userId firstName lastName contactNumber email')
+      .sort({ startTime: 1, queueNo: 1 })
+      .select('referenceNo patientId patientName patientPhone startTime endTime status queueNo reason createdAt');
+
+    // Get doctor's availability for the date to provide context
+    const availability = await DoctorAvailability.findOne({ doctorRef: doctor._id });
+    let availableSlots = [];
+    if (availability) {
+      availableSlots = availability.slotsForDate(date);
+    }
+
+    // Count appointments by status
+    const statusCounts = {
+      total: appointments.length,
+      booked: appointments.filter(a => a.status === 'Booked').length,
+      confirmed: appointments.filter(a => a.status === 'Confirmed').length,
+      checkedIn: appointments.filter(a => a.status === 'CheckedIn').length,
+      completed: appointments.filter(a => a.status === 'Completed').length,
+      noShow: appointments.filter(a => a.status === 'NoShow').length,
+      rescheduled: appointments.filter(a => a.status === 'Rescheduled').length
+    };
+
+    // Format response
+    const response = {
+      doctor: {
+        id: doctor.userId,
+        name: `${doctor.firstName} ${doctor.lastName}`,
+        specialty: doctor.specialty || 'Not specified'
+      },
+      date: date,
+      timeRange: {
+        startTime: startTime || 'All day',
+        endTime: endTime || 'All day'
+      },
+      availability: {
+        totalSlots: availableSlots.length,
+        durationMinutes: availability?.durationMinutes || 15,
+        sessionCapacity: availability?.sessionCapacity || 30
+      },
+      appointments: appointments.map(apt => ({
+        id: apt._id,
+        referenceNo: apt.referenceNo,
+        patient: {
+          id: apt.patientId,
+          name: apt.patientName || (apt.patientRef ? `${apt.patientRef.firstName} ${apt.patientRef.lastName}` : 'Unknown'),
+          phone: apt.patientPhone || apt.patientRef?.contactNumber || '',
+          email: apt.patientRef?.email || ''
+        },
+        time: {
+          start: apt.startTime,
+          end: apt.endTime
+        },
+        status: apt.status,
+        queueNo: apt.queueNo,
+        reason: apt.reason || '',
+        bookedAt: apt.createdAt
+      })),
+      summary: statusCounts
+    };
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('getDoctorAppointments error:', error);
+    res.status(500).json({ message: 'Server error while fetching appointments' });
   }
 };

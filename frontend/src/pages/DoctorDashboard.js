@@ -18,6 +18,26 @@ export default function DoctorDashboard({ userId }) {
   const [profile, setProfile] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
+  // Appointments by date state
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
+  useEffect(() => {
+    async function fetchAppointments() {
+      if (!userId || !selectedDate) return;
+      setLoadingAppointments(true);
+      try {  // call bakend your controller varient 
+        const res = await axios.get(`http://localhost:5000/api/appointments/getUserAppointments?doctorId=${encodeURIComponent(userId)}&date=${selectedDate}`);
+        // The backend returns an object with appointments property
+        setAppointments(Array.isArray(res.data.appointments) ? res.data.appointments : []);
+      } catch (err) {
+        setAppointments([]);
+      } finally {
+        setLoadingAppointments(false);
+      }
+    } //Load appointments whenever user or date changes
+    fetchAppointments();
+  }, [userId, selectedDate]);
   const [alert, setAlert] = useState({ open: false, severity: 'info', message: '' });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -145,6 +165,38 @@ export default function DoctorDashboard({ userId }) {
     }
   };
 
+  // Fetch doctor's appointments for a given date (and optional time range)
+  async function fetchDoctorAppointments({ doctorId, date, startTime, endTime }) {
+    try {
+      const params = new URLSearchParams({ doctorId, date });
+      if (startTime) params.append('startTime', startTime);
+      if (endTime) params.append('endTime', endTime);
+
+      const res = await axios.get(`http://localhost:5000/api/appointments/getUserAppointments?${params.toString()}`);
+      // The response will have doctor info, date, timeRange, availability, appointments[], summary
+      return res.data;
+    } catch (err) {
+      // Handle error as needed
+      throw err;
+    }
+  }
+
+  useEffect(() => {
+    async function loadAppointments() {
+      try {
+        setLoadingAppointments(true);
+        const data = await fetchDoctorAppointments({ doctorId: userId, date: selectedDate });
+        setAppointments(data.appointments || []);
+        // You can also use data.summary, data.availability, etc.
+      } catch (err) {
+        setAppointments([]);
+      } finally {
+        setLoadingAppointments(false);
+      }
+    }
+    if (userId && selectedDate) loadAppointments();
+  }, [userId, selectedDate]);
+
   if (!profile) return <Typography sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>Loading...</Typography>;
 
   const labelStyle = { fontWeight: 600, color: 'text.secondary', minWidth: 180 };
@@ -204,7 +256,7 @@ export default function DoctorDashboard({ userId }) {
             </>
           ) : (
             <>
-              {/* ✅ NEW: My Appointments / Set Availability */}
+              {/* ✅ NEW: My Appointments button / Set Availability */}
               <Button
                 variant="contained"
                 color="success"
@@ -297,8 +349,8 @@ export default function DoctorDashboard({ userId }) {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* ✅ NEW: Set Availability / My Appointments dialog */}
+/
+      {/* ✅ NEW: Set Availability / My Appointments dialog */} 
       <Dialog open={availOpen} onClose={() => setAvailOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 800 }}>Set Availability</DialogTitle>
         <DialogContent dividers>
@@ -375,7 +427,7 @@ export default function DoctorDashboard({ userId }) {
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setAvailOpen(false)} sx={{ textTransform: 'none', fontWeight: 700 }}>
             Close
-          </Button>
+          </Button> 
           <Button
             variant="contained"
             onClick={saveAvailability}
@@ -386,6 +438,81 @@ export default function DoctorDashboard({ userId }) {
           </Button>
         </DialogActions>
       </Dialog>
+
+    {/* --- Doctor Appointments by Date Section (Redesigned) --- */}
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h5" fontWeight={800} sx={{ mb: 2, color: '#05284cff', letterSpacing: 1, fontWeight: 790, fontSize: 25 }}>
+        <span role="img" aria-label="calendar"></span> Current Appointments:
+      </Typography><br/>
+      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+        <TextField
+          type="date"
+          label="Select Date"
+          InputLabelProps={{ shrink: true }}
+          value={selectedDate}
+          onChange={e => setSelectedDate(e.target.value)}
+          sx={{ minWidth: 260, background: '#f8fafc', borderRadius: 2 }}
+        />
+      </Box>
+      {loadingAppointments ? (
+        <Typography color="info.main" sx={{ fontWeight: 600, letterSpacing: 1 }}>Loading appointments...</Typography>
+      ) : (
+        <>
+          <Typography variant="subtitle1" sx={{ mb: 2, color: '#1976d2', fontWeight: 700, fontSize: 18 }}>
+            Total Appointments: <span style={{ color: '#1976d2' }}>{appointments.length}</span>
+          </Typography>
+          {appointments.length === 0 ? (
+            <Typography color="text.secondary" sx={{ fontStyle: 'italic', fontSize: 16 }}>No appointments for this date.</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {appointments.map((appt, idx) => (
+                <Card key={appt._id || idx} elevation={2} sx={{ mb: 1, borderLeft: '6px solid #1976d2', background: '#f4f8fd', borderRadius: 2, p: 2, boxShadow: '0 2px 8px rgba(25, 118, 210, 0.07)' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ bgcolor: '#1976d2', color: '#fff', width: 44, height: 44, fontWeight: 700, fontSize: 22 }}>
+                      {appt.patient?.name ? appt.patient.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2) : '?'}
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" sx={{ color: '#000000ff', fontWeight: 700, mb: 0.5 }}>
+                        {appt.patient?.name || '-'}
+                      </Typography>
+                      <Typography sx={{ color: 'text.secondary', fontSize: 15 }}>
+                        <EmailIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} /> {appt.patient?.email || '-'}
+                        {appt.patient?.phone && (
+                          <span style={{ marginLeft: 12 }}><PhoneIphoneIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />{appt.patient.phone}</span>
+                        )}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={appt.status || '-'}
+                      color={appt.status === 'Booked' ? 'primary' : appt.status === 'Completed' ? 'success' : appt.status === 'Cancelled' ? 'error' : 'warning'}
+                      sx={{ fontWeight: 700, fontSize: 15, px: 1.5, py: 0.5, borderRadius: 1, textTransform: 'capitalize' }}
+                    />
+                  </Box>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+                    <Typography sx={{ color: '#000000ff', fontWeight: 600, fontSize: 16 }}>
+                      <span role="img" aria-label="clock">🕒</span> {appt.time ? `${appt.time.start} - ${appt.time.end}` : (appt.slotTime || '-')}
+                    </Typography>
+                    {appt.reason && (
+                      <Typography sx={{ color: 'text.secondary', fontStyle: 'italic', fontSize: 15 }}>
+                        <span role="img" aria-label="reason">📝</span> {appt.reason}
+                      </Typography>
+                    )}
+                    <Typography sx={{ color: 'text.disabled', fontSize: 14, ml: 'auto' }}>
+                      Ref: <span style={{ color: '#010101ff', fontWeight: 700 }}>{appt.referenceNo}</span>
+                    </Typography>
+                  </Box>
+                </Card>
+              ))}
+            </Box>
+          )}
+        </>
+      )}
     </Box>
-  );
+    </Box>
+  )
 }
+//46-55 doctor appointment details get
+//168-175 set time
+//352-422 front end eka css set availability time ,date...
+//442-474 current appointment details fonts 

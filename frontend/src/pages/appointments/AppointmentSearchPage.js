@@ -1,4 +1,4 @@
-
+//doctoer ge availability eka check karana user haraha
 // src/pages/appointments/AppointmentSearchPage.jsx
 import React, { useState } from "react";
 import {
@@ -11,8 +11,8 @@ import ExpandMore from "@mui/icons-material/ExpandMore";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import API from "../../api";
 import BookingDialog from "./BookingDialog";
-import { rx } from "../../utils/validators";
-
+import { rx } from "../../utils/validators";//validate
+//special list
 const SPECIALS = [
   { value: "Any", label: "Any Specialization" },
   { value: "Surgeon", label: "Surgeon" },
@@ -33,7 +33,7 @@ export default function AppointmentSearchPage() {
 
   const searchDoctors = async () => {
     if (!rx.doctorQuery.test(q.doctor)) {
-      show("error", "Doctor: letters & spaces only (max 20).");
+      show("error", "Doctor: letters & spaces only (max 20)."); 
       return;
     }
     if (!rx.ymd.test(q.date)) {
@@ -231,3 +231,12 @@ export default function AppointmentSearchPage() {
     </Box>
   );
 }
+
+//special list 15-20
+//validation part 34-38 doctor name validation 
+//validation part 39-42 doctor date validation 
+//api/users/search-doctors?query
+//86-88  Find a Doctor. Book an Appointment. Pay easy(font)
+//90-100 length eka name eke/ 122-24 search button
+//169-174 activity appointment
+//<BookingDialog 209-226(<you open the dialog with the selected doctor/date/session, and when booking succeeds you close the dialog, notify the user, clear stale capacity data, and collapse the section so the next expand shows fresh session stats.)
