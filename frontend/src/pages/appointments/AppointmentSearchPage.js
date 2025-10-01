@@ -1,14 +1,16 @@
+
 //doctoer ge availability eka check karana user haraha
+
 // src/pages/appointments/AppointmentSearchPage.jsx
 import React, { useState } from "react";
 import {
   Box, Card, CardContent, TextField, MenuItem, Button, Stack, Typography,
-  Grid, Chip, Divider, IconButton, Snackbar, Alert, CircularProgress,
-  ownerDocument
+  Grid, Chip, Divider, IconButton, Snackbar, Alert, CircularProgress
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import ExpandLess from "@mui/icons-material/ExpandLess";
+import { useNavigate } from "react-router-dom";
 import API from "../../api";
 import BookingDialog from "./BookingDialog";
 import { rx } from "../../utils/validators";//validate
@@ -21,6 +23,8 @@ const SPECIALS = [
 ];
 
 export default function AppointmentSearchPage() {
+  const navigate = useNavigate();
+
   const [q, setQ] = useState({ doctor: "", specialization: "Any", date: "" });
   const [alert, setAlert] = useState({ open: false, severity: "info", message: "" });
   const [loading, setLoading] = useState(false);
@@ -216,12 +220,19 @@ export default function AppointmentSearchPage() {
         onBooked={(appt) => {
           setDialog({ open: false });
           show("success", `Booked! Ref: ${appt.referenceNo}, Queue: ${appt.queueNo}`);
+
+          // Force re-fetch sessions for this doctor
           setSessions(s => {
             const cp = { ...s };
             delete cp[dialog.doctorId];
             return cp;
           });
           setExpanded(e => ({ ...e, [dialog.doctorId]: false }));
+
+          // ✅ Redirect to Checkout with appointment data for payment step
+          navigate("/appointments/checkout", {
+            state: { appointment: appt }
+          });
         }}
       />
 

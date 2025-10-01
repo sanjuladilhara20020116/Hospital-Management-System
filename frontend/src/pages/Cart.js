@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box, Container, Grid, Paper, Typography, Button, Divider, Chip, Stack,
   Table, TableHead, TableRow, TableCell, TableBody, TextField, IconButton,
-  RadioGroup, Radio, FormControlLabel, Select, MenuItem, InputLabel, FormControl,
+  Select, MenuItem, InputLabel, FormControl,
   Snackbar, Alert, Tooltip, Card, CardContent, Skeleton, InputAdornment, useMediaQuery,
   useTheme
 } from '@mui/material';
@@ -14,7 +14,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import ShoppingCartCheckoutIcon from '@mui/icons-material/ShoppingCartCheckout';
 import EventIcon from '@mui/icons-material/Event';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
-import LocalAtmIcon from '@mui/icons-material/LocalAtm';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
@@ -40,12 +39,11 @@ export default function Cart() {
   const [patientEmail, setPatientEmail] = useState('');
   const [patientName, setPatientName] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('COD'); // 'COD' or 'ONLINE'
+  const [paymentMethod, setPaymentMethod] = useState('ONLINE'); // fixed to ONLINE
 
-  // Card fields (client-side only)
+  // Card fields — SAFE MODE (no cardholder name captured/sent)
   const [cardBrand, setCardBrand] = useState('VISA'); // VISA, MASTERCARD, AMEX
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
+  const [cardNumber, setCardNumber] = useState(''); // raw digits only (max 16)
   const [cardExp, setCardExp] = useState(''); // MM/YY
   const [cardCvv, setCardCvv] = useState('');
 
@@ -108,8 +106,10 @@ export default function Cart() {
     }
   };
 
-  // --- Card helpers (client-side validation) ---
+  // --- Helpers & validators ---
   const onlyDigits = (s) => (s || '').replace(/\D/g, '');
+  // letters and spaces only (at least one letter if provided)
+  const isLettersAndSpaces = (s) => /^[A-Za-z ]+$/.test((s || '').trim());
   const luhn = (num) => {
     const s = onlyDigits(num);
     let sum = 0, alt = false;
@@ -134,18 +134,6 @@ export default function Cart() {
   };
   const cvvLenByBrand = (brand) => (brand === 'AMEX' ? 4 : 3);
 
-  // Pretty card number format (#### #### #### #### or Amex 4-6-5)
-  const formatCardNumber = (raw, brand) => {
-    const d = onlyDigits(raw);
-    if (brand === 'AMEX') {
-      const p1 = d.slice(0, 4);
-      const p2 = d.slice(4, 10);
-      const p3 = d.slice(10, 15);
-      return [p1, p2, p3].filter(Boolean).join(' ');
-    }
-    return d.replace(/(.{4})/g, '$1 ').trim();
-  };
-
   // Brand hint based on number prefix
   const detectedBrand = useMemo(() => {
     const d = onlyDigits(cardNumber);
@@ -160,15 +148,27 @@ export default function Cart() {
     const e = {};
     if (!patientEmail) e.patientEmail = 'Email is required';
     if (!appointmentDate) e.appointmentDate = 'Choose date & time';
-    if (paymentMethod === 'ONLINE') {
-      if (!cardName.trim()) e.cardName = 'Name on card is required';
-      if (!luhn(cardNumber)) e.cardNumber = 'Invalid card number';
-      const exp = parseExp(cardExp);
-      if (!exp) e.cardExp = 'Invalid expiry (use MM/YY)';
-      if (!/^\d+$/.test(cardCvv) || cardCvv.length !== cvvLenByBrand(detectedBrand)) {
-        e.cardCvv = `CVV must be ${cvvLenByBrand(detectedBrand)} digits`;
-      }
+
+    // Patient name: optional, but if provided must be letters and spaces ONLY
+    if (patientName && !isLettersAndSpaces(patientName)) {
+      e.patientName = 'Letters and spaces only';
     }
+
+    // Card validations (ONLINE enforced)
+    const digits = onlyDigits(cardNumber);
+    if (digits.length !== 16) {
+      e.cardNumber = 'Card number must be exactly 16 digits';
+    } else if (!luhn(digits)) {
+      e.cardNumber = 'Invalid card number';
+    }
+
+    const exp = parseExp(cardExp);
+    if (!exp) e.cardExp = 'Invalid expiry (use MM/YY)';
+
+    if (!/^\d+$/.test(cardCvv) || cardCvv.length !== cvvLenByBrand(detectedBrand)) {
+      e.cardCvv = `CVV must be ${cvvLenByBrand(detectedBrand)} digits`;
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -176,24 +176,26 @@ export default function Cart() {
   const checkout = async () => {
     if (!validateFields()) return;
 
-    // If online, only send safe metadata (your backend also supports full validation if you switch later)
-    let cardPayload = undefined;
-    if (paymentMethod === 'ONLINE') {
-      const exp = parseExp(cardExp);
-      cardPayload = {
-        brand: detectedBrand,
-        holder: cardName.trim(),
-        last4: onlyDigits(cardNumber).slice(-4),
-        expMonth: exp.expMonth,
-        expYear: exp.expYear
-      };
-    }
+    // SAFE MODE payload: brand + last4 + expiry only
+    const exp = parseExp(cardExp);
+    const cardPayload = {
+      brand: detectedBrand,
+      last4: onlyDigits(cardNumber).slice(-4),
+      expMonth: exp.expMonth,
+      expYear: exp.expYear
+    };
 
     setStatus('Booking...');
     const res = await fetch(`${API_BASE}/api/bookings/checkout`, {
       method: 'POST',
       headers: hdrs,
-      body: JSON.stringify({ patientEmail, patientName, appointmentDate, paymentMethod, card: cardPayload })
+      body: JSON.stringify({
+        patientEmail,
+        patientName,
+        appointmentDate,
+        paymentMethod: 'ONLINE',
+        card: cardPayload
+      })
     });
     let data;
     try { data = await res.json(); } catch { data = { message: await res.text() }; }
@@ -203,8 +205,9 @@ export default function Cart() {
       setCart({ items: [], total: 0 });
       window.dispatchEvent(new Event('cart:updated'));
       // reset form
-      setPatientEmail(''); setPatientName(''); setAppointmentDate(''); setPaymentMethod('COD');
-      setCardBrand('VISA'); setCardName(''); setCardNumber(''); setCardExp(''); setCardCvv('');
+      setPatientEmail(''); setPatientName(''); setAppointmentDate('');
+      setPaymentMethod('ONLINE');
+      setCardBrand('VISA'); setCardNumber(''); setCardExp(''); setCardCvv('');
       setErrors({});
       showToast('success', data.message || 'Booked!');
     } else {
@@ -517,8 +520,14 @@ export default function Cart() {
                 <TextField
                   label="Patient name (optional)"
                   value={patientName}
-                  onChange={e => setPatientName(e.target.value)}
+                  onChange={e => {
+                    // Allow letters and spaces only; strip any other characters
+                    const cleaned = e.target.value.replace(/[^A-Za-z ]/g, '');
+                    setPatientName(cleaned);
+                  }}
                   fullWidth
+                  error={!!errors.patientName}
+                  helperText={errors.patientName}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -569,191 +578,138 @@ export default function Cart() {
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                 />
 
-                {/* Payment choice */}
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    Payment Method
-                  </Typography>
-                  <RadioGroup row value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} sx={{ gap: 2 }}>
-                    <Paper
-                      elevation={paymentMethod === 'COD' ? 3 : 0}
-                      sx={{
-                        p: 1.5, flex: 1, borderRadius: 2,
-                        border: `2px solid ${paymentMethod === 'COD' ? theme.palette.primary.main : theme.palette.divider}`,
-                        cursor: 'pointer', transition: 'all 0.2s ease',
-                        '&:hover': { borderColor: theme.palette.primary.main, boxShadow: theme.shadows[2] }
-                      }}
-                      onClick={() => setPaymentMethod('COD')}
-                    >
-                      <FormControlLabel
-                        value="COD"
-                        control={<Radio sx={{ display: 'none' }} />}
-                        label={
-                          <Stack direction="row" spacing={1.5} alignItems="center">
-                            <Box sx={{
-                              width: 40, height: 40, borderRadius: '50%',
-                              bgcolor: paymentMethod === 'COD' ? theme.palette.primary.light : theme.palette.grey[200],
-                              display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                              <LocalAtmIcon color={paymentMethod === 'COD' ? 'primary' : 'action'} />
-                            </Box>
-                            <Box>
-                              <Typography fontWeight={700}>Pay at Center</Typography>
-                              <Typography variant="body2" color="text.secondary">Cash, Card, or UPI when you visit</Typography>
-                            </Box>
-                          </Stack>
-                        }
-                        sx={{ width: '100%', m: 0 }}
-                      />
-                    </Paper>
-
-                    <Paper
-                      elevation={paymentMethod === 'ONLINE' ? 3 : 0}
-                      sx={{
-                        p: 1.5, flex: 1, borderRadius: 2,
-                        border: `2px solid ${paymentMethod === 'ONLINE' ? theme.palette.primary.main : theme.palette.divider}`,
-                        cursor: 'pointer', transition: 'all 0.2s ease',
-                        '&:hover': { borderColor: theme.palette.primary.main, boxShadow: theme.shadows[2] }
-                      }}
-                      onClick={() => setPaymentMethod('ONLINE')}
-                    >
-                      <FormControlLabel
-                        value="ONLINE"
-                        control={<Radio sx={{ display: 'none' }} />}
-                        label={
-                          <Stack direction="row" spacing={1.5} alignItems="center">
-                            <Box sx={{
-                              width: 40, height: 40, borderRadius: '50%',
-                              bgcolor: paymentMethod === 'ONLINE' ? theme.palette.primary.light : theme.palette.grey[200],
-                              display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                              <CreditCardIcon color={paymentMethod === 'ONLINE' ? 'primary' : 'action'} />
-                            </Box>
-                            <Box>
-                              <Typography fontWeight={700}>Online Payment</Typography>
-                              <Typography variant="body2" color="text.secondary">Secure card payment now</Typography>
-                            </Box>
-                          </Stack>
-                        }
-                        sx={{ width: '100%', m: 0 }}
-                      />
-                    </Paper>
-                  </RadioGroup>
-                </Box>
-
-                {/* Card fields when online */}
-                {paymentMethod === 'ONLINE' && (
+                {/* Payment method banner (ONLINE only) */}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: `2px solid ${theme.palette.primary.main}55`,
+                    bgcolor: theme.palette.primary.light + '22',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5
+                  }}
+                >
                   <Box sx={{
-                    border: '1px solid', borderColor: theme.palette.divider, borderRadius: 2, p: 3,
-                    bgcolor: theme.palette.grey[50]
+                    width: 40, height: 40, borderRadius: '50%',
+                    bgcolor: theme.palette.primary.light,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-                      <PaymentIcon color="primary" />
-                      <Typography variant="subtitle1" fontWeight={800}>Card Details</Typography>
-                    </Stack>
-
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <FormControl fullWidth>
-                          <InputLabel id="card-type-label">Card type</InputLabel>
-                          <Select
-                            labelId="card-type-label"
-                            label="Card type"
-                            value={detectedBrand}
-                            onChange={e => setCardBrand(e.target.value)}
-                            sx={{ borderRadius: 2 }}
-                          >
-                            <MenuItem value="VISA">
-                              <Stack direction="row" alignItems="center" spacing={1}>
-                                <img src="images\download.png" alt="Visa" width={24} />
-                                <span>Visa</span>
-                              </Stack>
-                            </MenuItem>
-                            <MenuItem value="MASTERCARD">
-                              <Stack direction="row" alignItems="center" spacing={1}>
-                                <img src="images\master.png" alt="Mastercard" width={24} />
-                                <span>Mastercard</span>
-                              </Stack>
-                            </MenuItem>
-                            <MenuItem value="AMEX">
-                              <Stack direction="row" alignItems="center" spacing={1}>
-                                <img src="images\amex.png" alt="American Express" width={24} />
-                                <span>Amex</span>
-                              </Stack>
-                            </MenuItem>
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <TextField
-                          label="Name on card"
-                          value={cardName}
-                          onChange={e => setCardName(e.target.value)}
-                          fullWidth
-                          required
-                          error={!!errors.cardName}
-                          helperText={errors.cardName}
-                          className="ring-focus"
-                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                        />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <TextField
-                          label="Card number"
-                          inputMode="numeric"
-                          value={formatCardNumber(cardNumber, detectedBrand)}
-                          onChange={e => setCardNumber(e.target.value)}
-                          fullWidth
-                          placeholder={detectedBrand === 'AMEX' ? '#### ###### #####' : '#### #### #### ####'}
-                          error={!!errors.cardNumber}
-                          helperText={errors.cardNumber || 'We do not store your full card number.'}
-                          InputProps={{
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                {errors.cardNumber ? (
-                                  <WarningAmberRoundedIcon color="error" />
-                                ) : (
-                                  <CheckCircleRoundedIcon
-                                    color={cardNumber.length > 0 ? 'success' : 'action'}
-                                  />
-                                )}
-                              </InputAdornment>
-                            ),
-                            sx: { borderRadius: 2 }
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          label="Expiry (MM/YY)"
-                          value={cardExp}
-                          onChange={e => setCardExp(e.target.value.replace(/[^\d/]/g, '').slice(0, 5))}
-                          placeholder="MM/YY"
-                          fullWidth
-                          required
-                          error={!!errors.cardExp}
-                          helperText={errors.cardExp}
-                          className="ring-focus"
-                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          label={detectedBrand === 'AMEX' ? 'CVV (4 digits)' : 'CVV (3 digits)'}
-                          inputMode="numeric"
-                          value={cardCvv}
-                          onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, (detectedBrand === 'AMEX' ? 4 : 3)))}
-                          fullWidth
-                          required
-                          error={!!errors.cardCvv}
-                          helperText={errors.cardCvv || 'Not stored.'}
-                          className="ring-focus"
-                          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                        />
-                      </Grid>
-                    </Grid>
+                    <CreditCardIcon color="primary" />
                   </Box>
-                )}
+                  <Box>
+                    <Typography fontWeight={700}>Online Payment</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Secure card payment is required to confirm your booking.
+                    </Typography>
+                  </Box>
+                </Paper>
+
+                {/* Card fields (always visible, since ONLINE is enforced) */}
+                <Box sx={{
+                  border: '1px solid', borderColor: theme.palette.divider, borderRadius: 2, p: 3,
+                  bgcolor: theme.palette.grey[50]
+                }}>
+                  <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                    <PaymentIcon color="primary" />
+                    <Typography variant="subtitle1" fontWeight={800}>Card Details</Typography>
+                  </Stack>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel id="card-type-label">Card type</InputLabel>
+                        <Select
+                          labelId="card-type-label"
+                          label="Card type"
+                          value={detectedBrand}
+                          onChange={e => setCardBrand(e.target.value)}
+                          sx={{ borderRadius: 2 }}
+                        >
+                          <MenuItem value="VISA">
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              <img src="images\\download.png" alt="Visa" width={24} />
+                              <span>Visa</span>
+                            </Stack>
+                          </MenuItem>
+                          <MenuItem value="MASTERCARD">
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              <img src="images\\master.png" alt="Mastercard" width={24} />
+                              <span>Mastercard</span>
+                            </Stack>
+                          </MenuItem>
+                          <MenuItem value="AMEX">
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              <img src="images\\amex.png" alt="American Express" width={24} />
+                              <span>Amex</span>
+                            </Stack>
+                          </MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+
+                    {/* SAFE MODE: no "Name on card" field */}
+
+                    <Grid item xs={12}>
+                      <TextField
+                        label="Card number (16 digits)"
+                        inputMode="numeric"
+                        value={cardNumber}
+                        onChange={e => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+                          setCardNumber(digits);
+                        }}
+                        fullWidth
+                        placeholder="Enter 16 digits"
+                        error={!!errors.cardNumber}
+                        helperText={errors.cardNumber || 'Safe mode: we never send or store the full number.'}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              {errors.cardNumber ? (
+                                <WarningAmberRoundedIcon color="error" />
+                              ) : (
+                                <CheckCircleRoundedIcon
+                                  color={cardNumber.length === 16 ? 'success' : 'action'}
+                                />
+                              )}
+                            </InputAdornment>
+                          ),
+                          sx: { borderRadius: 2 }
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        label="Expiry (MM/YY)"
+                        value={cardExp}
+                        onChange={e => setCardExp(e.target.value.replace(/[^\d/]/g, '').slice(0, 5))}
+                        placeholder="MM/YY"
+                        fullWidth
+                        required
+                        error={!!errors.cardExp}
+                        helperText={errors.cardExp}
+                        className="ring-focus"
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        label={detectedBrand === 'AMEX' ? 'CVV (4 digits)' : 'CVV (3 digits)'}
+                        inputMode="numeric"
+                        value={cardCvv}
+                        onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, (detectedBrand === 'AMEX' ? 4 : 3)))}
+                        fullWidth
+                        required
+                        error={!!errors.cardCvv}
+                        helperText={errors.cardCvv || 'Not stored.'}
+                        className="ring-focus"
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
 
                 <Button
                   size="large"

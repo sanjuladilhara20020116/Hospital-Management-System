@@ -13,6 +13,7 @@ import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import HomeIcon from '@mui/icons-material/Home';
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import CakeIcon from '@mui/icons-material/Cake';
+import ViewPatientCard from '../components/record/ViewPatientCard';
 
 export default function DoctorDashboard({ userId }) {
   const [profile, setProfile] = useState(null);
@@ -321,6 +322,11 @@ export default function DoctorDashboard({ userId }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Patient card */}
+      <Box sx={{ mt: 3 }}>
+        <ViewPatientCard />
+      </Box>
 
       {/* Snackbar */}
       <Snackbar
