@@ -1,22 +1,17 @@
-// ReportAnalysisPage.jsx — Dashboard-styled analysis page (Cholesterol & Diabetes)
-// Dependencies: react-router-dom, recharts
+// ReportAnalysisPage.jsx — Pixel-matched "Report Overview" with numeric deltas & AI coach
 import "./ReportAnalysisPage.css";
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid,
 } from "recharts";
-
 
 const API_BASE = "http://localhost:5000/api";
 
 /* -------------------------- tiny shared utilities -------------------------- */
-// replaces formatDistanceToNow
-
 const timeAgo = (d, nowTs = Date.now()) => {
   const t = new Date(d).getTime();
   const diff = Math.max(0, nowTs - t);
-
   if (diff < 60 * 1000) return "just now";
   if (diff < 60 * 60 * 1000) {
     const m = Math.floor(diff / 60000);
@@ -29,10 +24,17 @@ const timeAgo = (d, nowTs = Date.now()) => {
   const dys = Math.floor(diff / 86400000);
   return dys === 1 ? "1 day ago" : `${dys} days ago`;
 };
-
 const showNum = (n) => (Number.isFinite(n) ? n : "—");
 
-/* ----------------------------- Cholesterol logic --------------------------- */
+// pretty delta like "↑ 24 mg/dL" / "↓ 12 mg/dL" / "no change"
+const deltaText = (curr, prev, unit) => {
+  if (!Number.isFinite(curr) || !Number.isFinite(prev)) return "—";
+  const d = Math.round((curr - prev) * 10) / 10; // 1 decimal
+  if (d === 0) return "no change";
+  return `${d > 0 ? "↑" : "↓"} ${Math.abs(d)} ${unit}`;
+};
+
+/* ----------------------------- Cholesterol logic ----------------------------- */
 const calcCholDerived = (v = {}) => {
   const { ldl = null, hdl = null, triglycerides = null } = v || {};
   const vldl = Number.isFinite(triglycerides) ? Math.round(triglycerides / 5) : null;
@@ -56,13 +58,6 @@ const cholRiskMessage = ({ ldl, hdl, triglycerides }) => {
   if (ldl <= 129 && hdl >= 40 && triglycerides <= 199) return "Good levels with room to improve.";
   return "Cholesterol needs attention. Consider lifestyle changes and consult your physician.";
 };
-const CHOL_RANGES = [
-  { type: "Total Cholesterol", desirable: "<200 mg/dL", borderline: "200–239 mg/dL", high: "≥240 mg/dL" },
-  { type: "LDL Cholesterol", optimal: "<100 mg/dL", nearOptimal: "100–129 mg/dL", borderline: "130–159 mg/dL", high: "160–189 mg/dL", veryHigh: "≥190 mg/dL" },
-  { type: "HDL Cholesterol", low: "<40 mg/dL (men), <50 mg/dL (women)", acceptable: "40–59 mg/dL", protective: "≥60 mg/dL" },
-  { type: "Triglycerides", normal: "<150 mg/dL", borderline: "150–199 mg/dL", high: "200–499 mg/dL", veryHigh: "≥500 mg/dL" },
-  { type: "VLDL Cholesterol", normal: "≤30 mg/dL", high: ">30 mg/dL" },
-];
 
 /* -------------------------------- Diabetes -------------------------------- */
 const eAGfromA1c = (a1c) => (Number.isFinite(a1c) ? Math.round(28.7 * a1c - 46.7) : null);
@@ -87,14 +82,8 @@ const diabetesRiskMessage = ({ fastingGlucose, postPrandialGlucose, randomGlucos
   if (flags.some((f) => f === "diabetes")) return "Values in the diabetic range — please consult your clinician.";
   return "Prediabetes risk — lifestyle changes and monitoring recommended.";
 };
-const DIAB_RANGES = [
-  { type: "Fasting (FPG)", normal: "<100 mg/dL", prediabetes: "100–125 mg/dL", diabetes: "≥126 mg/dL" },
-  { type: "2-hr / Post-Prandial", normal: "<140 mg/dL", prediabetes: "140–199 mg/dL", diabetes: "≥200 mg/dL" },
-  { type: "Random Glucose", normal: "<140 mg/dL", elevated: "140–199 mg/dL", diabetes: "≥200 mg/dL (with sx)" },
-  { type: "HbA1c", normal: "<5.7%", prediabetes: "5.7–6.4%", diabetes: "≥6.5%" },
-];
 
-/* ------------------------------ Normalizers ------------------------------- */
+/* ------------------------------ Normalizers ------------------------------ */
 function normalizeCholesterol(analysis, extracted = {}) {
   const a = analysis || {};
   const ex = extracted || {};
@@ -163,12 +152,11 @@ function normalizeDiabetes(analysis, extracted = {}) {
 
 /* ---------------------------------- Page ---------------------------------- */
 export default function ReportAnalysisPage() {
-
   const [nowTs, setNowTs] = useState(Date.now());
-useEffect(() => {
-  const id = setInterval(() => setNowTs(Date.now()), 60_000); // update every minute
-  return () => clearInterval(id);
-}, []);
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const { id } = useParams();
   const navigate = useNavigate();
@@ -177,15 +165,13 @@ useEffect(() => {
   const [report, setReport] = useState(null);
   const [err, setErr] = useState("");
 
-  // Diabetes preview (no save)
+  // preview & coach
   const [mini, setMini] = useState(null);
   const [miniErr, setMiniErr] = useState("");
   const [miniLoading, setMiniLoading] = useState(false);
-
-  // Optional advice
   const [coach, setCoach] = useState({ loading: false, error: "", data: null });
 
-  // Compare
+  // compare
   const [compare, setCompare] = useState(null);
   const [compareErr, setCompareErr] = useState("");
 
@@ -204,17 +190,14 @@ useEffect(() => {
   };
 
   const fetchMiniPreview = async (reportId) => {
-    setMiniErr("");
-    setMini(null);
-    setMiniLoading(true);
+    setMiniErr(""); setMini(null); setMiniLoading(true);
     try {
       const r = await fetch(`${API_BASE}/reports/${encodeURIComponent(reportId)}/diabetes/preview`, { method: "POST" });
       const data = await r.json();
       if (!r.ok || !data?.ok) throw new Error(data?.message || "Preview failed");
       setMini(data.parsed || null);
     } catch (e) {
-      setMiniErr(e.message);
-      setMini(null);
+      setMiniErr(e.message); setMini(null);
     } finally {
       setMiniLoading(false);
     }
@@ -233,7 +216,18 @@ useEffect(() => {
     }
   };
 
-  useEffect(() => { fetchReport(); /* eslint-disable-next-line */ }, [id]);
+  function normalizeAdvice(raw = {}) {
+  const a = raw || {};
+  return {
+    healthStatus: a.healthStatus || a.summary || "",
+    reasons: a.reasons || a.possibleReasons || a.causes || [],
+    recommendations: a.recommendations || a.recs || a.suggestions || a.nextSteps || [],
+    breakdown: a.breakdown || {},
+  };
+}
+
+
+  useEffect(() => { fetchReport(); }, [id]);
 
   useEffect(() => {
     const t = (report?.reportType || "").toLowerCase();
@@ -244,10 +238,10 @@ useEffect(() => {
     }
   }, [report?._id, report?.isAnalyzed, report?.reportType]);
 
+  // ✅ ALWAYS fetch AI advice once a report is loaded (no analyze gate)
   useEffect(() => {
-    if (report?._id && report?.isAnalyzed) fetchAdvice(report._id);
-    else setCoach({ loading: false, error: "", data: null });
-  }, [report?._id, report?.isAnalyzed]);
+    if (report?._id) fetchAdvice(report._id);
+  }, [report?._id]);
 
   useEffect(() => {
     if (!report?._id) return;
@@ -259,8 +253,7 @@ useEffect(() => {
         if (!r.ok || !j?.ok) throw new Error(j?.message || "Compare failed");
         setCompare(j);
       } catch (e) {
-        setCompare(null);
-        setCompareErr(e.message);
+        setCompare(null); setCompareErr(e.message);
       }
     })();
   }, [report?._id]);
@@ -289,41 +282,31 @@ useEffect(() => {
                   : report.analysis || null;
   }, [report, ex, isChol, isDia]);
 
+
   return (
-    <div className="ra-wrap">
-      <button onClick={() => navigate(-1)} className="ra-back">← Back</button>
+    <div className="mock-wrap mock-match">
 
-      <h1 className="ra-title">Report Analysis</h1>
+      <div className="topbar">
+        <button onClick={() => navigate(-1)} className="back-btn">← Back</button>
+        {!loading && report && !report.isAnalyzed && (
+          <div className="actions">
+            <button className="cta" onClick={runAnalyze}>Analyze & Save</button>
+            {isDia && <button className="cta ghost" onClick={() => fetchMiniPreview(report._id)}>Refresh Preview</button>}
+          </div>
+        )}
+      </div>
 
-      {loading && <p>Loading…</p>}
-      {err && <div className="ra-error">Error: {err}</div>}
+      {loading && <p className="loading">Loading…</p>}
+      {err && <div className="error">Error: {err}</div>}
 
       {!loading && report && (
         <>
-          {/* header badges */}
-          <div className="ra-card ra-header">
-            <div className="ra-badges">
-              <Badge label="Report ID" value={report.referenceNo || report._id} mono />
-              <Badge label="Type" value={report.reportType} />
-              <Badge label="Uploaded" value={report.uploadDate ? new Date(report.uploadDate).toLocaleString() : "—"} />
-              <Badge label="Analyzed" value={report.isAnalyzed ? "Yes" : "No"} color={report.isAnalyzed ? "#16a34a" : "#ea580c"} />
-            </div>
-
-            {!report.isAnalyzed && (
-              <div className="ra-actions">
-                <button className="ra-btn ra-btn-primary" onClick={runAnalyze}>Analyze & Save</button>
-                {isDia && <button className="ra-btn ra-btn-cyan" onClick={() => fetchMiniPreview(report._id)}>Refresh Preview</button>}
-                <p className="ra-hint">Preview shows extracted values without saving. Click <b>Analyze & Save</b> to persist.</p>
-              </div>
-            )}
-          </div>
-
           {isChol && (
             <CholesterolView
               report={report} ex={ex} ana={ana}
               compare={compare} compareErr={compareErr}
-              coach={coach}
-              nowTs={nowTs}
+              coach={coach} nowTs={nowTs}
+              navigate={navigate}
             />
           )}
 
@@ -332,15 +315,14 @@ useEffect(() => {
               report={report} ex={ex} ana={ana}
               compare={compare} compareErr={compareErr}
               mini={mini} miniErr={miniErr} miniLoading={miniLoading}
-              coach={coach}
-              nowTs={nowTs}
+              coach={coach} nowTs={nowTs}
             />
           )}
 
           {!isChol && !isDia && (
-            <div className="ra-card">
+            <div className="card">
               <p>Unsupported report type. Raw analysis:</p>
-              <pre className="ra-pre">{JSON.stringify(report?.analysis || {}, null, 2)}</pre>
+              <pre className="pre">{JSON.stringify(report?.analysis || {}, null, 2)}</pre>
             </div>
           )}
         </>
@@ -350,159 +332,255 @@ useEffect(() => {
 }
 
 /* ============================= Cholesterol View ============================ */
-function CholesterolView({ report, ex, ana, compare, compareErr, coach ,nowTs }) {
+function CholesterolView({ report, ex, ana, compare, compareErr, coach, nowTs, navigate }) {
   const latest = calcCholDerived({ ldl: ex?.ldl, hdl: ex?.hdl, triglycerides: ex?.triglycerides });
   const prev = compare?.previousExtracted ? calcCholDerived(compare.previousExtracted) : null;
   const units = ex?.units || "mg/dL";
-  const navigate = useNavigate();
-  // Which patient id to use for the trends page
-const patientIdForTrends =
-  (report?.patientId && typeof report.patientId === "object"
-    ? report.patientId._id
-    : report?.patientId) || null;
+
+  const patientIdForTrends =
+    (report?.patientId && typeof report.patientId === "object"
+      ? report.patientId._id
+      : report?.patientId) || null;
 
   const chartData = prev ? [
-    { name: "Total", Previous: prev.totalCholesterol, Current: latest.totalCholesterol },
-    { name: "LDL", Previous: prev.ldl, Current: latest.ldl },
-    { name: "HDL", Previous: prev.hdl, Current: latest.hdl },
-    { name: "VLDL", Previous: prev.vldl, Current: latest.vldl },
+    { name: "Total Cho", Previous: prev.totalCholesterol, Current: latest.totalCholesterol },
+    { name: "HDL",       Previous: prev.hdl,              Current: latest.hdl },
+    { name: "LDL",       Previous: prev.ldl,              Current: latest.ldl },
+    { name: "VLDL",      Previous: prev.vldl,             Current: latest.vldl },
     { name: "Triglycerides", Previous: prev.triglycerides, Current: latest.triglycerides },
   ] : [];
 
   const riskMsg = cholRiskMessage(latest).toLowerCase();
   const statusClass = riskMsg.includes("excellent") ? "safe" : riskMsg.includes("good") ? "warning" : "danger";
 
+  const patientName =
+    (report?.patientId && typeof report.patientId === "object")
+      ? `${report.patientId.firstName || ""} ${report.patientId.lastName || ""}`.trim() || report.patientId.userId
+      : report?.patientId || "—";
+  const pid =
+    (report?.patientId && typeof report.patientId === "object") ? report.patientId._id : report?.patientId;
+  const uploaded = report?.uploadDate ? new Date(report.uploadDate).toLocaleDateString() : "—";
+
+  function KPI({ label, value, unit, ring = "green", status }) {
+    const tone =
+      ["optimal","desirable","normal","protective","good"].includes(status) ? "good" :
+      ["near-optimal","acceptable","borderline","prediabetes","elevated"].includes(status) ? "mid" :
+      !status || status === "unknown" ? "neutral" : "bad";
+    const pretty = (String(status || "").replace("-", " ") || "—").replace(/\b\w/g, m => m.toUpperCase());
+    return (
+      <div className="kpi kpi--row">
+        <div className={`ring ${ring}`}><span className={`glyph ${ring}`} aria-hidden>💧</span></div>
+        <div className="kpi-main">
+          <div className="kpi-top"><span className="n">{showNum(value)}</span>{Number.isFinite(value) && <span className="u">{unit}</span>}</div>
+          <div className={`pill ${tone}`}>{pretty}</div>
+        </div>
+        <div className="kpi-label kpi-label--big">{label}</div>
+      </div>
+    );
+  }
+
+  // chart y domain + ticks
+  function buildYAxisTicks(values = [], step = 20, min = 0) {
+    const max = Math.max(...values.filter(Number.isFinite), 0);
+    const top = Math.ceil(max / step) * step || step;
+    const ticks = [];
+    for (let t = min; t <= top; t += step) ticks.push(t);
+    return { domain: [min, top], ticks };
+  }
+  const yValues = prev ? [
+    latest.totalCholesterol, latest.hdl, latest.ldl, latest.vldl, latest.triglycerides,
+    prev.totalCholesterol,   prev.hdl,   prev.ldl,   prev.vldl,   prev.triglycerides,
+  ] : [
+    latest.totalCholesterol, latest.hdl, latest.ldl, latest.vldl, latest.triglycerides,
+  ];
+  const { domain: yDomain, ticks: yTicks } = buildYAxisTicks(yValues, 20, 0);
+
+  // CholesterolView — put these 2 lines right above the `return (...)`
+const reasonsList =
+  (coach?.data?.reasons?.length ? coach.data.reasons : null) ||
+  (Array.isArray(ana?.reasons) && ana.reasons.length ? ana.reasons : null) ||
+  null;
+
+const recsList =
+  (coach?.data?.recommendations?.length ? coach.data.recommendations : null) ||
+  (Array.isArray(ana?.nextSteps) && ana.nextSteps.length ? ana.nextSteps : null) ||
+  null;
+
+
   return (
     <>
-      <div className="ra-split">
-        {/* left */}
-        <div className="ra-left">
-          <img src="/heart.png" alt="Heart" className="ra-heart" />
-
-          <Card icon="❤️" title="Health Status">
-            <p className="ra-par">{coach?.data?.healthStatus || ana?.notes || "Your cholesterol summary will appear here."}</p>
-          </Card>
-
-          <Card icon="🧠" title="Possible Reasons">
-            {Array.isArray(coach?.data?.reasons) && coach.data.reasons.length > 0 ? (
-              <ul className="ra-list">{coach.data.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
-            ) : <p className="ra-muted">—</p>}
-          </Card>
-
-          <Card icon="🍎" title="Recommendations">
-            {Array.isArray(coach?.data?.recommendations) && coach.data.recommendations.length > 0 ? (
-              <ul className="ra-list">{coach.data.recommendations.map((r, i) => <li key={i}>{r}</li>)}</ul>
-            ) : <p className="ra-muted">—</p>}
-          </Card>
+      {/* HERO */}
+      <div className="hero">
+        <div className="hero-left">
+          <div className="hero-title">Cholesterol Report Overview</div>
+          <div className="hero-id">
+            <div className="id-row"><span className="k">Name</span><span className="v">: {patientName}</span></div>
+            <div className="id-row"><span className="k">PID</span><span className="v">: {pid || "—"}</span></div>
+            <div className="id-row"><span className="k">Ref NO</span><span className="v">: {report?.referenceNo || "—"}</span></div>
+            <div className="id-row"><span className="k">Uploaded date</span><span className="v">: {uploaded}</span></div>
+          </div>
         </div>
-
-        {/* right */}
-        <div className="ra-right">
-          <Section title="Latest Report"   badge={report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : null}>
-            <div className="ra-metric-grid">
-              {[
-                { label: "Total Cholesterol", value: latest.totalCholesterol, type: "total" },
-                { label: "LDL", value: latest.ldl, type: "ldl" },
-                { label: "HDL", value: latest.hdl, type: "hdl" },
-                { label: "VLDL", value: latest.vldl, type: "vldl" },
-                { label: "Triglycerides", value: latest.triglycerides, type: "triglycerides" },
-              ].map((item, i) => (
-                <MetricChip
-                  key={i}
-                  label={item.label}
-                  value={item.value}
-                  unit={units}
-                  risk={cholRisk(item.type, item.value)}
-                />
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Risk Summary" rightBadge={<RiskBadge mode={statusClass} />}>
-            <div className={`ra-risk ${statusClass}`}>
-              <div className="ra-risk__icon" aria-hidden>
-                {statusClass === "danger" ? "🚨" : statusClass === "warning" ? "⚠️" : "🛡️"}
-              </div>
-              <div className="ra-risk__text">{cholRiskMessage(latest)}</div>
-            </div>
-          </Section>
-
-          <Section title="Comparison with Previous Report">
-            <div className="ra-compare">
-              <ul className="ra-list">
-                {[
-                  { label: "Total Cholesterol", curr: latest.totalCholesterol, prev: prev?.totalCholesterol },
-                  { label: "LDL", curr: latest.ldl, prev: prev?.ldl },
-                  { label: "HDL", curr: latest.hdl, prev: prev?.hdl },
-                  { label: "VLDL", curr: latest.vldl, prev: prev?.vldl },
-                  { label: "Triglycerides", curr: latest.triglycerides, prev: prev?.triglycerides },
-                ].map(({ label, curr, prev }, idx) => (
-                  <li key={idx}>
-                    {prev == null ? `🆕 First ${label} reading: ${showNum(curr)} ${units}` :
-                     curr > prev ? `⬆️ ${label} increased by ${showNum(curr - prev)} ${units}` :
-                     curr < prev ? `⬇️ ${label} decreased by ${showNum(prev - curr)} ${units}` :
-                                   `➖ No change in ${label}`}
-                  </li>
-                ))}
-              </ul>
-
-              <div className="ra-chart">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="Previous" fill="#d0d0d0" />
-                    <Bar dataKey="Current" fill="#4e8cff" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            {compareErr && <p className="ra-error">Compare error: {compareErr}</p>}
-          </Section>
-
-          <Section title="Enhanced Value Breakdown & Meaning">
-            <ul className="ra-list">
-              <li><strong>Total Cholesterol ({showNum(latest.totalCholesterol)} {units})</strong> — Overall cholesterol; LDL + HDL + VLDL.</li>
-              {Number.isFinite(latest.ldl) && <li><strong>LDL ({latest.ldl} {units})</strong> — {coach.data?.breakdown?.ldl || "Higher values increase risk."}</li>}
-              {Number.isFinite(latest.hdl) && <li><strong>HDL ({latest.hdl} {units})</strong> — {coach.data?.breakdown?.hdl || "Higher is generally protective."}</li>}
-              {Number.isFinite(latest.vldl) && <li><strong>VLDL ({latest.vldl} {units})</strong> — Carries triglycerides (≈ TG ÷ 5).</li>}
-              {Number.isFinite(latest.triglycerides) && <li><strong>Triglycerides ({latest.triglycerides} {units})</strong> — {coach.data?.breakdown?.triglycerides || "High levels can raise cardiovascular risk."}</li>}
-            </ul>
-          </Section>
+        <div className="hero-right">
+          <img src="/img/mock/chol-hero.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
         </div>
       </div>
 
-      {/* full-width ranges card below the two-column layout */}
-      <RangesSection items={CHOL_RANGES} />
+      {/* Latest */}
+      <div className="latest-card">
+        <div className="latest-head">
+          <h2 className="latest-title">Latest Report</h2>
+          <div className="latest-right">
+            <span className="latest-time">{report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : "—"}</span>
+            <span className="latest-sparkle" aria-hidden>✦</span>
+          </div>
+        </div>
+        <div className="kpi-row kpi-row--latest">
+          <KPI label="Total Cholesterol" value={latest.totalCholesterol} unit={units} ring="green"  status={cholRisk("total", latest.totalCholesterol)} />
+          <KPI label="LDL"               value={latest.ldl}              unit={units} ring="blue"   status={cholRisk("ldl", latest.ldl)} />
+          <KPI label="HDL"               value={latest.hdl}              unit={units} ring="red"    status={cholRisk("hdl", latest.hdl)} />
+          <KPI label="VLDL"              value={latest.vldl}             unit={units} ring="orange" status={cholRisk("vldl", latest.vldl)} />
+          <KPI label="Triglycerides"     value={latest.triglycerides}    unit={units} ring="cyan"   status={cholRisk("triglycerides", latest.triglycerides)} />
+        </div>
+      </div>
 
-      {/* Actions */}
-<div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-  <button
-    className="ra-btn ra-btn-primary"
-    onClick={() => {
-      if (!patientIdForTrends) {
-        alert("No patient id on this report.");
-        return;
-      }
-      navigate(`/cholesterol-trends/${patientIdForTrends}`);
-    }}
-  >
-    📈 See full analysis
-  </button>
+      {/* Risk + Health + Compare */}
+      <div className="triple">
+        <div className="card">
+          <div className="card-head"><div className="head-icon warn">⚠️</div><h3 className="head-title">Risk Summary</h3></div>
+          <div className={`risk-chip ${statusClass}`}>
+            {statusClass === "safe" ? "Excellent profile" : statusClass === "warning" ? "Good levels with room to improve" : "Needs attention"}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-head"><div className="head-icon heart">❤️</div><h3 className="head-title">Health Status</h3></div>
+          <div className="info-pane">{coach?.data?.healthStatus || ana?.notes || "Cholesterol levels are generally within acceptable ranges, but triglycerides are elevated."}</div>
+        </div>
+
+        <div className="card card-compare" style={{ "--compare-h": "210px" }}>
+          <div className="card-head">
+            <div className="head-icon mag">🔍</div>
+            <h3 className="head-title">Comparison with Previous Report</h3>
+            <div className="legend-right">
+              <span><i className="cur"></i> current</span>
+              <span><i className="prev"></i> previous</span>
+            </div>
+          </div>
+
+          <div className="compare-grid">
+            <div className="mini-chart" aria-label="Comparison chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 4, right: 6, bottom: 0, left: 0 }} barCategoryGap={14} barGap={4}>
+                  <CartesianGrid stroke="#E5EEF9" vertical={false} />
+                  <XAxis dataKey="name" interval={0} axisLine={false} tickLine={false}
+                         tick={{ fontSize: 11, fill: "#244E86", fontWeight: 700 }} />
+                  <YAxis domain={yDomain} ticks={yTicks} allowDecimals={false} axisLine={false} tickLine={false}
+                         width={30} tick={{ fontSize: 11, fill: "#244E86", fontWeight: 700 }} />
+                  <Tooltip />
+                  <Bar dataKey="Current"  fill="#1976D2" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Previous" fill="#BFD8FF" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bullet-pane">
+              <ul>
+                {[
+                  { label: "Total Cholesterol", curr: latest.totalCholesterol, prev: prev?.totalCholesterol },
+                  { label: "LDL",               curr: latest.ldl,              prev: prev?.ldl },
+                  { label: "HDL",               curr: latest.hdl,              prev: prev?.hdl },
+                  { label: "VLDL",              curr: latest.vldl,             prev: prev?.vldl },
+                  { label: "Triglycerides",     curr: latest.triglycerides,    prev: prev?.triglycerides },
+                ].map(({ label, curr, prev }, i) => (
+                  <li key={i}>
+                    {prev == null
+                      ? `🆕 First ${label} reading: ${showNum(curr)} ${units}`
+                      : `${label}: ${showNum(curr)} ${units} (${deltaText(curr, prev, units)} from ${showNum(prev)} ${units})`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {compareErr && <p className="error tiny">Compare error: {compareErr}</p>}
+        </div>
+      </div>
+
+      {/* Reasons & Recs (AI-backed with fallback) */}
+      {/* Reasons & Recs (AI-backed with fallback) */}
+<div className="double">
+  <div className="card">
+    <div className="card-head">
+      <div className="head-icon brain">🧠</div>
+      <h3 className="head-title">Possible Reasons</h3>
+    </div>
+    <div className="split-art">
+      <img
+        src="/reasons.png"
+        alt=""
+        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+      />
+      <div className="blue-panel">
+        {coach.loading && <p className="ra-muted">Generating…</p>}
+        {coach.error && <p className="ra-error">Advice error: {coach.error}</p>}
+
+        {reasonsList ? (
+          <ul>
+            {reasonsList.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        ) : (
+          <p className="ra-muted">—</p>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <div className="card">
+    <div className="card-head">
+      <div className="head-icon apple">🍎</div>
+      <h3 className="head-title">Recommendations</h3>
+    </div>
+    <div className="split-art">
+      <img
+        src="/recs.png"
+        alt=""
+        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+      />
+      <div className="blue-panel">
+        {coach.loading && <p className="ra-muted">Generating…</p>}
+        {coach.error && <p className="ra-error">Advice error: {coach.error}</p>}
+
+        {recsList ? (
+          <ul>
+            {recsList.map((r, i) => <li key={i}>{r}</li>)}
+          </ul>
+        ) : (
+          <p className="ra-muted">—</p>
+        )}
+      </div>
+    </div>
+  </div>
 </div>
 
 
+      {/* CTA */}
+      <div className="cta-row">
+        <button
+          className="cta big"
+          onClick={()=>{
+            if (!patientIdForTrends) { alert("No patient id on this report."); return; }
+            navigate(`/cholesterol-trends/${patientIdForTrends}`);
+          }}
+        >
+          See full&nbsp;analysis
+        </button>
+      </div>
     </>
-
-    
   );
 }
 
-
 /* =============================== Diabetes View ============================ */
-function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, miniLoading, coach, nowTs  }) {
+function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, miniLoading, coach, nowTs }) {
   const gUnits = ex?.glucoseUnits || "mg/dL";
   const a1cUnits = ex?.hba1cUnits || "%";
 
@@ -513,14 +591,7 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
     hba1c: Number.isFinite(ex?.hba1c) ? ex.hba1c : mini?.hba1c ?? null,
   };
   const eAG = eAGfromA1c(cur.hba1c);
-
   const prev = compare?.previousExtracted || null;
-  const chartData = prev ? [
-    { name: "Fasting", Previous: prev.fastingGlucose, Current: cur.fastingGlucose },
-    { name: "2-hr/PP", Previous: prev.postPrandialGlucose ?? prev.ogtt2h, Current: cur.postPrandialGlucose },
-    { name: "Random", Previous: prev.randomGlucose, Current: cur.randomGlucose },
-    { name: "HbA1c", Previous: prev.hba1c, Current: cur.hba1c },
-  ] : [];
 
   const riskMsg = diabetesRiskMessage(cur).toLowerCase();
   const statusClass =
@@ -530,215 +601,154 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
 
   return (
     <>
-      <div className="ra-split">
-        {/* left */}
-        <div className="ra-left">
-           <img src="/img4.jpg" alt="Heart" className="ra-heart" />
-          {!report.isAnalyzed && (
-            <Card icon="ℹ️" title="Preview Mode">
-              {miniLoading ? <p className="ra-muted">Extracting preview…</p>
-                : miniErr ? <p className="ra-error">Preview Error: {miniErr}</p>
-                : <p className="ra-par">Showing extracted values without saving. Click <b>Analyze & Save</b> to persist.</p>}
-            </Card>
-          )}
-
-          <Card icon="❤️" title="Health Status">
-            <p className="ra-par">{coach?.data?.healthStatus || ana?.notes || "Your diabetes summary will appear here."}</p>
-          </Card>
-
-          <Card icon="🧠" title="Possible Reasons">
-            {Array.isArray(coach?.data?.reasons) && coach.data.reasons.length > 0 ? (
-              <ul className="ra-list">{coach.data.reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
-            ) : <p className="ra-muted">—</p>}
-          </Card>
-
-          <Card icon="🍎" title="Recommendations">
-            {Array.isArray(coach?.data?.recommendations) && coach.data.recommendations.length > 0 ? (
-              <ul className="ra-list">{coach.data.recommendations.map((r, i) => <li key={i}>{r}</li>)}</ul>
-            ) : <p className="ra-muted">—</p>}
-          </Card>
+      <div className="hero green">
+        <div className="hero-left">
+          <div className="hero-title">Diabetes Report Overview</div>
+          <div className="hero-id">
+            <div className="id-row"><span className="k">Name</span><span className="v">: {(report?.patientId && typeof report.patientId === "object" && (report.patientId.firstName || report.patientId.lastName)) ? `${report.patientId.firstName||""} ${report.patientId.lastName||""}` : (report?.patientId?.userId || "—")}</span></div>
+            <div className="id-row"><span className="k">PID</span><span className="v">: {(report?.patientId && typeof report.patientId === "object") ? report.patientId._id : report?.patientId || "—"}</span></div>
+            <div className="id-row"><span className="k">Ref NO</span><span className="v">: {report?.referenceNo || "—"}</span></div>
+            <div className="id-row"><span className="k">Uploaded date</span><span className="v">: {report?.uploadDate ? new Date(report.uploadDate).toLocaleDateString() : "—"}</span></div>
+          </div>
         </div>
-
-        {/* right */}
-        <div className="ra-right">
-          <Section title="Latest Report"   badge={report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : null}>
-            <div className="ra-metric-grid">
-              <MetricChip label="Fasting (FPG)" value={cur.fastingGlucose} unit={gUnits} risk={diabetesRisk("fasting", cur.fastingGlucose)} />
-              <MetricChip label="2-hr / PP" value={cur.postPrandialGlucose} unit={gUnits} risk={diabetesRisk("pp", cur.postPrandialGlucose)} />
-              <MetricChip label="Random" value={cur.randomGlucose} unit={gUnits} risk={diabetesRisk("random", cur.randomGlucose)} />
-              <MetricChip label="HbA1c" value={cur.hba1c} unit={a1cUnits} risk={diabetesRisk("a1c", cur.hba1c)} />
-              <MetricChip label="eAG" value={eAG} unit="mg/dL" risk={Number.isFinite(eAG) ? (eAG < 154 ? "normal" : eAG < 183 ? "prediabetes" : "diabetes") : "unknown"} />
-            </div>
-          </Section>
-
-          <Section title="Risk Summary" rightBadge={<RiskBadge mode={statusClass} />}>
-            <div className={`ra-risk ${statusClass}`}>
-              <div className="ra-risk__icon" aria-hidden>
-                {statusClass === "danger" ? "🚨" : statusClass === "warning" ? "⚠️" : "🛡️"}
-              </div>
-              <div className="ra-risk__text">{diabetesRiskMessage(cur)}</div>
-            </div>
-          </Section>
-
-          <Section title="Comparison with Previous Report">
-            <div className="ra-compare">
-              <ul className="ra-list">
-                {[
-                  { label: "Fasting", curr: cur.fastingGlucose, prev: prev?.fastingGlucose },
-                  { label: "2-hr/PP", curr: cur.postPrandialGlucose, prev: prev?.postPrandialGlucose ?? prev?.ogtt2h },
-                  { label: "Random", curr: cur.randomGlucose, prev: prev?.randomGlucose },
-                  { label: "HbA1c", curr: cur.hba1c, prev: prev?.hba1c, isPct: true },
-                ].map(({ label, curr, prev, isPct }, idx) => (
-                  <li key={idx}>
-                    {prev == null ? `🆕 First ${label} reading: ${showNum(curr)} ${isPct ? "%" : gUnits}` :
-                     curr > prev ? `⬆️ ${label} increased by ${showNum(curr - prev)} ${isPct ? "%" : gUnits}` :
-                     curr < prev ? `⬇️ ${label} decreased by ${showNum(prev - curr)} ${isPct ? "%" : gUnits}` :
-                                   `➖ No change in ${label}`}
-                  </li>
-                ))}
-              </ul>
-
-              <div className="ra-chart">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="Previous" fill="#d0d0d0" />
-                    <Bar dataKey="Current" fill="#4e8cff" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            {compareErr && <p className="ra-error">Compare error: {compareErr}</p>}
-          </Section>
-
-          <Section title="Value Breakdown & Meaning">
-            <ul className="ra-list">
-              {Number.isFinite(cur.fastingGlucose) && <li><strong>Fasting ({cur.fastingGlucose} {gUnits})</strong> — Morning value after 8–12h fast; reflects baseline control.</li>}
-              {Number.isFinite(cur.postPrandialGlucose) && <li><strong>2-hr / PP ({cur.postPrandialGlucose} {gUnits})</strong> — Post-meal response; high values suggest post-meal hyperglycemia.</li>}
-              {Number.isFinite(cur.randomGlucose) && <li><strong>Random ({cur.randomGlucose} {gUnits})</strong> — Snapshot at any time; ≥200 mg/dL with symptoms suggests diabetes.</li>}
-              {Number.isFinite(cur.hba1c) && <li><strong>HbA1c ({cur.hba1c} {a1cUnits})</strong> — 3-month average; ≥6.5% suggests diabetes.</li>}
-              {Number.isFinite(eAG) && <li><strong>eAG ({eAG} mg/dL)</strong> — Estimated average glucose derived from HbA1c.</li>}
-            </ul>
-          </Section>
+        <div className="hero-right">
+          <img src="/img/mock/diab-hero.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
         </div>
       </div>
 
-      {/* full-width ranges card below the two-column layout */}
-      <RangesSection items={DIAB_RANGES} />
+      {!report.isAnalyzed && (
+        <div className="notice">
+          {miniLoading ? "Extracting preview…" : miniErr ? `Preview Error: ${miniErr}` : "Preview mode — click Analyze & Save to persist."}
+        </div>
+      )}
+
+      <div className="section">
+        <div className="sec-head">
+          <div className="sec-icon">✨</div>
+          <h2 className="sec-title">Latest Report</h2>
+          <div className="sec-time">{report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : ""}</div>
+        </div>
+        <div className="kpi-row">
+          <KpiTile label="Fasting (FPG)" value={cur.fastingGlucose} unit={gUnits} ringTone="green"  status={diabetesRisk("fasting", cur.fastingGlucose)} />
+          <KpiTile label="2-hr / PP"    value={cur.postPrandialGlucose} unit={gUnits} ringTone="blue"   status={diabetesRisk("pp", cur.postPrandialGlucose)} />
+          <KpiTile label="Random"        value={cur.randomGlucose} unit={gUnits} ringTone="red"    status={diabetesRisk("random", cur.randomGlucose)} />
+          <KpiTile label="HbA1c"         value={cur.hba1c} unit={a1cUnits} ringTone="orange" status={diabetesRisk("a1c", cur.hba1c)} />
+          <KpiTile label="eAG"           value={eAG} unit="mg/dL" ringTone="cyan" status={Number.isFinite(eAG) ? (eAG < 154 ? "normal" : eAG < 183 ? "prediabetes" : "diabetes") : "unknown"} />
+        </div>
+      </div>
+
+      <div className="triple">
+        <div className="card">
+          <div className="card-head"><div className="head-icon warn">⚠️</div><h3 className="head-title">Risk Summary</h3></div>
+          <div className={`risk-chip ${statusClass}`}>
+            {statusClass === "safe" ? "Normal levels" : statusClass === "warning" ? "Prediabetes risk" : "Needs attention"}
+          </div>
+          <div className="info-pane">{diabetesRiskMessage(cur)}</div>
+        </div>
+
+        <div className="card">
+          <div className="card-head"><div className="head-icon heart">❤️</div><h3 className="head-title">Health Status</h3></div>
+          <div className="info-pane">{coach?.data?.healthStatus || ana?.notes || "Your diabetes summary will appear here."}</div>
+        </div>
+
+        <div className="card">
+          <div className="card-head">
+            <div className="head-icon mag">🔍</div>
+            <h3 className="head-title">Comparison with Previous Report</h3>
+            <div className="legend-right">
+              <span><i className="cur"></i> current</span>
+              <span><i className="prev"></i> previous</span>
+            </div>
+          </div>
+
+          <div className="compare-grid">
+            <div className="bullet-pane">
+              <ul>
+                {[
+                  { label: "Fasting",   curr: cur.fastingGlucose,       prev: prev?.fastingGlucose },
+                  { label: "2-hr / PP", curr: cur.postPrandialGlucose,  prev: prev?.postPrandialGlucose ?? prev?.ogtt2h },
+                  { label: "Random",    curr: cur.randomGlucose,        prev: prev?.randomGlucose },
+                  { label: "HbA1c",     curr: cur.hba1c,                prev: prev?.hba1c, unit: a1cUnits },
+                ].map(({label,curr,prev,unit},i)=>(
+                  <li key={i}>
+                    {prev == null
+                      ? `🆕 First ${label} reading: ${showNum(curr)} ${unit || gUnits}`
+                      : `${label}: ${showNum(curr)} ${unit || gUnits} (${deltaText(curr, prev, unit || gUnits)} from ${showNum(prev)} ${unit || gUnits})`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="mini-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={prev ? [
+                  { name: "Fasting",   Previous: prev.fastingGlucose,                      Current: cur.fastingGlucose },
+                  { name: "2-hr / PP", Previous: prev.postPrandialGlucose ?? prev?.ogtt2h, Current: cur.postPrandialGlucose },
+                  { name: "Random",    Previous: prev.randomGlucose,                       Current: cur.randomGlucose },
+                  { name: "HbA1c",     Previous: prev.hba1c,                                Current: cur.hba1c },
+                ] : []}>
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="Current"  fill="#1976D2" radius={[6,6,0,0]} />
+                  <Bar dataKey="Previous" fill="#B3D4FF" radius={[6,6,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {compareErr && <p className="error tiny">Compare error: {compareErr}</p>}
+        </div>
+      </div>
+
+      {/* reasons + recs */}
+      <div className="double">
+        <div className="card">
+          <div className="card-head"><div className="head-icon brain">🧠</div><h3 className="head-title">Possible Reasons</h3></div>
+          <div className="split-art">
+            <img src="/img/mock/diab-reasons.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+            <div className="blue-panel">
+              <ul>
+                {Array.isArray(coach?.data?.reasons) && coach.data.reasons.length
+                  ? coach.data.reasons.map((r,i)=><li key={i}>{r}</li>)
+                  : <li>—</li>}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-head"><div className="head-icon apple">🍎</div><h3 className="head-title">Recommendations</h3></div>
+          <div className="split-art">
+            <img src="/img/mock/diab-recs.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+            <div className="blue-panel">
+              <ul>
+                {Array.isArray(coach?.data?.recommendations) && coach.data.recommendations.length
+                  ? coach.data.recommendations.map((r,i)=><li key={i}>{r}</li>)
+                  : <li>—</li>}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   );
 }
 
-
 /* -------------------------------- UI atoms -------------------------------- */
-function Badge({ label, value, color = "#334155", mono = false }) {
-  return (
-    <div className="ra-badge">
-      <div className="ra-badge__label">{label}</div>
-      <div className="ra-badge__value" style={{ color, fontFamily: mono ? "ui-monospace, SFMono-Regular, Menlo, monospace" : "inherit" }}>
-        {value ?? "—"}
-      </div>
-    </div>
-  );
-}
-function Card({ icon, title, children }) {
-  return (
-    <div className="ra-card">
-      <div className="ra-section-head">
-        <div className="ra-section-title">
-          <span className="ra-dot">{icon}</span>
-          <h3>{title}</h3>
-        </div>
-      </div>
-      <div className="ra-card-body">{children}</div>
-    </div>
-  );
-}
-function Section({ title, children, badge, rightBadge }) {
-  return (
-    <div className="ra-card">
-      <div className="ra-section-head ra-justify">
-        <div className="ra-section-title">
-          <span className="ra-dot">📄</span>
-          <h3>{title}</h3>
-        </div>
-        <div className="ra-rightbits">
-          {rightBadge || null}
-          {badge && <span className="ra-time">{badge}</span>}
-        </div>
-      </div>
-      <div className="ra-card-body">{children}</div>
-    </div>
-  );
-}
-function MetricChip({ label, value, unit, risk }) {
+function KpiTile({ label, value, unit, status, ringTone = "blue" }) {
   const tone =
-    ["optimal", "desirable", "normal", "protective", "good"].includes(risk) ? "good" :
-    ["near-optimal", "acceptable", "borderline", "prediabetes", "elevated", "moderate"].includes(risk) ? "mid" :
-    !risk || risk === "unknown" ? "neutral" : "bad";
-  return (
-    <div className="ra-metric">
-      <div className="ra-metric__title">{label}</div>
-      <div className="ra-metric__inner">
-        <div className={`ra-badge-pill ${tone}`}>{(risk || "").replace("-", " ") || "—"}</div>
-        <div className="ra-metric__value">
-          <span className="n">{showNum(value)}</span>
-          {Number.isFinite(value) && unit && <span className="u">{unit}</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-function RiskBadge({ mode }) {
-  return (
-    <div className={`ra-risk-badge ${mode}`}>
-      <span>{mode === "danger" ? "✖" : mode === "warning" ? "⚠" : "✔"}</span>
-    </div>
-  );
-}
-function HorizontalRanges({ items }) {
-  return (
-    <div className="ranges-row">
-      {items.map((range, i) => (
-        <div className="range-card" key={i}>
-          <div className="range-type">{range.type}</div>
-          <div className="range-tags">
-            {Object.entries(range).map(([k, v]) => {
-              if (k === "type") return null;
-              const tone = /optimal|protective|desirable|normal/i.test(k)
-                ? "good"
-                : /near|acceptable|borderline|elevated|prediabetes/i.test(k)
-                ? "mid"
-                : "bad";
-              return (
-                <span className={`range-tag ${tone}`} key={k}>
-                  <b>{k.replace(/([A-Z])/g, " $1").toLowerCase()}</b> {v}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+    ["optimal","desirable","normal","protective","good"].includes(status) ? "good"
+    : ["near-optimal","acceptable","borderline","prediabetes","elevated","moderate"].includes(status) ? "mid"
+    : !status || status === "unknown" ? "neutral" : "bad";
 
-function RangesSection({ items, title = "Reference Ranges" }) {
   return (
-    <div className="ra-card ra-ranges-outside">
-      <div className="ra-section-head">
-        <div className="ra-section-title">
-          <span className="ra-dot">📋</span>
-          <h3>{title}</h3>
-        </div>
-      </div>
-      <div className="ra-card-body ra-card-body--flat">
-        <HorizontalRanges items={items} />
-      </div>
+    <div className="kpi">
+      <div className={`drop-wrap ${ringTone}`}><div className="drop">&#128167;</div></div>
+      <div className="kpi-val"><span className="n">{showNum(value)}</span>{Number.isFinite(value) && unit && <span className="u">{unit}</span>}</div>
+      <div className={`chip ${tone}`}>{(status || "").replace("-", " ") || "—"}</div>
+      <div className="kpi-label">{label}</div>
     </div>
   );
 }
-
