@@ -1,4 +1,4 @@
-
+// src/pages/LabAdminDashboard.js
 import React, { useEffect, useState, useCallback } from "react";
 import {
   Box,
@@ -8,25 +8,19 @@ import {
   Paper,
   Snackbar,
   Alert,
-  Grid,
   Chip,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import DoneAllRounded from "@mui/icons-material/DoneAllRounded";
 import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
 import InsertDriveFileRounded from "@mui/icons-material/InsertDriveFileRounded";
+
 import LabJobForm from "../components/lab/LabJobForm";
 import LabJobTable from "../components/lab/LabJobTable";
 import FilterBar from "../components/lab/FilterBar";
 import StatCard from "../components/lab/StatCard";
 
 import API from "../api";
-
-
-
-
-
-
 
 export default function LabAdminDashboard() {
   const [tab, setTab] = useState(0);
@@ -56,54 +50,64 @@ export default function LabAdminDashboard() {
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const isLabAdmin = currentUser?.role === "LabAdmin";
 
+  // --- attach Lab Admin identity to every request (safe minimal change) ---
+  const withActor = (extra = {}) => ({
+    headers: { "x-user-id": currentUser?.userId || "", ...(extra.headers || {}) },
+    ...extra,
+  });
+
   // --- Fetchers (memoized) ---
   const fetchPending = useCallback(async () => {
     try {
-      const res = await API.get("/api/lab-jobs", { params: pendingFilter });
+      const res = await API.get("/api/lab-jobs", {
+        params: pendingFilter,
+        ...withActor(),
+      });
       setPendingJobs(res.data?.items || []);
     } catch (e) {
-      showToast("error", e.response?.data?.message || "Failed to load pending jobs");
+      showToast(
+        "error",
+        e.response?.data?.message || "Failed to load pending jobs"
+      );
     }
   }, [pendingFilter]);
 
   const fetchCompleted = useCallback(async () => {
     try {
-      const res = await API.get("/api/lab-jobs", { params: completedFilter });
+      const res = await API.get("/api/lab-jobs", {
+        params: completedFilter,
+        ...withActor(),
+      });
       setCompletedJobs(res.data?.items || []);
     } catch (e) {
-      showToast("error", e.response?.data?.message || "Failed to load completed jobs");
+      showToast(
+        "error",
+        e.response?.data?.message || "Failed to load completed jobs"
+      );
     }
   }, [completedFilter]);
 
-  // in LabAdminDashboard.js
-const [repeatingId, setRepeatingId] = useState(null);
+  const [repeatingId, setRepeatingId] = useState(null);
 
-const handleRepeat = async (job) => {
-  try {
-    setRepeatingId(job._id);
-
-    // optional: choose a new scheduled date; here we default to now
-    const payload = {}; // or { scheduledDate: new Date().toISOString() }
-
-    const res = await API.post(`/api/lab-jobs/${job._id}/repeat`, payload);
-    const newJob = res.data;
-
-    // Optimistically prepend to the Pending list
-    setPendingJobs((prev) => [newJob, ...prev]);
-
-    // optional: jump to Pending tab so it’s visible
-    setTab(1);
-
-    showToast('success', `Repeat created: ${newJob.referenceNo || ''}`.trim());
-  } catch (e) {
-    showToast('error', e.response?.data?.message || 'Repeat failed');
-  } finally {
-    setRepeatingId(null);
-  }
-};
-
-
- 
+  const handleRepeat = async (job) => {
+    try {
+      setRepeatingId(job._id);
+      const payload = {}; // optional: { scheduledDate: new Date().toISOString() }
+      const res = await API.post(
+        `/api/lab-jobs/${job._id}/repeat`,
+        payload,
+        withActor()
+      );
+      const newJob = res.data;
+      setPendingJobs((prev) => [newJob, ...prev]);
+      setTab(1);
+      showToast("success", `Repeat created: ${newJob.referenceNo || ""}`.trim());
+    } catch (e) {
+      showToast("error", e.response?.data?.message || "Repeat failed");
+    } finally {
+      setRepeatingId(null);
+    }
+  };
 
   // Re-fetch when filters (or role) change
   useEffect(() => {
@@ -117,7 +121,7 @@ const handleRepeat = async (job) => {
   // --- Create / Upload / Update / Delete / Download ---
   const handleCreate = async (values) => {
     try {
-      await API.post("/api/lab-jobs", values);
+      await API.post("/api/lab-jobs", values, withActor());
       showToast("success", "Job created");
       setTab(1); // jump to Pending tab
       fetchPending(); // refresh pending list
@@ -133,9 +137,11 @@ const handleRepeat = async (job) => {
     const form = new FormData();
     form.append("reportFile", file);
     try {
-      await API.post(`/api/lab-jobs/${jobId}/report`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await API.post(
+        `/api/lab-jobs/${jobId}/report`,
+        form,
+        withActor({ headers: { "Content-Type": "multipart/form-data" } })
+      );
       showToast("success", "Report uploaded");
       // Moves from Pending -> Completed, so refresh both
       fetchPending();
@@ -147,7 +153,7 @@ const handleRepeat = async (job) => {
 
   const handleUpdate = async (jobId, updates) => {
     try {
-      await API.put(`/api/lab-jobs/${jobId}`, updates);
+      await API.put(`/api/lab-jobs/${jobId}`, updates, withActor());
       showToast("success", "Job updated");
       fetchPending();
       fetchCompleted();
@@ -160,7 +166,7 @@ const handleRepeat = async (job) => {
 
   const handleDelete = async (jobId) => {
     try {
-      await API.delete(`/api/lab-jobs/${jobId}`);
+      await API.delete(`/api/lab-jobs/${jobId}`, withActor());
       showToast("success", "Job deleted");
       fetchPending(); // delete allowed only for Pending
     } catch (e) {
@@ -173,6 +179,7 @@ const handleRepeat = async (job) => {
     try {
       const res = await API.get(`/api/lab-jobs/${job._id}/download`, {
         responseType: "blob",
+        ...withActor(),
       });
       const blob = new Blob([res.data], {
         type: res.headers["content-type"] || "application/octet-stream",
@@ -210,16 +217,16 @@ const handleRepeat = async (job) => {
   if (!isLabAdmin) {
     return (
       <Box p={4}>
-        <Typography variant="h6">Not authorized. Please log in as Lab Admin.</Typography>
+        <Typography variant="h6">
+          Not authorized. Please log in as Lab Admin.
+        </Typography>
       </Box>
     );
   }
 
-  // Simple derived value (no hook)
   const totalJobs = pendingJobs.length + completedJobs.length;
 
   return (
-    
     <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: "#f8fafc" }}>
       {/* Header card with gradient */}
       <Paper
@@ -267,18 +274,32 @@ const handleRepeat = async (job) => {
             </Box>
 
             <Box
-  sx={{
-    mt: 1,
-    display: "grid",
-    gap: 2,
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  }}
->
-  <StatCard tone="pending"   icon={<ScheduleRounded />}       label="Pending Jobs"    value={pendingJobs.length} />
-  <StatCard tone="completed" icon={<DoneAllRounded />}        label="Completed Today" value={completedJobs.length} />
-  <StatCard tone="total"     icon={<InsertDriveFileRounded />} label="Total Jobs"     value={pendingJobs.length + completedJobs.length} />
-</Box>
-
+              sx={{
+                mt: 1,
+                display: "grid",
+                gap: 2,
+                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              }}
+            >
+              <StatCard
+                tone="pending"
+                icon={<ScheduleRounded />}
+                label="Pending Jobs"
+                value={pendingJobs.length}
+              />
+              <StatCard
+                tone="completed"
+                icon={<DoneAllRounded />}
+                label="Completed Today"
+                value={completedJobs.length}
+              />
+              <StatCard
+                tone="total"
+                icon={<InsertDriveFileRounded />}
+                label="Total Jobs"
+                value={totalJobs}
+              />
+            </Box>
           </Box>
         </Box>
       </Paper>
@@ -302,8 +323,7 @@ const handleRepeat = async (job) => {
             },
             ".MuiTabs-indicator": {
               height: 3,
-              background:
-                "linear-gradient(135deg,#0066cc 0%, #004899 100%)",
+              background: "linear-gradient(135deg,#0066cc 0%, #004899 100%)",
               borderRadius: "3px 3px 0 0",
             },
           }}
@@ -357,9 +377,9 @@ const handleRepeat = async (job) => {
               <LabJobTable
                 rows={completedJobs}
                 onRefresh={fetchCompleted}
-                onUpload={handleUpload}     // disabled for completed inside table
-                onUpdate={handleUpdate}     // disabled for completed inside table
-                onDelete={handleDelete}     // disabled for completed inside table
+                onUpload={handleUpload}     // disabled inside table for completed
+                onUpdate={handleUpdate}     // disabled inside table for completed
+                onDelete={handleDelete}     // disabled inside table for completed
                 onDownload={handleDownload} // enabled for completed
                 onRepeat={handleRepeat}
               />

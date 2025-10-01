@@ -390,110 +390,123 @@ exports.runAnalysis = async (req, res) => {
 
 // -------------------- Cholesterol advice --------------------
 // -------------------- AI Coach advice via OpenRouter (LLM) --------------------
+// GPT-powered, patient-specific advice for BOTH Cholesterol and Diabetes
 exports.getAdvice = async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await LabReport.findById(id);
-    if (!doc) return res.status(404).json({ ok: false, message: 'Report not found' });
+    if (!doc) return res.status(404).json({ ok: false, message: "Report not found" });
 
-    const r  = doc.toObject();
-    const ex = r.extracted || {};
-    let a    = r.analysis || {};
-    const type = String(r.reportType || '').toLowerCase();
-
-    // If cholesterol analysis is legacy shape, adapt to buckets for clarity
-    const isLegacy =
-      a && typeof a === 'object' &&
-      ('ldlStatus' in a || 'hdlStatus' in a || 'triglycerideStatus' in a || 'totalCholesterolStatus' in a);
-
-    const toCategory = (s = '') => {
-      const t = String(s).toLowerCase();
-      if (!t || t.includes('unknown')) return 'unknown';
-      if (t.includes('optimal') || t.includes('protective') || t.includes('desirable') || t.includes('normal') || t.includes('good')) return 'good';
-      if (t.includes('near') || t.includes('borderline')) return 'moderate';
-      if (t.includes('high')) return 'bad';
-      return 'unknown';
-    };
-
-    if (type.includes('chol') && isLegacy) {
-      a = {
-        ldl:              { value: ex.ldl ?? null,              category: toCategory(a.ldlStatus) },
-        hdl:              { value: ex.hdl ?? null,              category: toCategory(a.hdlStatus) },
-        triglycerides:    { value: ex.triglycerides ?? null,    category: toCategory(a.triglycerideStatus) },
-        totalCholesterol: { value: ex.totalCholesterol ?? null, category: toCategory(a.totalCholesterolStatus) },
-        notes: a.summary || '',
-        nextSteps: Array.isArray(a.tips) ? a.tips : [],
-      };
+    if (!process.env.OPENROUTER_API_KEY) {
+      // We need the key to generate tailored advice
+      return res.status(503).json({ ok: false, message: "Advice unavailable: missing OPENROUTER_API_KEY" });
     }
 
-    // ---------- Build compact payload for the model ----------
-    const payload = { reportType: r.reportType, extracted: ex };
+    const r = doc.toObject();
+    const ex = r.extracted || {};
+    const type = String(r.reportType || "").toLowerCase();
 
-    if (type.includes('chol')) {
-      payload.analysisBuckets = {
-        ldl:              a?.ldl?.category || 'unknown',
-        hdl:              a?.hdl?.category || 'unknown',
-        triglycerides:    a?.triglycerides?.category || 'unknown',
-        totalCholesterol: a?.totalCholesterol?.category || 'unknown',
+    // ------- Build a compact, value-centric payload for GPT -------
+    let input;
+    if (type.includes("chol")) {
+      input = {
+        kind: "cholesterol",
+        units: ex.units || "mg/dL",
+        totalCholesterol: ex.totalCholesterol ?? null,
+        ldl: ex.ldl ?? null,
+        hdl: ex.hdl ?? null,
+        triglycerides: ex.triglycerides ?? null,
+        testDate: ex.testDate || null,
+        labName: ex.labName || null,
+      };
+    } else if (type.includes("diab")) {
+      // Normalize glucose into mg/dL so the model can reason cleanly
+      const gUnit = ex.glucoseUnits || "mg/dL";
+      const toMgDl = (v) => (v == null ? null : (gUnit === "mmol/L" ? Number(v) * 18 : Number(v)));
+
+      const fasting   = toMgDl(ex.fastingGlucose);
+      const pp2h      = toMgDl(ex.postPrandialGlucose ?? ex.ogtt2h);
+      const random    = toMgDl(ex.randomGlucose);
+      const a1c       = ex.hba1c != null ? Number(ex.hba1c) : null;
+
+      // Simple categories so GPT has context without guessing cutoffs
+      const classify = {
+        fasting(v){ if (v==null) return "unknown"; if (v>=126) return "Diabetes"; if (v>=100) return "Prediabetes"; return "Normal"; },
+        pp2h(v){    if (v==null) return "unknown"; if (v>=200) return "Diabetes"; if (v>=140) return "Prediabetes"; return "Normal"; },
+        random(v){  if (v==null) return "unknown"; if (v>=200) return "Diabetes"; if (v>=140) return "Prediabetes"; return "Normal"; },
+        a1c(p){     if (p==null) return "unknown"; if (p>=6.5)  return "Diabetes"; if (p>=5.7)  return "Prediabetes"; return "Normal"; },
+      };
+
+      input = {
+        kind: "diabetes",
+        units: { glucose: gUnit, hba1c: ex.hba1cUnits || "%" },
+        valuesMgDl: { fasting, postPrandial: pp2h, random, hba1c: a1c },
+        statuses: {
+          fasting: classify.fasting(fasting),
+          postPrandial: classify.pp2h(pp2h),
+          random: classify.random(random),
+          hba1c: classify.a1c(a1c),
+        },
+        raw: {
+          fastingGlucose: ex.fastingGlucose ?? null,
+          postPrandialGlucose: ex.postPrandialGlucose ?? null,
+          ogtt2h: ex.ogtt2h ?? null,
+          randomGlucose: ex.randomGlucose ?? null,
+          hba1c: ex.hba1c ?? null,
+        },
+        testDate: ex.testDate || null,
+        labName: ex.labName || null,
       };
     } else {
-      // Diabetes: compute statuses so model has clear context
-      const gUnit = ex.glucoseUnits || 'mg/dL';
-      const toMgDl = (v) => (v == null ? null : (gUnit === 'mmol/L' ? Number(v) * 18 : Number(v)));
-      const fasting = toMgDl(ex.fastingGlucose);
-      const pp      = toMgDl(ex.postPrandialGlucose ?? ex.ogtt2h);
-      const random  = toMgDl(ex.randomGlucose);
-      const a1c     = ex.hba1c != null ? Number(ex.hba1c) : null;
-
-      const classify = {
-        fasting(v){ if (v==null) return 'unknown'; if (v>=126) return 'Diabetes'; if (v>=100) return 'Prediabetes'; return 'Normal'; },
-        pp2h(v){    if (v==null) return 'unknown'; if (v>=200) return 'Diabetes'; if (v>=140) return 'Prediabetes'; return 'Normal'; },
-        random(v){  if (v==null) return 'unknown'; if (v>=200) return 'Diabetes'; if (v>=140) return 'Prediabetes'; return 'Normal'; },
-        a1c(p){     if (p==null) return 'unknown'; if (p>=6.5)  return 'Diabetes'; if (p>=5.7)  return 'Prediabetes'; return 'Normal'; },
-      };
-      payload.statuses = {
-        fasting: classify.fasting(fasting),
-        postPrandial: classify.pp2h(pp),
-        random: classify.random(random),
-        hba1c: classify.a1c(a1c),
-      };
-      payload.glucoseMgDl = { fasting, postPrandial: pp, random, hba1c: a1c };
+      return res.status(400).json({ ok: false, message: "Unsupported report type for advice" });
     }
 
-    // ---------- LLM call (OpenRouter) ----------
-    const system = `
-You are a careful medical explainer. Return ONLY compact JSON, no markdown.
-Keys required:
-- "healthStatus": short sentence.
-- "reasons": array (2-5 short, neutral bullets).
-- "recommendations": array (3-6 short, non-medical-advice bullets).
-- "breakdown": object of one-sentence meanings for each provided marker.
-Avoid diagnoses; be educational and neutral. Use units provided (assume mg/dL for glucose, % for HbA1c if missing).
+    // ------- Prompt: ask for real reasons & tailored recs, not restated statuses -------
+    const SYSTEM = `
+You are a non-diagnostic health coach. Use the provided numeric values to infer plausible contributing factors and practical, safe next steps.
+Do NOT just restate statuses like "LDL is high"—give likely reasons (diet patterns, lifestyle, common conditions/meds) and targeted, realistic recommendations.
+Keep it short, specific, and actionable. No medication changes. Avoid alarmist tone.
+
+Return JSON ONLY (no markdown) with this schema; omit empty keys:
+{
+  "healthStatus": string,              // 1 short sentence summary
+  "reasons": string[],                 // 3–6 concise, plausible bullets
+  "recommendations": string[],         // 4–8 practical bullets tailored to values
+  "breakdown": {                       // explain each number briefly in plain language
+     "...": string
+  },
+  "disclaimer": string                 // 1 line
+}
 `.trim();
 
-    const user = `Lab context:\n${JSON.stringify(payload)}\n\nReturn ONLY the JSON with the required keys.`;
+    const MODEL = (typeof TEXT_MODEL !== "undefined" && TEXT_MODEL) ? TEXT_MODEL : "openai/gpt-4o-mini";
+    const USER = `INPUT: ${JSON.stringify(input)}`;
 
     const content = await callOpenRouterJSON({
-      model: 'openai/gpt-4o-mini',
+      model: MODEL,
       messages: [
-        { role: 'system', content: system },
-        { role: 'user',   content: user  },
+        { role: "system", content: SYSTEM },
+        { role: "user",   content: USER }
       ],
-      temperature: 0.2,
+      temperature: 0.3
     });
 
-    const out = safeParseJSON(content) || {};
-    // normalize shape defensively
-    out.reasons = Array.isArray(out.reasons) ? out.reasons : [];
-    out.recommendations = Array.isArray(out.recommendations) ? out.recommendations : [];
-    out.breakdown = out.breakdown && typeof out.breakdown === 'object' ? out.breakdown : {};
+    const parsed = safeParseJSON(content) || {};
+    const advice = {
+      healthStatus: parsed.healthStatus || (type.includes("chol") ? "Lipid profile reviewed." : "Glucose profile reviewed."),
+      reasons: Array.isArray(parsed.reasons) ? parsed.reasons : [],
+      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+      breakdown: (parsed.breakdown && typeof parsed.breakdown === "object") ? parsed.breakdown : {},
+      disclaimer: parsed.disclaimer || "This is general information, not a medical diagnosis. Please consult your clinician."
+    };
 
-    return res.json({ ok: true, advice: out });
+    return res.json({ ok: true, advice });
   } catch (err) {
-    console.error('getAdvice error:', err);
+    console.error("getAdvice error:", err);
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
+
 
 
 // -------------------- READ-ONLY PREVIEW for FE --------------------
