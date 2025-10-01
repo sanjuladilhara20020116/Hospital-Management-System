@@ -40,6 +40,7 @@ import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
 // ✅ added safely
 import PaymentSuccess from './pages/appointments/PaymentSuccess';
+import PaymentCheckout from './pages/appointments/PaymentCheckout'; // ✅ NEW
 
 // Patient Details (doctor view)
 import PatientDetails from "./pages/record/PatientDetails";
@@ -98,6 +99,9 @@ function App() {
 
         {/* Appointment flow */}
         <Route path="/appointments" element={<AppointmentSearchPage />} />
+
+        <Route path="/appointments/checkout" element={<PaymentCheckout />} /> {/* ✅ NEW */}
+
         <Route path="/appointments/success" element={<PaymentSuccess />} />
 
         {/* Public route for report download */}
