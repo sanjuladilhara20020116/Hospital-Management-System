@@ -116,6 +116,11 @@ app.use('/api/diagnosis-cards', require('./routes/diagnosisCardRoutes'));
 // Admission Note
 app.use('/api/admission-notes', require('./routes/admissionNoteRoutes'));
 
+// TEMP alias to support /api/by-ref/:referenceNo/view
+app.get('/api/by-ref/:referenceNo/view', (req, res) => {
+  const ref = encodeURIComponent(req.params.referenceNo);
+  res.redirect(302, `/api/reports/by-ref/${ref}/view`);
+});
 
 
 /* -------------------- 404 for unknown API routes -------------------- */
