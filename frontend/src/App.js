@@ -42,6 +42,10 @@ import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 import PaymentSuccess from './pages/appointments/PaymentSuccess';
 import PaymentCheckout from './pages/appointments/PaymentCheckout'; // ✅ NEW
 
+// Patient Details (doctor view)
+import PatientDetails from "./pages/record/PatientDetails";
+import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
+
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
@@ -95,7 +99,9 @@ function App() {
 
         {/* Appointment flow */}
         <Route path="/appointments" element={<AppointmentSearchPage />} />
+
         <Route path="/appointments/checkout" element={<PaymentCheckout />} /> {/* ✅ NEW */}
+
         <Route path="/appointments/success" element={<PaymentSuccess />} />
 
         {/* Public route for report download */}
@@ -125,6 +131,24 @@ function App() {
           element={
             <RoleRoute allowedRoles={['Patient']}>
               <MyLabReports />
+            </RoleRoute>
+          }
+        />
+
+        {/* Doctor-only Patient Details routes */}
+        <Route
+          path="/doctor/patients"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <PatientDetailsPlaceholder />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/doctor/patients/:patientId"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <PatientDetails />
             </RoleRoute>
           }
         />

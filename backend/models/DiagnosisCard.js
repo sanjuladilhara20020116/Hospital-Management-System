@@ -1,19 +1,18 @@
-// models/Prescription.js
+// models/DiagnosisCard.js
 const mongoose = require("mongoose");
 
-function genPrescriptionId() {
+function genDiagnosisId() {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const rand = Math.random().toString(36).slice(2, 7).toUpperCase(); // 5 chars
-  return `PRN-${y}${m}${day}-${rand}`;
+  return `DC-${y}${m}${day}-${rand}`;
 }
 
-const PrescriptionSchema = new mongoose.Schema(
+const DiagnosisCardSchema = new mongoose.Schema(
   {
-    // Auto-generated, human-friendly ID
-    prescriptionId: { type: String, unique: true, index: true },
+    diagnosisCardId: { type: String, unique: true, index: true },   // Auto ID
 
     // Patient (auto-fill)
     patientUserId: { type: String, required: true, index: true },
@@ -24,22 +23,22 @@ const PrescriptionSchema = new mongoose.Schema(
     doctorUserId: { type: String, required: true, index: true },
     doctorName: { type: String, required: true },
 
-    // Date & time (auto at create)
+    // Date & time (auto)
     visitDateTime: { type: Date, default: Date.now, required: true },
 
     // Form fields
-    chiefComplaint: { type: String },
-    medicines: { type: String },              // Medicine name and dosage (multi-line)
-    instructions: { type: String },
-    duration: { type: String },
-    requestedLabReports: { type: String },
+    preliminaryDiagnosis: { type: String },
+    finalDiagnosis: { type: String },
+    relatedSymptoms: { type: String },
+    riskFactors: { type: String },      // cause / risk factors
+    lifestyleAdvice: { type: String },
   },
   { timestamps: true }
 );
 
-PrescriptionSchema.pre("save", function (next) {
-  if (!this.prescriptionId) this.prescriptionId = genPrescriptionId();
+DiagnosisCardSchema.pre("save", function (next) {
+  if (!this.diagnosisCardId) this.diagnosisCardId = genDiagnosisId();
   next();
 });
 
-module.exports = mongoose.model("Prescription", PrescriptionSchema);
+module.exports = mongoose.model("DiagnosisCard", DiagnosisCardSchema);

@@ -99,6 +99,25 @@ app.get('/api/stats', (_req, res) => res.json({ patients: 0, doctors: 0, labs: 0
 app.get('/api/doctors/featured', (_req, res) => res.json([]));
 app.get('/api/testimonials', (_req, res) => res.json([]));
 
+
+//allergyRoutes
+const allergyRoutes = require('./routes/allergyRoutes');
+app.use('/api', allergyRoutes);
+
+// Clinical Records (doctor visit notes) - additive
+app.use('/api/clinical-records', require('./routes/clinicalRecordRoutes'));
+
+// Prescriptions (medical records) - additive
+app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
+
+// Diagnosis card
+app.use('/api/diagnosis-cards', require('./routes/diagnosisCardRoutes'));
+
+// Admission Note
+app.use('/api/admission-notes', require('./routes/admissionNoteRoutes'));
+
+
+
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API route not found' });
