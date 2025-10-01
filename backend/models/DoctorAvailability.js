@@ -1,4 +1,3 @@
-
 // models/DoctorAvailability.js
 const mongoose = require('mongoose');
 const dayjs = require('dayjs');
@@ -6,7 +5,7 @@ const dayjs = require('dayjs');
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;          // 00:00 - 23:59
 const YMD  = /^\d{4}-\d{2}-\d{2}$/;                  // 2025-08-23
 const SAFE_TEXT = /^[A-Za-z0-9\s.,()\-_/]*$/;        // disallow weird specials like ##, $, <, >
-
+//validate start and end 
 const timeRangeSchema = new mongoose.Schema(
   {
     start: { type: String, required: true, validate: { validator: v => HHMM.test(v), message: 'start must be HH:mm' } },
@@ -136,10 +135,13 @@ doctorAvailabilitySchema.methods.slotsForDate = function (ymd) {
   ranges.forEach(r => {
     let t = dayjs(`${ymd}T${r.start}:00`);
     const end = dayjs(`${ymd}T${r.end}:00`);
-    while (t.add(step, 'minute').isSameOrBefore(end)) {
+    while (t.valueOf() < end.valueOf()) {
       const start = t.format('HH:mm');
       const next = t.add(step, 'minute');
-      slots.push({ start, end: next.format('HH:mm') });
+      // Only add slot if next is not after end
+      if (next.valueOf() <= end.valueOf()) {
+        slots.push({ start, end: next.format('HH:mm') });
+      }
       t = next;
     }
   });
