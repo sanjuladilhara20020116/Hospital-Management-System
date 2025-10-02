@@ -305,7 +305,7 @@ if (isSlotRequired(tt) && !values.timeSlot) {
         {/* Test Type (PDF only) */}
         <Box sx={{ width: "100%" }}>
           <Box sx={{ fontSize: 16, fontWeight: 600, color: "#333", mb: 1 }}>
-            Test Type (PDF only)
+            Test Type 
           </Box>
           <Autocomplete
             freeSolo

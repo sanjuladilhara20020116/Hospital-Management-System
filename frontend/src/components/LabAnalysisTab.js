@@ -9,6 +9,8 @@ import CalendarMonthOutlined from "@mui/icons-material/CalendarMonthOutlined";
 import BarChartOutlined from "@mui/icons-material/BarChartOutlined";
 import ArrowForwardIos from "@mui/icons-material/ArrowForwardIos";
 import TrendingUp from "@mui/icons-material/TrendingUp";
+import NotificationsActiveOutlined from "@mui/icons-material/NotificationsActiveOutlined";
+import PageviewOutlined from "@mui/icons-material/PageviewOutlined";
 import { useNavigate } from "react-router-dom";
 
 /** props:
@@ -25,41 +27,19 @@ export default function LabAnalysisTab({
   const [analyzingId, setAnalyzingId] = useState(null);
   const navigate = useNavigate();
 
-  // Fallback data when no reports passed in
+  // Fallback when nothing is passed (keeps the UI pretty in empty states)
   const mock = {
-    Cholesterol: {
-      hasNewReport: true,
-      newReport: {
-        id: "CHO-2025-001",
-        uploadDate: "2025-08-10",
-        fileName: "Cholesterol_Report_Aug2025.pdf",
-        status: "unanalyzed",
-      },
-      lastAnalysis: null,
-    },
-    Diabetic: {
-      hasNewReport: true,
-      newReport: {
-        id: "DIA-2025-007",
-        uploadDate: "2025-08-14",
-        fileName: "Diabetes_LB-2025-08-000027.pdf",
-        status: "unanalyzed",
-      },
-      lastAnalysis: {
-        reportId: "DIA-2025-002",
-        analyzedDate: "2025-07-10",
-        summary: "Previous analysis available.",
-        trend: "stable",
-        keyFindings: ["—", "—", "—"],
-      },
-    },
+    Cholesterol: { hasNewReport: false, newReport: null, lastAnalysis: null },
+    Diabetic: { hasNewReport: false, newReport: null, lastAnalysis: null },
   };
 
   // Normalize incoming reports into Cholesterol / Diabetic buckets
   const data = useMemo(() => {
     if (!reports?.length) return mock;
 
-    const norm = (s = "") => String(s).toLowerCase();
+    const typ = (r) => r.testType ?? r.reportType ?? "";
+    const isChol = (r) => String(typ(r)).toLowerCase().includes("chol");
+    const isDiab = (r) => String(typ(r)).toLowerCase().includes("diab");
 
     const pick = (arr) => {
       const sorted = [...arr].sort(
@@ -68,18 +48,22 @@ export default function LabAnalysisTab({
           new Date(a.completedAt || a.uploadDate || 0)
       );
 
+      // first not analyzed (most recent)
       const newOne = sorted.find((r) => (r.hasReport !== false) && !r.isAnalyzed);
+      // most recent analyzed
       const lastDone = sorted.find((r) => r.isAnalyzed);
 
       const toCard = (r) => ({
-        // be generous about possible id fields so we never get "undefined"
         id: r._id || r.reportId || r.referenceNo || r.id,
+        _id: r._id, // keep raw when available
         uploadDate: r.completedAt || r.uploadDate,
         fileName:
           r.fileName ||
           r.originalName ||
           `${(r.testType || r.reportType || "Report")}_${r.referenceNo || r._id || ""}.pdf`,
         status: r.isAnalyzed ? "analyzed" : "unanalyzed",
+        referenceNo: r.referenceNo,
+        viewUrl: r.viewUrl, // optional if BE provides it directly
       });
 
       return {
@@ -87,7 +71,11 @@ export default function LabAnalysisTab({
         newReport: newOne ? toCard(newOne) : null,
         lastAnalysis: lastDone
           ? {
-              reportId: lastDone._id || lastDone.reportId || lastDone.referenceNo || lastDone.id,
+              reportId:
+                lastDone._id ||
+                lastDone.reportId ||
+                lastDone.referenceNo ||
+                lastDone.id,
               analyzedDate: lastDone.completedAt || lastDone.uploadDate,
               summary: "Previous analysis available.",
               trend: "stable",
@@ -97,12 +85,10 @@ export default function LabAnalysisTab({
       };
     };
 
-    // Some docs use testType, others reportType — support both
-    const typeOf = (r) => r.testType ?? r.reportType ?? "";
-    const chol = reports.filter((r) => norm(typeOf(r)).includes("chol"));
-    const diab = reports.filter((r) => norm(typeOf(r)).includes("diab"));
-
-    return { Cholesterol: pick(chol), Diabetic: pick(diab) };
+    return {
+      Cholesterol: pick(reports.filter(isChol)),
+      Diabetic: pick(reports.filter(isDiab)),
+    };
   }, [reports]);
 
   const current = data[selectedType];
@@ -116,49 +102,68 @@ export default function LabAnalysisTab({
         })
       : "—";
 
-  // Analyze handler calls unified /api/analyze with { key }
-// LabAnalysisTab.js
+  // Helpers
+  const getReportIdFrom = (j, fallback) =>
+    j?.reportId || j?.report?._id || j?._id || j?.id || fallback || null;
 
-const getReportIdFrom = (j, fallback) =>
-  j?.reportId ||
-  j?.report?._id ||
-  j?._id ||
-  j?.id ||
-  fallback || null;
-
-const handleAnalyze = async (idOrRef) => {
-  if (!idOrRef) return;
-  try {
-    setAnalyzingId(idOrRef);
-
-    const r = await fetch(`${apiBase}/analyze`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: idOrRef }),
-    });
-
-    // treat 409 (already analyzed) as success
-    if (r.status === 409) {
-      const j = await r.json().catch(() => ({}));
-      const repId = getReportIdFrom(j, null);
-      if (!repId) throw new Error("Analyze OK but no report id returned (409).");
-      return navigate(`/reports/${encodeURIComponent(repId)}/analysis`);
+  const openInlineView = (idOrUrl) => {
+    if (!idOrUrl) return;
+    if (/^https?:\/\//i.test(idOrUrl)) {
+      window.open(idOrUrl, "_blank", "noopener,noreferrer");
+      return;
     }
+    const url = `${apiBase}/reports/${encodeURIComponent(idOrUrl)}/view`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
-    const j = await r.json();
-    if (!r.ok || !j?.ok) throw new Error(j?.message || "Analyze failed");
+  // Analyze handler calls unified /api/analyze with { key }
+  const handleAnalyze = async (idOrRef) => {
+    if (!idOrRef) return;
+    try {
+      setAnalyzingId(idOrRef);
 
-    const repId = getReportIdFrom(j, null);
-    if (!repId) throw new Error("Analyze OK but no report id returned.");
-    navigate(`/reports/${encodeURIComponent(repId)}/analysis`);
-  } catch (e) {
-    console.error(e);
-    alert(e.message);
-  } finally {
-    setAnalyzingId(null);
-  }
-};
+      const r = await fetch(`${apiBase}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: idOrRef }),
+      });
 
+      // Backend may enforce order with 412
+      if (r.status === 412) {
+        const j = await r.json().catch(() => ({}));
+        if (j?.code === "OLDER_UNANALYZED_EXISTS" && j?.nextId) {
+          const go = window.confirm(
+            "An older report hasn’t been analyzed yet. Analyze the older one first?"
+          );
+          if (go) {
+            // recursively analyze the older one
+            return handleAnalyze(j.nextId);
+          }
+        }
+        throw new Error(j?.message || "Analysis blocked.");
+      }
+
+      // treat 409 (already analyzed) as success
+      if (r.status === 409) {
+        const j = await r.json().catch(() => ({}));
+        const repId = getReportIdFrom(j, idOrRef);
+        if (!repId) throw new Error("Analyze OK but no report id returned (409).");
+        return navigate(`/reports/${encodeURIComponent(repId)}/analysis`);
+      }
+
+      const j = await r.json();
+      if (!r.ok || !j?.ok) throw new Error(j?.message || "Analyze failed");
+
+      const repId = getReportIdFrom(j, idOrRef);
+      if (!repId) throw new Error("Analyze OK but no report id returned.");
+      navigate(`/reports/${encodeURIComponent(repId)}/analysis`);
+    } catch (e) {
+      console.error(e);
+      alert(e.message);
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
 
   const TypeCard = ({ active, icon, title, hasNew }) => (
     <Paper
@@ -196,6 +201,11 @@ const handleAnalyze = async (idOrRef) => {
       </Stack>
     </Paper>
   );
+
+  const bannerHasNew = current?.hasNewReport;
+  const bannerText = bannerHasNew
+    ? `New ${selectedType} report received`
+    : `Latest ${selectedType} analysis`;
 
   return (
     <Box>
@@ -235,7 +245,7 @@ const handleAnalyze = async (idOrRef) => {
           boxShadow: "0 20px 40px rgba(0,0,0,.08)",
         }}
       >
-        {/* header strip */}
+        {/* header strip with banner */}
         <Box
           sx={{
             px: 3, py: 2,
@@ -243,14 +253,24 @@ const handleAnalyze = async (idOrRef) => {
             borderBottom: "1px solid #EEF2F7",
           }}
         >
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar sx={{ bgcolor: "primary.main", width: 28, height: 28, fontSize: 16 }}>
-              {selectedType === "Cholesterol"
-                ? <FavoriteBorder fontSize="inherit" />
-                : <OpacityOutlined fontSize="inherit" />
-              }
-            </Avatar>
-            <Typography fontWeight={800}>{selectedType} Reports</Typography>
+          <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between">
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Avatar sx={{ bgcolor: "primary.main", width: 28, height: 28, fontSize: 16 }}>
+                {selectedType === "Cholesterol"
+                  ? <FavoriteBorder fontSize="inherit" />
+                  : <OpacityOutlined fontSize="inherit" />
+                }
+              </Avatar>
+              <Typography fontWeight={800}>{selectedType} Reports</Typography>
+            </Stack>
+
+            <Chip
+              icon={<NotificationsActiveOutlined />}
+              color={bannerHasNew ? "warning" : "default"}
+              variant={bannerHasNew ? "filled" : "outlined"}
+              label={bannerText}
+              sx={{ fontWeight: 700 }}
+            />
           </Stack>
         </Box>
 
@@ -262,7 +282,7 @@ const handleAnalyze = async (idOrRef) => {
                 <Box>
                   <Typography variant="subtitle1" fontWeight={800}>New Report Available</Typography>
                   <Typography color="text.secondary">
-                    This report hasn’t been analyzed yet. Click analyze to extract values and get insights.
+                    This report hasn’t been analyzed yet. View the PDF or click analyze to extract values and get insights.
                   </Typography>
                 </Box>
                 <Chip color="success" label="Unanalyzed" />
@@ -295,25 +315,47 @@ const handleAnalyze = async (idOrRef) => {
                     </Box>
                   </Stack>
 
-                  <Button
-  onClick={() =>
-    handleAnalyze(
-      current?.newReport?.id ||
-      current?.newReport?._id ||
-      current?.newReport?.referenceNo
-    )
-  }
-  startIcon={<BarChartOutlined />}
-  disabled={!!analyzingId}
-                    sx={{
-                      px: 2.5, py: 1.25, borderRadius: 2, fontWeight: 800, color: "#fff",
-                      textTransform: "none",
-                      background: "linear-gradient(135deg,#667eea,#764ba2)",
-                      "&:hover": { boxShadow: "0 10px 24px rgba(102,126,234,.35)", transform: "translateY(-1px)" }
-                    }}
-                  >
-                    {analyzingId ? "Analyzing…" : "Analyze Report"}
-                  </Button>
+                  <Stack direction="row" spacing={1.25}>
+                    {/* 👁 View first (inline, no download) */}
+                    <Button
+                      onClick={() =>
+                        openInlineView(
+                          current.newReport?.viewUrl || current.newReport?.id
+                        )
+                      }
+                      startIcon={<PageviewOutlined />}
+                      sx={{
+                        px: 2, py: 1.1, borderRadius: 2, fontWeight: 800,
+                        textTransform: "none",
+                        bgcolor: "rgba(102,126,234,.12)",
+                        color: "#667eea",
+                        "&:hover": { bgcolor: "rgba(102,126,234,.2)", transform: "translateY(-1px)" }
+                      }}
+                    >
+                      View report
+                    </Button>
+
+                    {/* Analyze */}
+                    <Button
+                      onClick={() =>
+                        handleAnalyze(
+                          current?.newReport?.id ||
+                          current?.newReport?._id ||
+                          current?.newReport?.referenceNo
+                        )
+                      }
+                      startIcon={<BarChartOutlined />}
+                      disabled={!!analyzingId}
+                      sx={{
+                        px: 2.5, py: 1.1, borderRadius: 2, fontWeight: 800, color: "#fff",
+                        textTransform: "none",
+                        background: "linear-gradient(135deg,#667eea,#764ba2)",
+                        "&:hover": { boxShadow: "0 10px 24px rgba(102,126,234,.35)", transform: "translateY(-1px)" }
+                      }}
+                    >
+                      {analyzingId ? "Analyzing…" : "Analyze report"}
+                    </Button>
+                  </Stack>
                 </Stack>
               </Paper>
 
@@ -342,7 +384,7 @@ const handleAnalyze = async (idOrRef) => {
                       endIcon={<ArrowForwardIos sx={{ fontSize: 14 }} />}
                       sx={{ textTransform: "none", fontWeight: 800 }}
                     >
-                      View Full Analysis
+                      View full analysis
                     </Button>
                   </Stack>
                 </>
@@ -356,7 +398,7 @@ const handleAnalyze = async (idOrRef) => {
                   <InsertDriveFileOutlined />
                 </Avatar>
                 <Typography fontWeight={800} sx={{ mt: 1 }}>
-                  No New {selectedType} Reports
+                  No new {selectedType} reports
                 </Typography>
                 <Typography color="text.secondary">
                   No new reports to analyze. View your previous analysis below.
@@ -366,7 +408,7 @@ const handleAnalyze = async (idOrRef) => {
               {current?.lastAnalysis && (
                 <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
                   <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                    <Typography fontWeight={800}>Previous Analysis Summary</Typography>
+                    <Typography fontWeight={800}>Previous analysis summary</Typography>
                     <Chip label={current.lastAnalysis.trend} size="small" />
                   </Stack>
 
@@ -398,7 +440,7 @@ const handleAnalyze = async (idOrRef) => {
                         },
                       }}
                     >
-                      View Full Analysis
+                      View full analysis
                     </Button>
                   </Stack>
                 </Paper>
