@@ -38,6 +38,14 @@ import ReportAnalysisPage from "./pages/ReportAnalysisPage";
 import CholesterolDashboard from "./pages/CholesterolDashboard";
 import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
+// ✅ added safely
+import PaymentSuccess from './pages/appointments/PaymentSuccess';
+
+// Patient Details (doctor view)
+import PatientDetails from "./pages/record/PatientDetails";
+import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
+
+
 // ✅ Vaccination pages (added)
 import DoctorVaccinatePage from './pages/DoctorVaccinatePage';
 import DoctorVaccinations from './pages/DoctorVaccinations';
@@ -126,6 +134,24 @@ function App() {
             </RoleRoute>
           }
         />
+        {/* Doctor-only Patient Details routes */}
+        <Route
+          path="/doctor/patients"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <PatientDetailsPlaceholder />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/doctor/patients/:patientId"
+          element={
+            <RoleRoute allowedRoles={['Doctor']}>
+              <PatientDetails />
+            </RoleRoute>
+          }
+        />
+
 
         {/* Manager-only pages */}
         <Route path="/manager-dashboard" element={<HospitalManagerDashboard />} />
