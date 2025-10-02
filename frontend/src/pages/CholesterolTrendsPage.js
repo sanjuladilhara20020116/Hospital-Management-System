@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, Link, useLocation } from "react-router-dom";
 import {
   Chart as ChartJS,
   LineElement,
@@ -11,7 +11,9 @@ import {
   Legend,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
+import "../styles/CholesterolTrendPage.css";
 
+// Register Chart.js bits once
 ChartJS.register(
   LineElement,
   PointElement,
@@ -24,108 +26,52 @@ ChartJS.register(
 
 const API_BASE = "http://localhost:5000/api";
 
-/* -------------------- helpers -------------------- */
-const takeLatest = (arr) => (arr.length ? arr[arr.length - 1] : null);
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : "—");
-const isFiniteNum = (n) => Number.isFinite(n);
+/* ---------------- helpers ---------------- */
+const fmtDate = (d) =>
+  d ? new Date(d).toLocaleDateString(undefined, { month: "short" }) : "—";
+const cap = (v, hi) => (Number.isFinite(v) ? Math.min(v, hi) : null);
+const nz = (v) => Number.isFinite(v);
 
-/** per-metric display ranges and outlier caps */
-const METRIC_CFG = {
-  ldl:   { label: "LDL",   min: 40,  max: 220, cap: 300 },
-  hdl:   { label: "HDL",   min: 25,  max: 100, cap: 150 },
-  triglycerides: { label: "Triglycerides", min: 50, max: 400, cap: 600 },
-  totalCholesterol: { label: "Total Cholesterol", min: 120, max: 320, cap: 500 },
+/** If backend doesn't send a peer/clinic series, draw a “reference” line. */
+const REF_TARGETS = {
+  totalCholesterol: 200,
+  triglycerides: 150,
+  hdl: 50,
+  ldl: 100,
 };
+const makeFlatRef = (len, key) => Array.from({ length: len }, () => REF_TARGETS[key]);
 
-/** remove non-numeric and clamp wild OCR outliers */
-function prepare(series, key, cap) {
-  const pts = series
-    .map((s) => ({ x: fmtDate(s.date), y: isFiniteNum(s[key]) ? s[key] : null }))
-    .filter((p) => isFiniteNum(p.y));
-  return pts.map((p) => ({ x: p.x, y: Math.min(p.y, cap) }));
+/** Optional: if your backend later returns `clinicAvg` alongside `series`, we’ll use it. */
+function pickPeerSeries(apiData, key, fallbackLen) {
+  const peer = apiData?.clinicAvg?.map((r) => Number(r[key]));
+  if (Array.isArray(peer) && peer.some(nz)) return peer;
+  return makeFlatRef(fallbackLen, key);
 }
 
-/* Tiny metric header chip */
-function Chip({ title, value, unit = "mg/dL" }) {
-  const has = isFiniteNum(value);
-  return (
-    <div style={{
-      padding: "10px 12px",
-      borderRadius: 10,
-      background: "#f8fafc",
-      border: "1px solid #e5e7eb",
-      minWidth: 150
-    }}>
-      <div style={{ fontSize: 12, color: "#64748b" }}>{title}</div>
-      <div style={{ fontWeight: 700, fontSize: 18 }}>
-        {has ? `${value} ${unit}` : "—"}
-      </div>
-    </div>
-  );
+/** convert db rows -> chart labels & series arrays */
+function toChartData(series, key, hardCap) {
+  const labels = series.map((s) => fmtDate(s.date));
+  const patient = series.map((s) => cap(Number(s[key]), hardCap));
+  return { labels, patient };
 }
 
-/* Reusable mini line chart */
-function MiniLine({ title, points, yMin, yMax }) {
-  const labels = points.map((p) => p.x);
-  const data = points.map((p) => p.y);
+/* ---------------- page ---------------- */
+export default function CholesterolTrendPage() {
+  const { patientId = "" } = useParams();
+  const location = useLocation();
+  const displayName = location.state?.displayName || "";
+  const pidDisplay = location.state?.pidDisplay || "";
 
-  const chartData = useMemo(() => ({
-    labels,
-    datasets: [{
-      label: title,
-      data,
-      tension: 0.3,
-      borderWidth: 2,
-      pointRadius: 3,
-      fill: false,
-    }],
-  }), [labels, data, title]);
-
-  return (
-    <div style={{
-      background: "#fff",
-      border: "1px solid #e5e7eb",
-      borderRadius: 12,
-      padding: 12,
-      boxShadow: "0 1px 4px rgba(0,0,0,.05)"
-    }}>
-      <Line
-        data={chartData}
-        options={{
-          responsive: true,
-          plugins: {
-            legend: { display: false },
-            title: { display: true, text: title },
-            tooltip: { mode: "index", intersect: false },
-          },
-          scales: {
-            x: { grid: { color: "rgba(148,163,184,0.15)" } },
-            y: {
-              min: yMin,
-              max: yMax,
-              grid: { color: "rgba(148,163,184,0.15)" },
-              ticks: { stepSize: Math.round((yMax - yMin) / 4) }
-            },
-          },
-          interaction: { intersect: false, mode: "index" },
-        }}
-      />
-    </div>
-  );
-}
-
-export default function CholesterolTrendsPage() {
-  const params = useParams();
-  const patientId = (params.patientId || params.pid || params.id || "").trim();
-
-  const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
-  const [series, setSeries] = useState([]);
+  const [err, setErr] = useState("");
+  const [data, setData] = useState({ series: [] });
+  const printRef = useRef(null);
 
+  // fetch series
   useEffect(() => {
-    const isValid = /^[a-f0-9]{24}$/i.test(patientId);
-    if (!isValid) {
-      setErr("Invalid or missing patient id. Open this page from the analysis button so it includes a valid id.");
+    const id = (patientId || "").trim();
+    if (!/^[a-f0-9]{24}$/i.test(id)) {
+      setErr("Invalid patient id.");
       setLoading(false);
       return;
     }
@@ -133,10 +79,16 @@ export default function CholesterolTrendsPage() {
       try {
         setErr("");
         setLoading(true);
-        const res = await fetch(`${API_BASE}/reports/patients/${encodeURIComponent(patientId)}/series?type=Cholesterol`);
-        const data = await res.json();
-        if (!res.ok || !data?.ok) throw new Error(data?.message || "Failed to load time series");
-        setSeries(Array.isArray(data.series) ? data.series : []);
+        const r = await fetch(
+          `${API_BASE}/reports/patients/${encodeURIComponent(
+            id
+          )}/series?type=Cholesterol`
+        );
+        const j = await r.json();
+        if (!r.ok || !j?.ok)
+          throw new Error(j?.message || "Failed to load time series");
+        // expected: { ok:true, type:'Cholesterol', series:[{date, totalCholesterol, ldl, hdl, triglycerides}] }
+        setData(j);
       } catch (e) {
         setErr(e.message || "Failed to load time series");
       } finally {
@@ -145,82 +97,201 @@ export default function CholesterolTrendsPage() {
     })();
   }, [patientId]);
 
-  const latest = useMemo(() => takeLatest(series) || {}, [series]);
+  const S = Array.isArray(data.series) ? data.series : [];
 
-  // build cleaned points with caps
-  const pts = useMemo(() => ({
-    ldl: prepare(series, "ldl", METRIC_CFG.ldl.cap),
-    hdl: prepare(series, "hdl", METRIC_CFG.hdl.cap),
-    tg: prepare(series, "triglycerides", METRIC_CFG.triglycerides.cap),
-    total: prepare(series, "totalCholesterol", METRIC_CFG.totalCholesterol.cap),
-  }), [series]);
+  // build chart packs (labels + both lines)
+  const packs = useMemo(() => {
+    const total = toChartData(S, "totalCholesterol", 500);
+    const tg = toChartData(S, "triglycerides", 600);
+    const hdl = toChartData(S, "hdl", 150);
+    const ldl = toChartData(S, "ldl", 300);
+
+    const peerTotal = pickPeerSeries(data, "totalCholesterol", S.length);
+    const peerTg = pickPeerSeries(data, "triglycerides", S.length);
+    const peerHdl = pickPeerSeries(data, "hdl", S.length);
+    const peerLdl = pickPeerSeries(data, "ldl", S.length);
+
+    return {
+      total: {
+        labels: total.labels,
+        patient: total.patient,
+        peer: peerTotal,
+        title: "Total Cholesterol",
+      },
+      tg: {
+        labels: tg.labels,
+        patient: tg.patient,
+        peer: peerTg,
+        title: "Triglycerides",
+      },
+      hdl: {
+        labels: hdl.labels,
+        patient: hdl.patient,
+        peer: peerHdl,
+        title: "HDL",
+      },
+      ldl: {
+        labels: ldl.labels,
+        patient: ldl.patient,
+        peer: peerLdl,
+        title: "LDL",
+      },
+    };
+  }, [S, data]);
+
+  const ChartCard = ({ pack }) => {
+    const { labels, patient, peer, title } = pack;
+
+    const chartData = {
+      labels,
+      datasets: [
+        {
+          label: "you",
+          data: patient,
+          borderColor: "#1D70F7",
+          backgroundColor: "transparent",
+          pointRadius: 3,
+          borderWidth: 3,
+          tension: 0.35,
+        },
+        {
+          label: "heart-patient trend",
+          data: peer,
+          borderColor: "#EF4444",
+          backgroundColor: "transparent",
+          pointRadius: 3,
+          borderWidth: 3,
+          tension: 0.35,
+        },
+      ],
+    };
+
+    return (
+      <div className="trend-card">
+        <div className="trend-card-head">
+          <span className="droplet">💧</span>
+          <h3>{title}</h3>
+        </div>
+        <Line
+          data={chartData}
+          options={{
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: { mode: "index", intersect: false },
+            },
+            interaction: { mode: "index", intersect: false },
+            scales: {
+              x: {
+                grid: { color: "rgba(16,76,151,.08)" },
+                ticks: { color: "#1351A8", font: { weight: 700 } },
+              },
+              y: {
+                beginAtZero: false,
+                grid: { color: "rgba(16,76,151,.08)" },
+                ticks: { color: "#1351A8", font: { weight: 700 } },
+              },
+            },
+          }}
+        />
+      </div>
+    );
+  };
+
+  const onDownload = () => {
+    // simplest approach: let the browser print dialog export to PDF
+    window.print();
+  };
 
   return (
-    <div style={{ maxWidth: 1080, margin: "24px auto", padding: "0 16px" }}>
-      <h1 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span role="img" aria-label="chart">📈</span> Cholesterol Trends
-      </h1>
+    <div className="trend-wrap" ref={printRef}>
+      {/* HERO */}
+      <div className="trend-hero">
+        <div className="hero-left">
+          <div className="hero-title">Cholesterol Trend</div>
 
-      {loading && <p>Loading…</p>}
-      {err && (
-        <div style={{
-          background: "#fdecea",
-          color: "#842029",
-          border: "1px solid #f5c2c7",
-          padding: "12px 16px",
-          borderRadius: 8,
-          marginTop: 12
-        }}>
-          Error: {err}
+          {/* ID block */}
+          <div className="hero-id">
+            <div className="row">
+              <span className="k">Name</span>
+              <span className="v">
+                : {displayName && displayName.trim().length ? displayName : "—"}
+              </span>
+            </div>
+
+            <div className="row">
+              <span className="k">PID</span>
+              <span className="v">
+                : {pidDisplay
+                  ? pidDisplay
+                  : patientId
+                  ? `${patientId.slice(0, 8)}…`
+                  : "—"}
+              </span>
+            </div>
+          </div>
         </div>
-      )}
+
+        <div className="hero-right">
+          <img
+            src="/trend-hero.svg"
+            alt=""
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        </div>
+      </div>
+
+      {loading && <p className="loading">Loading…</p>}
+      {err && <div className="error">Error: {err}</div>}
 
       {!loading && !err && (
         <>
-          {/* Latest summary chips */}
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "12px 0 20px" }}>
-            <Chip title="Date" value={fmtDate(latest.date)} unit="" />
-            <Chip title="LDL" value={latest.ldl} />
-            <Chip title="HDL" value={latest.hdl} />
-            <Chip title="Triglycerides" value={latest.triglycerides} />
-            <Chip title="Total Cholesterol" value={latest.totalCholesterol} />
+          {/* GRID 2x2 */}
+          <div className="trend-grid">
+            <ChartCard pack={packs.total} />
+            <ChartCard pack={packs.tg} />
+            <ChartCard pack={packs.hdl} />
+            <ChartCard pack={packs.ldl} />
           </div>
 
-          {/* 2 x 2 grid of mini charts */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 16,
-          }}>
-            <MiniLine
-              title={METRIC_CFG.ldl.label}
-              points={pts.ldl}
-              yMin={METRIC_CFG.ldl.min}
-              yMax={METRIC_CFG.ldl.max}
-            />
-            <MiniLine
-              title={METRIC_CFG.hdl.label}
-              points={pts.hdl}
-              yMin={METRIC_CFG.hdl.min}
-              yMax={METRIC_CFG.hdl.max}
-            />
-            <MiniLine
-              title={METRIC_CFG.triglycerides.label}
-              points={pts.tg}
-              yMin={METRIC_CFG.triglycerides.min}
-              yMax={METRIC_CFG.triglycerides.max}
-            />
-            <MiniLine
-              title={METRIC_CFG.totalCholesterol.label}
-              points={pts.total}
-              yMin={METRIC_CFG.totalCholesterol.min}
-              yMax={METRIC_CFG.totalCholesterol.max}
-            />
-          </div>
+          {/* LEGEND / EXPLANATION + CTA (mock-accurate) */}
+<div className="legend-row">
+  <div className="legend-art">
+    <img
+      src="/reasons.png"
+      alt=""
+      onError={(e) => { e.currentTarget.style.display = "none"; }}
+    />
+  </div>
 
-          <div style={{ marginTop: 16 }}>
-            <Link to={-1}>← Back</Link>
-          </div>
+  <div className="legend-note legend-note--mock">
+    <div className="legend-lead">
+  <span className="dot blue"></span>
+  <span className="lead-strong">Shows you trend</span>
+  <span className="gap" />
+  <span className="dot red"></span>
+  <span className="lead-strong">Shows heart patient Trends</span>
+  <span className="lead-light">
+    Use this view to track how your results change over time. The <b>blue line</b> is your results and the <b>red line</b> is a heart-healthy reference. Look for steady declines, plateaus, or spikes after changes in diet, exercise, illness, or medications, and discuss any patterns with your clinician.
+  </span>
+</div>
+
+
+    
+  </div>
+
+  <button className="cta big" onClick={onDownload}>
+    Download Trend
+  </button>
+</div>
+
+{/* Back button pinned left like the mock */}
+<div className="footer-actions">
+  <Link to={-1} className="btn-back">Back</Link>
+</div>
+
         </>
       )}
     </div>

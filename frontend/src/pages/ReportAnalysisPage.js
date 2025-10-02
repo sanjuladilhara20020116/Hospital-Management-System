@@ -430,7 +430,7 @@ const recsList =
           </div>
         </div>
         <div className="hero-right">
-          <img src="/img/mock/chol-hero.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+          <img src="/chol-hero.svg" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
         </div>
       </div>
 
@@ -575,14 +575,28 @@ const recsList =
       {/* CTA */}
       <div className="cta-row">
         <button
-          className="cta big"
-          onClick={()=>{
-            if (!patientIdForTrends) { alert("No patient id on this report."); return; }
-            navigate(`/cholesterol-trends/${patientIdForTrends}`);
-          }}
-        >
-          See full&nbsp;analysis
-        </button>
+  className="cta big"
+  onClick={()=>{
+    if (!patientIdForTrends) { alert("No patient id on this report."); return; }
+
+    const patientName =
+      (report?.patientId && typeof report.patientId === "object")
+        ? `${report.patientId.firstName || ""} ${report.patientId.lastName || ""}`.trim() || report.patientId.userId
+        : report?.patientId || "—";
+
+    const pidDisplay =
+      (report?.patientId && typeof report.patientId === "object")
+        ? (report.patientId.userId || report.patientId._id)
+        : report?.patientId;
+
+    navigate(`/cholesterol-trends/${patientIdForTrends}`, {
+      state: { displayName: patientName, pidDisplay }
+    });
+  }}
+>
+  See full&nbsp;analysis
+</button>
+
       </div>
     </>
   );
@@ -749,7 +763,7 @@ const pidDia =
         <div className="card">
           <div className="card-head"><div className="head-icon brain">🧠</div><h3 className="head-title">Possible Reasons</h3></div>
           <div className="split-art">
-            <img src="/img/mock/diab-reasons.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+            <img src="/diab-reasons.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
             <div className="blue-panel">
               <ul>
                 {Array.isArray(coach?.data?.reasons) && coach.data.reasons.length
@@ -763,7 +777,7 @@ const pidDia =
         <div className="card">
           <div className="card-head"><div className="head-icon apple">🍎</div><h3 className="head-title">Recommendations</h3></div>
           <div className="split-art">
-            <img src="/img/mock/diab-recs.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+            <img src="/diab-recs.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
             <div className="blue-panel">
               <ul>
                 {Array.isArray(coach?.data?.recommendations) && coach.data.recommendations.length
