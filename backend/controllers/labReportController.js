@@ -12,6 +12,22 @@ const { extractFromReport, analyzeValues } = require('../utils/aiExtract');
 // Hand off Diabetes work to a separate controller
 const diabetesCtrl = require('./diabetesController');
 
+function attachPatientMeta(doc) {
+  if (!doc) return doc;
+  const r = doc.toObject ? doc.toObject() : doc;
+  const p = r.patientId;
+  const name =
+    p && typeof p === 'object'
+      ? `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.userId || ''
+      : '';
+  const pid =
+    p && typeof p === 'object'
+      ? (p.userId || String(p._id || ''))
+      : String(r.patientId || '');
+  return { ...r, _patient: { id: pid, name } };
+}
+
+
 /* ------------------------------ helpers ---------------------------------- */
 const isObjectId = (s) => typeof s === 'string' && /^[a-f0-9]{24}$/i.test(s);
 const ensureAbsolute = (p) => (path.isAbsolute(p) ? p : path.join(process.cwd(), p));
@@ -228,15 +244,21 @@ exports.analyzeReport = async (req, res) => {
       analyzedAt: new Date(),
     };
 
-    const updated = await LabReport.findByIdAndUpdate(
+        const updated = await LabReport.findByIdAndUpdate(
       report._id,
       { $set: payload },
       { new: true }
     );
 
-    await saveCholesterolSnapshot(updated); // writes/updates the snapshot + enforces last-5
+    await saveCholesterolSnapshot(updated);
 
-    return res.json({ ok: true, reportId: updated._id, report: updated });
+    // return a populated + friendly version
+    const populated = await LabReport
+      .findById(updated._id)
+      .populate('patientId', '_id userId firstName lastName');
+
+    return res.json({ ok: true, reportId: populated._id, report: attachPatientMeta(populated) });
+
   } catch (err) {
     console.error('analyzeReport error:', err);
     res.status(500).json({ ok: false, message: err.message });
@@ -247,13 +269,16 @@ exports.analyzeReport = async (req, res) => {
 exports.getReport = async (req, res) => {
   try {
     const { id } = req.params;
-    const dbDoc = await LabReport.findById(id).populate('patientId', '_id userId firstName lastName');
+    const dbDoc = await LabReport
+      .findById(id)
+      .populate('patientId', '_id userId firstName lastName');
+
     if (!dbDoc) return res.status(404).json({ ok: false, message: 'Not found' });
 
+    // keep your legacy bucket migration exactly as you have it
     const r = dbDoc.toObject();
     const a = r.analysis || {};
 
-    // migrate legacy flat statuses to bucketed fields (back-compat)
     const hasLegacy =
       a && typeof a === 'object' &&
       ('ldlStatus' in a || 'hdlStatus' in a || 'triglycerideStatus' in a || 'totalCholesterolStatus' in a);
@@ -271,11 +296,12 @@ exports.getReport = async (req, res) => {
       };
     }
 
-    return res.json({ ok: true, report: r });
+    return res.json({ ok: true, report: attachPatientMeta(r) });
   } catch (err) {
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
+
 
 // near the other helpers
 // helpers (one copy only)
@@ -424,15 +450,20 @@ exports.analyzeByReference = async (req, res) => {
       analyzedAt: new Date(),
     };
 
-    const updated = await LabReport.findOneAndUpdate(
+        const updated = await LabReport.findOneAndUpdate(
       { _id: report._id },
       { $set: payload },
       { new: true }
     );
 
-    await saveCholesterolSnapshot(updated); // writes/updates the snapshot + enforces last-5
+    await saveCholesterolSnapshot(updated);
 
-    return res.json({ ok: true, reportId: updated._id, report: updated });
+    const populated = await LabReport
+      .findById(updated._id)
+      .populate('patientId', '_id userId firstName lastName');
+
+    return res.json({ ok: true, reportId: populated._id, report: attachPatientMeta(populated) });
+
   } catch (err) {
     console.error('analyzeByReference error:', err);
     return res.status(500).json({ ok: false, message: err.message });
@@ -450,14 +481,17 @@ exports.getByReference = async (req, res) => {
       ? (path.isAbsolute(job.reportFile) ? job.reportFile : path.join(uploadsDir, job.reportFile))
       : null;
 
-    const report = await LabReport.findOne({
-      patientId: job.patientRef,
-      reportType: job.testType,
-      ...(abs ? { filePath: abs } : {}),
-    });
+        const report = await LabReport
+      .findOne({
+        patientId: job.patientRef,
+        reportType: job.testType,
+        ...(abs ? { filePath: abs } : {}),
+      })
+      .populate('patientId', '_id userId firstName lastName');
 
     if (!report) return res.status(404).json({ ok: false, message: 'Report not found for this reference' });
-    return res.json({ ok: true, report });
+    return res.json({ ok: true, report: attachPatientMeta(report) });
+
   } catch (err) {
     return res.status(500).json({ ok: false, message: err.message });
   }
