@@ -35,12 +35,26 @@ const deltaText = (curr, prev, unit) => {
 };
 
 /* ----------------------------- Cholesterol logic ----------------------------- */
-const calcCholDerived = (v = {}) => {
-  const { ldl = null, hdl = null, triglycerides = null } = v || {};
-  const vldl = Number.isFinite(triglycerides) ? Math.round(triglycerides / 5) : null;
-  const totalCholesterol = [ldl, hdl, vldl].every(Number.isFinite) ? ldl + hdl + vldl : null;
-  return { ...v, vldl, totalCholesterol };
+// put this near the top, replacing your current calcCholDerived
+const calcCholDerived = (ex = {}) => {
+  const ldl  = Number.isFinite(ex?.ldl)           ? Number(ex.ldl)           : null;
+  const hdl  = Number.isFinite(ex?.hdl)           ? Number(ex.hdl)           : null;
+  const tg   = Number.isFinite(ex?.triglycerides) ? Number(ex.triglycerides) : null;
+
+  // Prefer extracted VLDL if present; else fall back to TG/5
+  const vldl = Number.isFinite(ex?.vldl)
+    ? Number(ex.vldl)
+    : (Number.isFinite(tg) ? Math.round(tg / 5) : null);
+
+  // Prefer extracted total if present; else fall back to LDL + HDL + VLDL
+  const totalCholesterol = Number.isFinite(ex?.totalCholesterol)
+    ? Number(ex.totalCholesterol)
+    : ([ldl, hdl, vldl].every(Number.isFinite) ? ldl + hdl + vldl : null);
+
+  return { ldl, hdl, triglycerides: tg, vldl, totalCholesterol };
 };
+
+
 const cholRisk = (type, value) => {
   if (!Number.isFinite(value)) return "unknown";
   switch (type) {
@@ -333,8 +347,9 @@ export default function ReportAnalysisPage() {
 
 /* ============================= Cholesterol View ============================ */
 function CholesterolView({ report, ex, ana, compare, compareErr, coach, nowTs, navigate }) {
-  const latest = calcCholDerived({ ldl: ex?.ldl, hdl: ex?.hdl, triglycerides: ex?.triglycerides });
-  const prev = compare?.previousExtracted ? calcCholDerived(compare.previousExtracted) : null;
+  const latest = calcCholDerived(ex || {});
+const prev   = compare?.previousExtracted ? calcCholDerived(compare.previousExtracted) : null;
+
   const units = ex?.units || "mg/dL";
 
   const patientIdForTrends =

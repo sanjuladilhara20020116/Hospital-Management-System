@@ -136,18 +136,18 @@ const [patientInfo, setPatientInfo] = useState(null);
         if (!r.ok || !j?.ok) throw new Error(j?.message || "Failed to load time series");
         setData(j);
 
-        // 2) patient mini (only if not provided through router state)
-        if (!state?.displayName || !state?.pidDisplay) {
-          try {
-            const rp = await fetch(`${API_BASE}/patients/${encodeURIComponent(id)}/mini`);
-            const jp = await rp.json();
-            if (rp.ok && jp?.ok && jp.patient) {
-              setPName(jp.patient.name || pName);
-              setPPid(jp.patient.pid  || pPid);
-              setPatientInfo(jp.patient);
-            }
-          } catch { /* non-fatal */ }
-        }
+        // 2) patient mini — ALWAYS fetch to populate age/gender/contact/email for the PDF
+       try {
+         const rp = await fetch(`${API_BASE}/patients/${encodeURIComponent(id)}/mini`);
+         const jp = await rp.json();
+         if (rp.ok && jp?.ok && jp.patient) {
+           // don’t override name/pid if already coming from router state
+           if (!state?.displayName) setPName(jp.patient.name || pName);
+           if (!state?.pidDisplay)  setPPid(jp.patient.pid  || pPid);
+           setPatientInfo(jp.patient);
+         }
+       } catch { /* non-fatal */ }
+        
       } catch (e) {
         setErr(e.message || "Failed to load time series");
       } finally {
@@ -337,10 +337,11 @@ const pi = patientInfo || {};
 const firstNonEmpty = (arr) =>
   (arr || []).find(v => v !== undefined && v !== null && String(v).trim() !== "") || "";
 
-const age    = firstNonEmpty([pi.age, pi.Age]);
+const age    = firstNonEmpty([pi.age, pi.Age, pi.dobAge]); // add any aliases you use
 const gender = firstNonEmpty([pi.gender, pi.sex]);
 const phone  = firstNonEmpty([pi.phone, pi.contact, pi.mobile, pi.tel, pi.phoneNumber]);
 const email  = firstNonEmpty([pi.email, pi.mail, pi.emailAddress]);
+
 
 const boxY = headerY + headerH + 20;
 const boxH = 132; // was 96; taller to fit 6 rows

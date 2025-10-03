@@ -223,6 +223,7 @@ exports.analyzeReport = async (req, res) => {
       ldl: extracted.ldl,
       hdl: extracted.hdl,
       triglycerides: extracted.triglycerides,
+      vldl: extracted.vldl,
       totalCholesterol: extracted.totalCholesterol,
       units: extracted.units || 'mg/dL',
     });
@@ -236,6 +237,7 @@ exports.analyzeReport = async (req, res) => {
         ldl: extracted.ldl ?? null,
         hdl: extracted.hdl ?? null,
         triglycerides: extracted.triglycerides ?? null,
+        vldl: extracted.vldl ?? null, 
         units: extracted.units || 'mg/dL',
         notes: extracted.notes || '',
       },
@@ -428,6 +430,7 @@ exports.analyzeByReference = async (req, res) => {
       ldl: extracted.ldl,
       hdl: extracted.hdl,
       triglycerides: extracted.triglycerides,
+      vldl: extracted.vldl,
       totalCholesterol: extracted.totalCholesterol,
       units: extracted.units || 'mg/dL',
     });
@@ -442,6 +445,7 @@ exports.analyzeByReference = async (req, res) => {
         ldl: extracted.ldl ?? null,
         hdl: extracted.hdl ?? null,
         triglycerides: extracted.triglycerides ?? null,
+        vldl: extracted.vldl ?? null, 
         units: extracted.units || 'mg/dL',
         notes: extracted.notes || '',
       },
@@ -677,6 +681,7 @@ function _snapshot(report) {
     if (ex.ldl != null)             snap.ldl = Number(ex.ldl);
     if (ex.hdl != null)             snap.hdl = Number(ex.hdl);
     if (ex.triglycerides != null)   snap.triglycerides = Number(ex.triglycerides);
+    if (ex.vldl != null)            snap.vldl = Number(ex.vldl);
   } else if (/diab/i.test(type)) {
     if (ex.fastingGlucose != null)      snap.fastingGlucose = Number(ex.fastingGlucose);
     if (ex.postPrandialGlucose != null) snap.postPrandialGlucose = Number(ex.postPrandialGlucose);
@@ -741,8 +746,8 @@ exports.compareToPrevious = async (req, res) => {
     const exPrev = prev?.extracted || {};
 
     const fields = /chol/i.test(type)
-      ? ['totalCholesterol', 'ldl', 'hdl', 'triglycerides']
-      : ['fastingGlucose', 'postPrandialGlucose', 'randomGlucose', 'ogtt2h', 'hba1c'];
+  ? ['totalCholesterol', 'ldl', 'hdl', 'vldl', 'triglycerides'] // <-- added vldl
+  : ['fastingGlucose', 'postPrandialGlucose', 'randomGlucose', 'ogtt2h', 'hba1c'];
 
     const deltas = {};
     for (const k of fields) {

@@ -109,6 +109,11 @@ app.use('/api', analyzeRoutes);
 
 app.use("/api", require("./routes/cholesterol"));
 
+
+// mount
+app.use('/api/patients', require('./routes/patients'));
+
+
 // TEMP alias to support /api/by-ref/:referenceNo/view
 app.get('/api/by-ref/:referenceNo/view', (req, res) => {
   const ref = encodeURIComponent(req.params.referenceNo);
