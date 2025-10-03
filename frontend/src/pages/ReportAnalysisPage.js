@@ -666,7 +666,7 @@ const pidDia =
           </div>
         </div>
         <div className="hero-right">
-          <img src="/img/mock/diab-hero.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+          <img src="/chol-hero.svg" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
         </div>
       </div>
 
