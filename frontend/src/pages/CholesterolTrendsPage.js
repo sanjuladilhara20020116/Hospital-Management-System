@@ -9,6 +9,10 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import html2canvas from "html2canvas";
 import "../styles/CholesterolTrendPage.css";
+// at the top of CholesterolTrendsPage.js
+import annotationPlugin from 'chartjs-plugin-annotation';
+ChartJS.register(annotationPlugin);
+
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Legend);
 
@@ -97,6 +101,66 @@ async function makeCircularPng(src, outPx = 256, padding = 16, safetyScale = 0.9
   return c.toDataURL("image/png");
 }
 
+// pick a padded y-range so patient variation is visible even with a flat peer line
+function makeYRange(patient = [], peer = []) {
+  const vals = [...patient.filter(Number.isFinite), ...peer.filter(Number.isFinite)];
+  if (!vals.length) return { min: 0, max: 1 };
+  let min = Math.min(...vals);
+  let max = Math.max(...vals);
+  const pad = Math.max(5, (max - min) * 0.25); // 25% padding
+  // keep floor at 0 for mg/dL
+  return { min: Math.max(0, Math.floor(min - pad)), max: Math.ceil(max + pad) };
+}
+
+// colored background bands by metric (HDL is inverted: higher is better)
+function bandsFor(metric, ymax) {
+  const box = (yMin, yMax, rgba) => ({
+    type: 'box', yMin, yMax, backgroundColor: rgba, borderWidth: 0
+  });
+
+  switch (metric) {
+    case 'total':
+      return [
+        box(0, 200,  'rgba(34,197,94,.08)'),   // desirable
+        box(200, 239,'rgba(234,179,8,.08)'),   // borderline
+        box(240, ymax,'rgba(239,68,68,.08)')   // high
+      ];
+    case 'tg':
+      return [
+        box(0, 150,  'rgba(34,197,94,.08)'),   // normal
+        box(150,199, 'rgba(234,179,8,.08)'),   // borderline-high
+        box(200, ymax,'rgba(239,68,68,.08)')   // high+
+      ];
+    case 'ldl':
+      return [
+        box(0, 100,  'rgba(34,197,94,.08)'),   // optimal
+        box(100,129, 'rgba(234,179,8,.08)'),   // near-opt
+        box(130, ymax,'rgba(239,68,68,.08)')   // borderline+ / high
+      ];
+    case 'hdl': // INVERTED: higher = better
+      return [
+        box(0, 40,   'rgba(239,68,68,.08)'),   // low (bad)
+        box(40, 59,  'rgba(234,179,8,.08)'),   // acceptable
+        box(60, ymax,'rgba(34,197,94,.08)')    // protective (good)
+      ];
+    default:
+      return [];
+  }
+}
+
+// simple classifier used in tooltip footer
+function classify(metric, v) {
+  if (!Number.isFinite(v)) return '';
+  switch (metric) {
+    case 'total': return v < 200 ? 'desirable' : v <= 239 ? 'borderline' : 'high';
+    case 'tg':    return v < 150 ? 'normal'    : v <= 199 ? 'borderline' : 'high';
+    case 'ldl':   return v < 100 ? 'optimal'   : v <= 129 ? 'near-opt'   : v <= 159 ? 'borderline' : 'high';
+    case 'hdl':   return v >= 60 ? 'protective': v >= 40 ? 'acceptable'   : 'low';
+    default: return '';
+  }
+}
+
+
 
 
 /* ---------------- page ---------------- */
@@ -177,36 +241,78 @@ const [patientInfo, setPatientInfo] = useState(null);
     };
   }, [S, data]);
 
-  const ChartCard = ({ pack }) => {
-    const { labels, patient, peer, title, ref } = pack;
-    const chartData = {
-      labels,
-      datasets: [
-        { label: "You", data: patient, borderColor: "#1D70F7", backgroundColor: "transparent", pointRadius: 3, borderWidth: 3, tension: 0.35 },
-        { label: "Heart-patient trend", data: peer, borderColor: "#EF4444", backgroundColor: "transparent", pointRadius: 3, borderWidth: 3, tension: 0.35 },
-      ],
-    };
-    return (
-      <div className="trend-card">
-        <div className="trend-card-head">
-          <span className="droplet">💧</span><h3>{title}</h3>
-        </div>
-        <Line
-          ref={ref}
-          data={chartData}
-          options={{
-            responsive: true,
-            plugins: { legend: { display: false }, tooltip: { mode: "index", intersect: false } },
-            interaction: { mode: "index", intersect: false },
-            scales: {
-              x: { grid: { color: "rgba(16,76,151,.08)" }, ticks: { color: "#1351A8", font: { weight: 700 } } },
-              y: { grid: { color: "rgba(16,76,151,.08)" }, ticks: { color: "#1351A8", font: { weight: 700 } } },
-            },
-          }}
-        />
-      </div>
-    );
+  // --- helpers already in your file: makeYRange, bandsFor, classify ---
+
+const ChartCard = ({ pack, metricKey }) => {
+  const { labels, patient, title, ref } = pack;
+
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: "You",
+        data: patient,
+        borderColor: "#1D70F7",
+        backgroundColor: "transparent",
+        pointRadius: 3,
+        borderWidth: 3,
+        tension: 0.35,
+      },
+    ],
   };
+
+  const range = makeYRange(patient, []);          // <- only your values
+  const annotations = bandsFor(metricKey, range.max);
+
+  return (
+    <div className="trend-card">
+      <div className="trend-card-head">
+        <span className="droplet">💧</span>
+        <h3>{title}</h3>
+        {metricKey === "hdl" && <small className="note">higher is better</small>}
+      </div>
+
+      <Line
+        ref={ref}
+        data={chartData}
+        options={{
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: "index",
+              intersect: false,
+              callbacks: {
+                footer: (items) => {
+                  const me = items[0];
+                  const v = Number(me?.parsed?.y);
+                  const cls = classify(metricKey, v);
+                  return cls ? `Status: ${cls}` : "";
+                }
+              }
+            },
+            annotation: { annotations },
+          },
+          interaction: { mode: "index", intersect: false },
+          scales: {
+            x: {
+              grid: { color: "rgba(16,76,151,.08)" },
+              ticks: { color: "#1351A8", font: { weight: 700 } },
+            },
+            y: {
+              min: range.min,
+              max: range.max,
+              grid: { color: "rgba(16,76,151,.08)" },
+              ticks: { color: "#1351A8", font: { weight: 700 } },
+            },
+          },
+        }}
+      />
+    </div>
+  );
+};
+
+
 
   /** PDF: fix logo mask + enforce spacing under “Trends” */
   /** Build the PDF with (1) circular-contained logo and (2) tuned Trends spacing */
@@ -222,12 +328,6 @@ const downloadPdf = async () => {
     });
   };
 
-  /**
-   * Circular PNG with conservative "contain" fit.
-   * padding: inner rim so nothing touches the edge
-   * safetyScale: shrink a bit after contain-fit to avoid micro-clipping
-   * offsetX/offsetY: tiny nudge to visually center (handles descenders)
-   */
   const makeCircularPng = async (
     src,
     outPx = 256,
@@ -256,11 +356,11 @@ const downloadPdf = async () => {
     ctx.closePath();
     ctx.clip();
 
-    // white base to guarantee clean edges inside the circle
+    // white base
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size, size);
 
-    // CONTAIN fit + padding + safety scale (no cropping)
+    // contain-fit
     const target = size - padding * 2;
     const sx = target / img.naturalWidth;
     const sy = target / img.naturalHeight;
@@ -292,25 +392,18 @@ const downloadPdf = async () => {
   const cy = headerY + headerH / 2;
   const r  = 40;
 
-  // badge: one outer stroke only (no inner hairline → no halo)
   pdf.setFillColor(255,255,255);
   pdf.circle(cx, cy, r, "F");
   pdf.setDrawColor(230,240,255);
   pdf.setLineWidth(2);
   pdf.circle(cx, cy, r, "S");
 
-  // load → make circular (contain) → draw
   try {
-    // use your path; you had /medicore.png in your project
     const raw = await loadImageAsDataURL("/medicore.png");
     const circularLogo = await makeCircularPng(raw, 256, 16, 0.92, 0, 1.0);
-
-    // draw slightly inset so it sits under the badge stroke (no seam)
-    const side = r * 2 - 10; // tweak to -9 if you see a seam on your renderer
+    const side = r * 2 - 10;
     pdf.addImage(circularLogo, "PNG", cx - side / 2, cy - side / 2, side, side, undefined, "FAST");
-  } catch {
-    // fail-soft: leave badge without logo
-  }
+  } catch {}
 
   // Title + date
   pdf.setTextColor("#ffffff");
@@ -331,102 +424,151 @@ const downloadPdf = async () => {
   pdf.text("Contact: +94-64356865",      headerRightX, baseY - lineGap*1, { align: "right" });
   pdf.text("No : 144, Wadduwa. Panadura",headerRightX, baseY - lineGap*0, { align: "right" });
 
-  // Patient Info box
-  // --- Patient Information box (bigger to fit more rows) ---
-const pi = patientInfo || {};
-const firstNonEmpty = (arr) =>
-  (arr || []).find(v => v !== undefined && v !== null && String(v).trim() !== "") || "";
+  // --- Patient Information ---
+  const pi = patientInfo || {};
+  const firstNonEmpty = (arr) =>
+    (arr || []).find(v => v !== undefined && v !== null && String(v).trim() !== "") || "";
 
-const age    = firstNonEmpty([pi.age, pi.Age, pi.dobAge]); // add any aliases you use
-const gender = firstNonEmpty([pi.gender, pi.sex]);
-const phone  = firstNonEmpty([pi.phone, pi.contact, pi.mobile, pi.tel, pi.phoneNumber]);
-const email  = firstNonEmpty([pi.email, pi.mail, pi.emailAddress]);
+  const age    = firstNonEmpty([pi.age, pi.Age, pi.dobAge]);
+  const gender = firstNonEmpty([pi.gender, pi.sex]);
+  const phone  = firstNonEmpty([pi.phone, pi.contact, pi.mobile, pi.tel, pi.phoneNumber]);
+  const email  = firstNonEmpty([pi.email, pi.mail, pi.emailAddress]);
 
+  const boxY = headerY + headerH + 20;
+  const boxH = 132;
+  pdf.setFillColor(234,242,255);
+  pdf.roundedRect(24, boxY, pageW - 48, boxH, 10, 10, "F");
+  pdf.setTextColor("#0F4AA6");
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  pdf.text("Patient Information", 42, boxY + 24);
 
-const boxY = headerY + headerH + 20;
-const boxH = 132; // was 96; taller to fit 6 rows
+  const line = (label, value, x, y) => {
+    pdf.setFont("helvetica", "bold"); pdf.setTextColor("#111"); pdf.setFontSize(12);
+    pdf.text(`${label} :`, x, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(String(value || "—"), x + 70, y);
+  };
 
-pdf.setFillColor(234,242,255);
-pdf.roundedRect(24, boxY, pageW - 48, boxH, 10, 10, "F");
-pdf.setTextColor("#0F4AA6");
-pdf.setFont("helvetica", "bold");
-pdf.setFontSize(16);
-pdf.text("Patient Information", 42, boxY + 24);
+  const leftX     = 42;
+  const colRightX = pageW / 2 + 10;
+  const rowY      = boxY + 48;
 
-const line = (label, value, x, y) => {
-  pdf.setFont("helvetica", "bold"); pdf.setTextColor("#111"); pdf.setFontSize(12);
-  pdf.text(`${label} :`, x, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(String(value || "—"), x + 70, y);
-};
+  // Left column
+  line("Name",       (typeof pName === "string" ? pName : "—"), leftX, rowY);
+  line("Patient ID", (pPid || `${patientId.slice(0,8)}…`),      leftX, rowY + 20);
+  line("E-mail",     email,                                     leftX, rowY + 40);
 
-const leftX     = 42;
-const colRightX = pageW / 2 + 10;
-const rowY      = boxY + 48;
+  // Right column
+  line("Age",        age,                                       colRightX, rowY);
+  line("Gender",     gender,                                    colRightX, rowY + 20);
+  line("Contact",    phone,                                     colRightX, rowY + 40);
 
-// Left column
-line("Name",       (typeof pName === "string" ? pName : "—"), leftX, rowY);
-line("Patient ID", (pPid || `${patientId.slice(0,8)}…`),      leftX, rowY + 20);
-line("E-mail",     email,                                     leftX, rowY + 40);
-
-// Right column
-line("Age",        age,                                       colRightX, rowY);
-line("Gender",     gender,                                    colRightX, rowY + 20);
-line("Contact",    phone,                                     colRightX, rowY + 40);
-
-// ---- Trends title + legend start a bit lower because the box is taller
-let y = boxY + boxH + 32;
+  // ---- Trends title (left) + compact legend card (right) ----
+  // ---- Trends title (left) + compact legend card (right) ----
+let y = boxY + boxH + 24;           // a bit tighter than before
 pdf.setFont("helvetica", "bold");
 pdf.setFontSize(16);
 pdf.setTextColor("#0F4AA6");
 pdf.text("Trends", 42, y);
 
+/* COMPACT legend on the right */
+const legendW = 250;                // was 320
+const legendH = 56;                 // was 84
+const legendX = pageW - 24 - legendW;
+const legendY = y - 18;             // align with title row
 
-  const legendX = pageW - 24 - 240;
-  const dot = (x,y, color) => { const [r,g,b] = color; pdf.setFillColor(r,g,b); pdf.rect(x,y-8, 10,10, "F"); };
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(11); pdf.setTextColor("#222");
-  dot(legendX, y, [29,112,247]);    pdf.text("Your trend", legendX + 16, y);
-  dot(legendX+110, y, [239,68,68]); pdf.text("Heart-patient trend", legendX + 126, y);
+// card bg
+pdf.setFillColor(238,246,255);
+pdf.setDrawColor(210,224,245);
+pdf.roundedRect(legendX, legendY, legendW, legendH, 6, 6, "FD");
 
-  // Balanced spacing under “Trends” (no collision)
-  y += 36;
-  const imgYOffset = 24;
+// tiny dot helper
+const legendDot = (x, yy, rgb) => {
+  const [r,g,b] = rgb;
+  pdf.setFillColor(r,g,b);
+  pdf.rect(x, yy - 5, 8, 8, "F");   // 8px squares (was 9–10)
+};
 
-  // Charts (from canvas refs)
-  const imgTotal = totalRef.current?.toBase64Image?.() || null;
-  const imgTg    = tgRef.current?.toBase64Image?.()    || null;
-  const imgHdl   = hdlRef.current?.toBase64Image?.()   || null;
-  const imgLdl   = ldlRef.current?.toBase64Image?.()   || null;
+pdf.setTextColor("#111");
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(10);                 // smaller text
 
-  const cardW = (pageW - 48 - 24) / 2;
-  const cardH = 184;
-  const gutter = 12;
-  const x1 = 36, x2 = 36 + cardW + gutter;
+const lx = legendX + 10;
+let ly = legendY + 16;
+legendDot(lx, ly, [ 80, 200, 160 ]); pdf.text("Green: healthy/safe", lx + 14, ly);
+ly += 14;
+legendDot(lx, ly, [ 244, 201, 104 ]); pdf.text("Yellow: borderline", lx + 14, ly);
+ly += 14;
+legendDot(lx, ly, [ 239, 68, 68 ]); pdf.text("Red: high — consult", lx + 14, ly);
 
-  // Row 1
-  pdf.setFont("helvetica", "bold"); pdf.setFontSize(14); pdf.setTextColor("#1351A8");
-  pdf.text("Total Cholesterol", x1, y + 16);
-  pdf.text("Triglycerides",     x2, y + 16);
-  if (imgTotal) pdf.addImage(imgTotal, "PNG", x1, y + imgYOffset, cardW, cardH, undefined, "FAST");
-  if (imgTg)    pdf.addImage(imgTg,    "PNG", x2, y + imgYOffset, cardW, cardH, undefined, "FAST");
+// micro HDL tip (single short line)
+pdf.setTextColor("#244E86");
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(9);
 
-  // Row 2
-  y += cardH + 36;
-  pdf.text("HDL", x1, y + 16);
-  pdf.text("LDL", x2, y + 16);
-  if (imgHdl) pdf.addImage(imgHdl, "PNG", x1, y + imgYOffset, cardW, cardH, undefined, "FAST");
-  if (imgLdl) pdf.addImage(imgLdl, "PNG", x2, y + imgYOffset, cardW, cardH, undefined, "FAST");
+// charts start just below the taller of title/legend
+y = Math.max(y, legendY + legendH) + 10;   // was +16
+const imgYOffset = 10;                     // was 12
 
-  // Footer
-  pdf.setFont("helvetica", "normal"); pdf.setFontSize(10); pdf.setTextColor("#444");
-  pdf.text(
-    "This PDF summarizes your cholesterol trends alongside a clinic reference trend. It is not a diagnosis.",
-    42, pageH - 32
-  );
+
+ // -------- Charts (from canvas refs) --------
+const imgTotal = totalRef.current?.toBase64Image?.() || null;
+const imgTg    = tgRef.current?.toBase64Image?.()    || null;
+const imgHdl   = hdlRef.current?.toBase64Image?.()   || null;
+const imgLdl   = ldlRef.current?.toBase64Image?.()   || null;
+
+// layout
+const cardW   = (pageW - 48 - 24) / 2;
+const cardH   = 176;          // a touch shorter to create room
+const gutter  = 12;
+const x1      = 36;
+const x2      = 36 + cardW + gutter;
+
+// typography + spacing
+const titleSize        = 12;  // smaller titles
+const titleTopOffset   = 12;  // distance from row Y to title baseline
+const titleToChartGap  = 8;   // space between title and chart image
+
+// ----- Row 1 -----
+pdf.setFont("helvetica", "bold");
+pdf.setFontSize(titleSize);
+pdf.setTextColor("#1351A8");
+
+// titles
+pdf.text("Total Cholesterol", x1, y + titleTopOffset);
+pdf.text("Triglycerides",     x2, y + titleTopOffset);
+
+// charts (start a bit lower, giving margin below titles)
+let row1ChartY = y + titleTopOffset + titleToChartGap;
+if (imgTotal) pdf.addImage(imgTotal, "PNG", x1, row1ChartY, cardW, cardH, undefined, "FAST");
+if (imgTg)    pdf.addImage(imgTg,    "PNG", x2, row1ChartY, cardW, cardH, undefined, "FAST");
+
+// ----- Row 2 -----
+y = row1ChartY + cardH + 26;  // vertical gap between rows
+
+pdf.setFontSize(titleSize);
+pdf.setTextColor("#1351A8");
+pdf.text("HDL", x1, y + titleTopOffset);
+pdf.text("LDL", x2, y + titleTopOffset);
+
+const row2ChartY = y + titleTopOffset + titleToChartGap;
+if (imgHdl) pdf.addImage(imgHdl, "PNG", x1, row2ChartY, cardW, cardH, undefined, "FAST");
+if (imgLdl) pdf.addImage(imgLdl, "PNG", x2, row2ChartY, cardW, cardH, undefined, "FAST");
+
+// -------- Footer --------
+pdf.setFont("helvetica", "normal");
+pdf.setFontSize(10);
+pdf.setTextColor("#444");
+pdf.text(
+  "This PDF summarizes your cholesterol trends using color zones. It is not a diagnosis.",
+  42, pageH - 32
+);
+
 
   pdf.save(`Cholesterol_Trend_${(pPid || patientId).toString().slice(0,8)}.pdf`);
 };
+
 
 
 
@@ -442,7 +584,7 @@ pdf.text("Trends", 42, y);
           </div>
         </div>
         <div className="hero-right">
-          <img src="/img/mock/trend-hero.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+          <img src="/trend-hero.svg" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
         </div>
       </div>
 
@@ -452,32 +594,44 @@ pdf.text("Trends", 42, y);
       {!loading && !err && (
         <>
           <div className="trend-grid">
-            <ChartCard pack={packs.total} />
-            <ChartCard pack={packs.tg} />
-            <ChartCard pack={packs.hdl} />
-            <ChartCard pack={packs.ldl} />
-          </div>
+  <ChartCard pack={packs.total} metricKey="total" />
+  <ChartCard pack={packs.tg}    metricKey="tg" />
+  <ChartCard pack={packs.hdl}   metricKey="hdl" />
+  <ChartCard pack={packs.ldl}   metricKey="ldl" />
+</div>
 
-          <div className="legend-row">
-            <div className="legend-art">
-              <img src="/reasons.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
-            </div>
-            <div className="legend-note">
-              <p>
-                <span className="dot blue"></span> Shows <b>your trend</b>
-                &nbsp;&nbsp;
-                <span className="dot red"></span> Shows <b>heart-patient trend</b> (clinic reference/target)
-              </p>
-              <p className="muted">
-                Use this panel to talk through progress month-to-month. Short spikes can come from diet, illness,
-                or missed doses. The red line is a steady reference for comparison—not a diagnosis.
-              </p>
-            </div>
-            <div className="cta-row">
-              <button className="cta ghost" onClick={() => window.history.back()}>Back</button>
-              <button className="cta big" onClick={downloadPdf}>Download Trend</button>
-            </div>
-          </div>
+
+          {/* FOOTER / LEGEND + ACTIONS */}
+<div className="trend-footer">
+  <div className="zones-card">
+    <div className="zone">
+      <span className="swatch safe" aria-hidden></span>
+      <span><b>Green</b>: healthy/safe range</span>
+    </div>
+    <div className="zone">
+      <span className="swatch warn" aria-hidden></span>
+      <span><b>Yellow</b>: borderline — keep an eye</span>
+    </div>
+    <div className="zone">
+      <span className="swatch danger" aria-hidden></span>
+      <span><b>Red</b>: high — discuss with your clinician</span>
+    </div>
+
+    <div className="zone note">
+      <span className="tip" aria-hidden>💡</span>
+      <span>
+        <b>Tip:</b> for <b>HDL</b>, higher is better. For Total, LDL, and Triglycerides, lower is better.
+      </span>
+    </div>
+  </div>
+
+  <div className="actions">
+    <button className="btn ghost" onClick={() => window.history.back()}>Back</button>
+    <button className="btn primary" onClick={downloadPdf}>Download Trend</button>
+  </div>
+</div>
+
+
         </>
       )}
     </div>
