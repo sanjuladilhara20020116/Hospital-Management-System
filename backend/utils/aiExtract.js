@@ -77,6 +77,8 @@ async function callOpenRouter(body) {
 /* ---------------------- PROMPTS (same as mini project) ---------------------- */
 const EXTRACT_SYSTEM = `
 You are an information extractor. Return ONLY valid minified JSON (no markdown, no text).
+Do not invent numbers. If a value isn't present, omit the key entirely.
+Do not compute or infer total cholesterol from components.
 Schema (omit any key you can't find):
 {
   "testDate": string,
@@ -86,9 +88,11 @@ Schema (omit any key you can't find):
   "ldl": number,
   "hdl": number,
   "triglycerides": number,
+  "vldl": number,
   "units": string,
   "notes": string
 }`.trim();
+
 
 const EXTRACT_USER_IMAGE = `
 Extract lipid profile (cholesterol) values from the attached image.
@@ -111,16 +115,19 @@ Classify ranges using common adult guidelines (mg/dL unless specified):
 - LDL: optimal <100; near optimal 100–129; borderline high 130–159; high 160–189; very high ≥190
 - HDL: low <40; acceptable 40–59; protective ≥60
 - Triglycerides: normal <150; borderline-high 150–199; high 200–499; very high ≥500
+- VLDL: normal ≤30
 - Total Cholesterol: desirable <200; borderline high 200–239; high ≥240
 Return JSON ONLY:
 {
   "ldlStatus": string,
   "hdlStatus": string,
   "triglycerideStatus": string,
+  "vldlStatus": string,
   "totalCholesterolStatus": string,
   "summary": string,
   "tips": string[]
 }`.trim();
+
 
 /* ---------------------- CORE EXTRACT (identical logic to mini) ---------------------- */
 async function extractCore({ filePath }) {
@@ -179,16 +186,18 @@ async function extractCore({ filePath }) {
   }
 
   // sanitize
-  if (data) {
+    if (data) {
     if (data.ldl != null)              data.ldl = clamp(Number(data.ldl));
     if (data.hdl != null)              data.hdl = clamp(Number(data.hdl));
     if (data.triglycerides != null)    data.triglycerides = clamp(Number(data.triglycerides));
+    if (data.vldl != null)             data.vldl = clamp(Number(data.vldl));          // <-- add
     if (data.totalCholesterol != null) data.totalCholesterol = clamp(Number(data.totalCholesterol));
     if (data.units)                    data.units = normalizeUnits(data.units);
     if (!data.units)                   data.units = "mg/dL";
   }
 
-  return {
+
+    return {
     testDate: data.testDate ?? null,
     labName: data.labName ?? null,
     patientName: data.patientName ?? null,
@@ -196,9 +205,11 @@ async function extractCore({ filePath }) {
     ldl: data.ldl ?? null,
     hdl: data.hdl ?? null,
     triglycerides: data.triglycerides ?? null,
+    vldl: data.vldl ?? null,                    // <-- add
     units: data.units || "mg/dL",
     notes: data.notes || "",
   };
+
 }
 
 /* ---------------------- PUBLIC API ---------------------- */
@@ -209,8 +220,8 @@ async function extractFromReport({ filePath /* absolute or relative OK */ }) {
 }
 
 /* --------- UPDATED: analysis mapped to the UI shape your page expects --------- */
-async function analyzeValues({ ldl, hdl, triglycerides, totalCholesterol, units = "mg/dL" }) {
-  const vals = { ldl, hdl, triglycerides, totalCholesterol, units };
+async function analyzeValues({ ldl, hdl, triglycerides, vldl, totalCholesterol, units = "mg/dL" }) {
+  const vals = { ldl, hdl, triglycerides, vldl, totalCholesterol, units };
 
   const toCategory = (status = "") => {
     const s = String(status).toLowerCase();
@@ -225,6 +236,7 @@ async function analyzeValues({ ldl, hdl, triglycerides, totalCholesterol, units 
     ldl:   "LDL (mg/dL): optimal <100 · near-opt 100–129 · borderline 130–159 · high 160–189 · very high ≥190",
     hdl:   "HDL (mg/dL): low <40 · acceptable 40–59 · protective ≥60",
     tg:    "Triglycerides (mg/dL): normal <150 · borderline 150–199 · high 200–499 · very high ≥500",
+    vldl:  "VLDL (mg/dL): normal ≤30",                                            // <-- add
     total: "Total (mg/dL): desirable <200 · borderline 200–239 · high ≥240",
   };
 
@@ -240,40 +252,46 @@ async function analyzeValues({ ldl, hdl, triglycerides, totalCholesterol, units 
     const parsed = safeParseLoose(content) || {};
 
     return {
-      ldl: {
-        value: typeof ldl === "number" ? ldl : null,
-        category: toCategory(parsed.ldlStatus),
-        reference: refs.ldl,
-      },
-      hdl: {
-        value: typeof hdl === "number" ? hdl : null,
-        category: toCategory(parsed.hdlStatus),
-        reference: refs.hdl,
-      },
-      triglycerides: {
-        value: typeof triglycerides === "number" ? triglycerides : null,
-        category: toCategory(parsed.triglycerideStatus),
-        reference: refs.tg,
-      },
-      totalCholesterol: {
-        value: typeof totalCholesterol === "number" ? totalCholesterol : null,
-        category: toCategory(parsed.totalCholesterolStatus),
-        reference: refs.total,
-      },
-      notes: parsed.summary || "",
-      nextSteps: Array.isArray(parsed.tips) ? parsed.tips : [],
-    };
-  } catch {
-    // fallback with unknowns, still matching UI shape
+    ldl: {
+      value: typeof ldl === "number" ? ldl : null,
+      category: toCategory(parsed.ldlStatus),
+      reference: refs.ldl,
+    },
+    hdl: {
+      value: typeof hdl === "number" ? hdl : null,
+      category: toCategory(parsed.hdlStatus),
+      reference: refs.hdl,
+    },
+    triglycerides: {
+      value: typeof triglycerides === "number" ? triglycerides : null,
+      category: toCategory(parsed.triglycerideStatus),
+      reference: refs.tg,
+    },
+    vldl: {                                                                  // <-- add
+      value: typeof vldl === "number" ? vldl : null,
+      category: toCategory(parsed.vldlStatus),
+      reference: refs.vldl,
+    },
+    totalCholesterol: {
+      value: typeof totalCholesterol === "number" ? totalCholesterol : null,
+      category: toCategory(parsed.totalCholesterolStatus),
+      reference: refs.total,
+    },
+    notes: parsed.summary || "",
+    nextSteps: Array.isArray(parsed.tips) ? parsed.tips : [],
+  };
+    } catch {
     return {
       ldl: { value: ldl ?? null, category: "unknown", reference: refs.ldl },
       hdl: { value: hdl ?? null, category: "unknown", reference: refs.hdl },
       triglycerides: { value: triglycerides ?? null, category: "unknown", reference: refs.tg },
+      vldl: { value: vldl ?? null, category: "unknown", reference: refs.vldl },           // <-- add
       totalCholesterol: { value: totalCholesterol ?? null, category: "unknown", reference: refs.total },
       notes: "Unable to compute analysis right now.",
       nextSteps: [],
     };
   }
+
 }
 
 module.exports = {

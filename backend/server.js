@@ -112,6 +112,12 @@ app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/diagnosis-cards', diagnosisCardRoutes);
 app.use('/api/admission-notes', admissionNoteRoutes);
 
+
+// mount
+app.use('/api/patients', require('./routes/patients'));
+
+
+// TEMP alias to support /api/by-ref/:referenceNo/view
 /* TEMP alias to support /api/by-ref/:referenceNo/view */
 app.get('/api/by-ref/:referenceNo/view', (req, res) => {
   const ref = encodeURIComponent(req.params.referenceNo);

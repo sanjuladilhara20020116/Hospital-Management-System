@@ -35,12 +35,26 @@ const deltaText = (curr, prev, unit) => {
 };
 
 /* ----------------------------- Cholesterol logic ----------------------------- */
-const calcCholDerived = (v = {}) => {
-  const { ldl = null, hdl = null, triglycerides = null } = v || {};
-  const vldl = Number.isFinite(triglycerides) ? Math.round(triglycerides / 5) : null;
-  const totalCholesterol = [ldl, hdl, vldl].every(Number.isFinite) ? ldl + hdl + vldl : null;
-  return { ...v, vldl, totalCholesterol };
+// put this near the top, replacing your current calcCholDerived
+const calcCholDerived = (ex = {}) => {
+  const ldl  = Number.isFinite(ex?.ldl)           ? Number(ex.ldl)           : null;
+  const hdl  = Number.isFinite(ex?.hdl)           ? Number(ex.hdl)           : null;
+  const tg   = Number.isFinite(ex?.triglycerides) ? Number(ex.triglycerides) : null;
+
+  // Prefer extracted VLDL if present; else fall back to TG/5
+  const vldl = Number.isFinite(ex?.vldl)
+    ? Number(ex.vldl)
+    : (Number.isFinite(tg) ? Math.round(tg / 5) : null);
+
+  // Prefer extracted total if present; else fall back to LDL + HDL + VLDL
+  const totalCholesterol = Number.isFinite(ex?.totalCholesterol)
+    ? Number(ex.totalCholesterol)
+    : ([ldl, hdl, vldl].every(Number.isFinite) ? ldl + hdl + vldl : null);
+
+  return { ldl, hdl, triglycerides: tg, vldl, totalCholesterol };
 };
+
+
 const cholRisk = (type, value) => {
   if (!Number.isFinite(value)) return "unknown";
   switch (type) {
@@ -333,8 +347,9 @@ export default function ReportAnalysisPage() {
 
 /* ============================= Cholesterol View ============================ */
 function CholesterolView({ report, ex, ana, compare, compareErr, coach, nowTs, navigate }) {
-  const latest = calcCholDerived({ ldl: ex?.ldl, hdl: ex?.hdl, triglycerides: ex?.triglycerides });
-  const prev = compare?.previousExtracted ? calcCholDerived(compare.previousExtracted) : null;
+  const latest = calcCholDerived(ex || {});
+const prev   = compare?.previousExtracted ? calcCholDerived(compare.previousExtracted) : null;
+
   const units = ex?.units || "mg/dL";
 
   const patientIdForTrends =
@@ -353,12 +368,21 @@ function CholesterolView({ report, ex, ana, compare, compareErr, coach, nowTs, n
   const riskMsg = cholRiskMessage(latest).toLowerCase();
   const statusClass = riskMsg.includes("excellent") ? "safe" : riskMsg.includes("good") ? "warning" : "danger";
 
-  const patientName =
-    (report?.patientId && typeof report.patientId === "object")
-      ? `${report.patientId.firstName || ""} ${report.patientId.lastName || ""}`.trim() || report.patientId.userId
-      : report?.patientId || "—";
-  const pid =
-    (report?.patientId && typeof report.patientId === "object") ? report.patientId._id : report?.patientId;
+  // Prefer backend-friendly meta; fall back to populated/legacy shapes
+const patientName =
+  report?._patient?.name
+  || (report?.patientId && typeof report.patientId === "object"
+        ? `${report.patientId.firstName || ""} ${report.patientId.lastName || ""}`.trim() || report.patientId.userId
+        : "")
+  || "—";
+
+const pid =
+  report?._patient?.id
+  || (report?.patientId && typeof report.patientId === "object"
+        ? (report.patientId.userId || report.patientId._id)
+        : report?.patientId)
+  || "—";
+
   const uploaded = report?.uploadDate ? new Date(report.uploadDate).toLocaleDateString() : "—";
 
   function KPI({ label, value, unit, ring = "green", status }) {
@@ -421,7 +445,7 @@ const recsList =
           </div>
         </div>
         <div className="hero-right">
-          <img src="/img/mock/chol-hero.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+          <img src="/chol-hero.svg" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
         </div>
       </div>
 
@@ -566,14 +590,28 @@ const recsList =
       {/* CTA */}
       <div className="cta-row">
         <button
-          className="cta big"
-          onClick={()=>{
-            if (!patientIdForTrends) { alert("No patient id on this report."); return; }
-            navigate(`/cholesterol-trends/${patientIdForTrends}`);
-          }}
-        >
-          See full&nbsp;analysis
-        </button>
+  className="cta big"
+  onClick={()=>{
+    if (!patientIdForTrends) { alert("No patient id on this report."); return; }
+
+    const patientName =
+      (report?.patientId && typeof report.patientId === "object")
+        ? `${report.patientId.firstName || ""} ${report.patientId.lastName || ""}`.trim() || report.patientId.userId
+        : report?.patientId || "—";
+
+    const pidDisplay =
+      (report?.patientId && typeof report.patientId === "object")
+        ? (report.patientId.userId || report.patientId._id)
+        : report?.patientId;
+
+    navigate(`/cholesterol-trends/${patientIdForTrends}`, {
+      state: { displayName: patientName, pidDisplay }
+    });
+  }}
+>
+  See full&nbsp;analysis
+</button>
+
       </div>
     </>
   );
@@ -599,20 +637,36 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
     : riskMsg.includes("prediabetes") || riskMsg.includes("risk") ? "warning"
     : "safe";
 
+    // Prefer backend-friendly meta; fallback to populated/legacy shapes
+const patientNameDia =
+  report?._patient?.name
+  || (report?.patientId && typeof report.patientId === "object"
+        ? `${report.patientId.firstName || ""} ${report.patientId.lastName || ""}`.trim()
+        : (report?.patientId?.userId || ""))
+  || "—";
+
+const pidDia =
+  report?._patient?.id
+  || (report?.patientId && typeof report.patientId === "object"
+        ? (report.patientId.userId || report.patientId._id)
+        : report?.patientId)
+  || "—";
+
+
   return (
     <>
       <div className="hero green">
         <div className="hero-left">
           <div className="hero-title">Diabetes Report Overview</div>
           <div className="hero-id">
-            <div className="id-row"><span className="k">Name</span><span className="v">: {(report?.patientId && typeof report.patientId === "object" && (report.patientId.firstName || report.patientId.lastName)) ? `${report.patientId.firstName||""} ${report.patientId.lastName||""}` : (report?.patientId?.userId || "—")}</span></div>
-            <div className="id-row"><span className="k">PID</span><span className="v">: {(report?.patientId && typeof report.patientId === "object") ? report.patientId._id : report?.patientId || "—"}</span></div>
+           <div className="id-row"><span className="k">Name</span><span className="v">: {patientNameDia}</span></div>
+           <div className="id-row"><span className="k">PID</span><span className="v">: {pidDia}</span></div>
             <div className="id-row"><span className="k">Ref NO</span><span className="v">: {report?.referenceNo || "—"}</span></div>
             <div className="id-row"><span className="k">Uploaded date</span><span className="v">: {report?.uploadDate ? new Date(report.uploadDate).toLocaleDateString() : "—"}</span></div>
           </div>
         </div>
         <div className="hero-right">
-          <img src="/img/mock/diab-hero.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+          <img src="/chol-hero.svg" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
         </div>
       </div>
 
@@ -622,84 +676,101 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
         </div>
       )}
 
-      <div className="section">
-        <div className="sec-head">
-          <div className="sec-icon">✨</div>
-          <h2 className="sec-title">Latest Report</h2>
-          <div className="sec-time">{report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : ""}</div>
-        </div>
-        <div className="kpi-row">
-          <KpiTile label="Fasting (FPG)" value={cur.fastingGlucose} unit={gUnits} ringTone="green"  status={diabetesRisk("fasting", cur.fastingGlucose)} />
-          <KpiTile label="2-hr / PP"    value={cur.postPrandialGlucose} unit={gUnits} ringTone="blue"   status={diabetesRisk("pp", cur.postPrandialGlucose)} />
-          <KpiTile label="Random"        value={cur.randomGlucose} unit={gUnits} ringTone="red"    status={diabetesRisk("random", cur.randomGlucose)} />
-          <KpiTile label="HbA1c"         value={cur.hba1c} unit={a1cUnits} ringTone="orange" status={diabetesRisk("a1c", cur.hba1c)} />
-          <KpiTile label="eAG"           value={eAG} unit="mg/dL" ringTone="cyan" status={Number.isFinite(eAG) ? (eAG < 154 ? "normal" : eAG < 183 ? "prediabetes" : "diabetes") : "unknown"} />
-        </div>
-      </div>
+      {/* Latest (Diabetes) — same shell as Cholesterol */}
+<div className="latest-card">
+  <div className="latest-head">
+    <h2 className="latest-title">Latest Report</h2>
+    <div className="latest-right">
+      <span className="latest-time">{report?.uploadDate ? timeAgo(report.uploadDate, nowTs) : ""}</span>
+      <span className="latest-sparkle" aria-hidden>✦</span>
+    </div>
+  </div>
+
+  {/* identical 5-up grid spacing */}
+  <div className="kpi-row kpi-row--latest">
+    <KpiTile label="Fasting (FPG)" value={cur.fastingGlucose} unit={gUnits} ringTone="green"  status={diabetesRisk("fasting", cur.fastingGlucose)} />
+    <KpiTile label="2-hr / PP"    value={cur.postPrandialGlucose} unit={gUnits} ringTone="blue"   status={diabetesRisk("pp", cur.postPrandialGlucose)} />
+    <KpiTile label="Random"        value={cur.randomGlucose} unit={gUnits} ringTone="red"    status={diabetesRisk("random", cur.randomGlucose)} />
+    <KpiTile label="HbA1c"         value={cur.hba1c} unit={a1cUnits} ringTone="orange" status={diabetesRisk("a1c", cur.hba1c)} />
+    <KpiTile label="eAG"           value={eAG} unit="mg/dL" ringTone="cyan" status={Number.isFinite(eAG) ? (eAG < 154 ? "normal" : eAG < 183 ? "prediabetes" : "diabetes") : "unknown"} />
+  </div>
+</div>
+
 
       <div className="triple">
         <div className="card">
-          <div className="card-head"><div className="head-icon warn">⚠️</div><h3 className="head-title">Risk Summary</h3></div>
-          <div className={`risk-chip ${statusClass}`}>
-            {statusClass === "safe" ? "Normal levels" : statusClass === "warning" ? "Prediabetes risk" : "Needs attention"}
-          </div>
-          <div className="info-pane">{diabetesRiskMessage(cur)}</div>
-        </div>
+  <div className="card-head">
+    <div className="head-icon warn">⚠️</div>
+    <h3 className="head-title">Risk Summary</h3>
+  </div>
 
-        <div className="card">
-          <div className="card-head"><div className="head-icon heart">❤️</div><h3 className="head-title">Health Status</h3></div>
-          <div className="info-pane">{coach?.data?.healthStatus || ana?.notes || "Your diabetes summary will appear here."}</div>
-        </div>
+  {/* unified banner: title + explanatory text inside one surface */}
+  <div className={`risk-banner ${statusClass}`}>
+    <div className="risk-banner__title">
+      {statusClass === "safe" ? "Normal levels"
+        : statusClass === "warning" ? "Prediabetes risk"
+        : "Needs attention"}
+    </div>
+    <div className="risk-banner__msg">
+      {diabetesRiskMessage(cur)}
+    </div>
+  </div>
+</div>
 
-        <div className="card">
-          <div className="card-head">
-            <div className="head-icon mag">🔍</div>
-            <h3 className="head-title">Comparison with Previous Report</h3>
-            <div className="legend-right">
-              <span><i className="cur"></i> current</span>
-              <span><i className="prev"></i> previous</span>
-            </div>
-          </div>
 
-          <div className="compare-grid">
-            <div className="bullet-pane">
-              <ul>
-                {[
-                  { label: "Fasting",   curr: cur.fastingGlucose,       prev: prev?.fastingGlucose },
-                  { label: "2-hr / PP", curr: cur.postPrandialGlucose,  prev: prev?.postPrandialGlucose ?? prev?.ogtt2h },
-                  { label: "Random",    curr: cur.randomGlucose,        prev: prev?.randomGlucose },
-                  { label: "HbA1c",     curr: cur.hba1c,                prev: prev?.hba1c, unit: a1cUnits },
-                ].map(({label,curr,prev,unit},i)=>(
-                  <li key={i}>
-                    {prev == null
-                      ? `🆕 First ${label} reading: ${showNum(curr)} ${unit || gUnits}`
-                      : `${label}: ${showNum(curr)} ${unit || gUnits} (${deltaText(curr, prev, unit || gUnits)} from ${showNum(prev)} ${unit || gUnits})`}
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="card card-compare" style={{ "--compare-h": "210px" }}>
+  <div className="card-head">
+    <div className="head-icon mag">🔍</div>
+    <h3 className="head-title">Comparison with Previous Report</h3>
+    <div className="legend-right">
+      <span><i className="cur"></i> current</span>
+      <span><i className="prev"></i> previous</span>
+    </div>
+  </div>
 
-            <div className="mini-chart">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={prev ? [
-                  { name: "Fasting",   Previous: prev.fastingGlucose,                      Current: cur.fastingGlucose },
-                  { name: "2-hr / PP", Previous: prev.postPrandialGlucose ?? prev?.ogtt2h, Current: cur.postPrandialGlucose },
-                  { name: "Random",    Previous: prev.randomGlucose,                       Current: cur.randomGlucose },
-                  { name: "HbA1c",     Previous: prev.hba1c,                                Current: cur.hba1c },
-                ] : []}>
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="Current"  fill="#1976D2" radius={[6,6,0,0]} />
-                  <Bar dataKey="Previous" fill="#B3D4FF" radius={[6,6,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+  {/* mirror cholesterol: chart left, bullets right, equal height */}
+  <div className="compare-grid">
+    <div className="mini-chart" aria-label="Comparison chart">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={prev ? [
+          { name: "Fasting",   Previous: prev.fastingGlucose,                      Current: cur.fastingGlucose },
+          { name: "2-hr / PP", Previous: prev.postPrandialGlucose ?? prev?.ogtt2h, Current: cur.postPrandialGlucose },
+          { name: "Random",    Previous: prev.randomGlucose,                       Current: cur.randomGlucose },
+          { name: "HbA1c",     Previous: prev.hba1c,                                Current: cur.hba1c },
+        ] : []}>
+          <CartesianGrid stroke="#E5EEF9" vertical={false} />
+          <XAxis dataKey="name" interval={0} axisLine={false} tickLine={false}
+                 tick={{ fontSize: 11, fill: "#244E86", fontWeight: 700 }} />
+          <YAxis allowDecimals={false} axisLine={false} tickLine={false}
+                 width={30} tick={{ fontSize: 11, fill: "#244E86", fontWeight: 700 }} />
+          <Tooltip />
+          <Bar dataKey="Current"  fill="#1976D2" radius={[6,6,0,0]} />
+          <Bar dataKey="Previous" fill="#BFD8FF" radius={[6,6,0,0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
 
-          {compareErr && <p className="error tiny">Compare error: {compareErr}</p>}
-        </div>
+    <div className="bullet-pane">
+      <ul>
+        {[
+          { label: "Fasting",   curr: cur.fastingGlucose,      prev: prev?.fastingGlucose,      unit: gUnits },
+          { label: "2-hr / PP", curr: cur.postPrandialGlucose, prev: prev?.postPrandialGlucose ?? prev?.ogtt2h, unit: gUnits },
+          { label: "Random",    curr: cur.randomGlucose,       prev: prev?.randomGlucose,       unit: gUnits },
+          { label: "HbA1c",     curr: cur.hba1c,               prev: prev?.hba1c,               unit: a1cUnits },
+        ].map(({label,curr,prev,unit},i)=>(
+          <li key={i}>
+            {prev == null
+              ? `🆕 First ${label} reading: ${showNum(curr)} ${unit}`
+              : `${label}: ${showNum(curr)} ${unit} (${deltaText(curr, prev, unit)} from ${showNum(prev)} ${unit})`}
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+
+  {compareErr && <p className="error tiny">Compare error: {compareErr}</p>}
+</div>
+
       </div>
 
       {/* reasons + recs */}
@@ -707,7 +778,7 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
         <div className="card">
           <div className="card-head"><div className="head-icon brain">🧠</div><h3 className="head-title">Possible Reasons</h3></div>
           <div className="split-art">
-            <img src="/img/mock/diab-reasons.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+            <img src="/diab-reasons.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
             <div className="blue-panel">
               <ul>
                 {Array.isArray(coach?.data?.reasons) && coach.data.reasons.length
@@ -721,7 +792,7 @@ function DiabetesView({ report, ex, ana, compare, compareErr, mini, miniErr, min
         <div className="card">
           <div className="card-head"><div className="head-icon apple">🍎</div><h3 className="head-title">Recommendations</h3></div>
           <div className="split-art">
-            <img src="/img/mock/diab-recs.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
+            <img src="/diab-recs.png" alt="" onError={(e)=>{e.currentTarget.style.display='none';}} />
             <div className="blue-panel">
               <ul>
                 {Array.isArray(coach?.data?.recommendations) && coach.data.recommendations.length

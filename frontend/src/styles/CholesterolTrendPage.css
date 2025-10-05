@@ -1,0 +1,340 @@
+/* canvas */
+.trend-wrap{max-width:1180px;margin:18px auto;padding:0 18px;background:#E9F3FF;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+.loading{color:#334155;margin:12px 0}
+.error{color:#B00020;background:#FFE8EA;border:1px solid #FFC9CF;padding:10px 12px;border-radius:10px;margin:12px 0}
+
+/* hero */
+.trend-hero{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:center;background:#1976D2;border-radius:16px;padding:22px 26px;color:#fff;box-shadow:0 6px 24px rgba(16,76,151,.15);margin-bottom:18px}
+.trend-hero .hero-title{font-size:32px;font-weight:900;margin:0 0 10px}
+.trend-hero .hero-id{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:10px 12px;display:grid;gap:6px;width:min(520px,100%)}
+.trend-hero .row{display:flex;gap:8px}
+.trend-hero .k{width:120px;color:#D6E9FF;font-weight:800}
+.trend-hero .v{color:#fff;font-weight:800}
+.trend-hero .hero-right img{width:100%;height:160px;object-fit:contain;border-radius:12px}
+
+/* grid */
+.trend-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:10px 0 18px}
+@media (max-width:980px){.trend-grid{grid-template-columns:1fr}}
+
+.trend-card{background:#fff;border-radius:16px;padding:16px 18px;box-shadow:0 8px 28px rgba(16,76,151,.06)}
+.trend-card-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.trend-card-head h3{margin:0;color:#1360C8;font-weight:900;font-size:22px}
+.droplet{display:inline-grid;place-items:center;height:38px;width:38px;border-radius:50%;background:#EAF2FF;box-shadow:inset 0 0 0 6px #F3F8FF}
+
+/* legend row */
+.legend-row{display:grid;grid-template-columns:260px 1fr auto;gap:18px;align-items:center;margin:6px 0 18px}
+.legend-art img{width:100%;height:120px;object-fit:contain;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.legend-note{background:#DCEEFF;border-radius:14px;padding:16px 18px}
+.legend-note p{margin:6px 0;font-size:16px;color:#0F172A}
+.legend-note .muted{opacity:.85}
+.dot{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:10px;vertical-align:-2px}
+.dot.blue{background:#1D70F7}
+.dot.red{background:#EF4444}
+
+/* button + back */
+.cta.big{background:#1061C9;color:#fff;border:none;border-radius:16px;padding:14px 24px;font-weight:900;cursor:pointer}
+.backlink{margin:14px 0}
+
+/* full-bleed canvas like your mock */
+.trend-wrap{
+  width:100%;
+  max-width:none;
+  margin:0;
+  padding: clamp(16px, 2vw, 28px);
+  background:#E9F3FF;           /* the light blue page bg */
+  min-height:100vh;
+}
+
+/* hero bar */
+.trend-hero{
+  background:#1976D2;
+  color:#fff;
+  border-radius:20px;
+  padding:22px clamp(18px, 2vw, 28px);
+  box-shadow:0 6px 24px rgba(16,76,151,.15);
+  margin-bottom:18px;
+}
+
+.trend-hero-title{
+  font-weight:900;
+  font-size:32px;
+  margin:0 0 12px 0;
+}
+
+.trend-hero-idcard{
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.25);
+  border-radius:12px;
+  padding:12px;
+  display:grid;
+  gap:6px;
+  width:min(680px,100%);
+}
+
+.trend-idrow{ display:flex; gap:8px; }
+.trend-idrow .k{ width:120px; color:#D6E9FF; font-weight:800; }
+.trend-idrow .v{ color:#fff; font-weight:800; }
+
+/* cards grid + cards (keeps your look, removes random outer whitespace) */
+.trend-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:16px;
+}
+
+@media (max-width:1024px){
+  .trend-grid{ grid-template-columns:1fr; }
+}
+
+.trend-card{
+  background:#fff;
+  border-radius:16px;
+  padding:18px;
+  box-shadow:0 8px 28px rgba(16,76,151,.06);
+}
+/* ===== Page canvas: remove outer white gutters to match mock ===== */
+.trend-wrap{
+  width:100%;
+  max-width:none;                 /* full-bleed like the screenshot */
+  margin:0;                       /* no outer margins */
+  padding: 18px clamp(18px, 2vw, 36px);
+  background:#EAF4FF;             /* your light blue page bg */
+}
+
+/* keep a max cap only if you want: */
+/* @media (min-width: 1920px){ .trend-wrap{ max-width:1920px; margin-inline:auto; } } */
+
+/* ===== Legend row (illustration | big blue panel | CTA) ===== */
+.legend-row{
+  display:grid;
+  grid-template-columns: 320px 1fr max-content; /* art | note | button */
+  align-items:center;
+  gap: clamp(16px, 2vw, 24px);
+  margin-top: 10px;
+}
+
+.legend-art img{
+  width:100%;
+  height:180px;
+  object-fit:contain;
+  background:#fff;
+  border-radius:14px;
+  box-shadow:0 2px 10px rgba(16,76,151,.08);
+}
+
+/* mock-accurate blue note */
+.legend-note{
+  background:#DCEEFF;
+  border-radius:14px;
+  padding: 18px 22px;
+  box-shadow:0 6px 20px rgba(16,76,151,.06);
+  color:#0F172A;
+}
+.legend-note--mock .legend-lead{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:12px;
+  font-size:20px;
+  line-height:1.35;
+}
+.legend-note--mock .lead-strong{ font-weight:900; }
+.legend-note--mock .lead-light{ font-weight:700; }
+.legend-note--mock .gap{ width:16px; }
+
+/* colored dots like your design */
+.dot{
+  display:inline-block;
+  width:18px; height:18px; border-radius:50%;
+}
+.dot.blue{ background:#1D70F7; }
+.dot.red{  background:#EF4444; }
+
+/* dotted lines (two rows) */
+.dotline{
+  width:100%;
+  border-bottom: 4px dotted #0F172A;
+  margin-top:12px;
+  opacity:.9;
+}
+
+/* CTA button style you already use */
+.cta.big{
+  background:#1D70F7;
+  color:#fff;
+  border:none;
+  border-radius:18px;
+  padding: 14px 22px;
+  font-weight:900;
+  box-shadow:0 6px 20px rgba(29,112,247,.22);
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+/* Back button on the left, same vibe as your mock */
+.footer-actions{
+  display:flex;
+  justify-content:flex-start;
+  margin: 14px 0 6px;
+}
+.btn-back{
+  background:#1D70F7;
+  color:#fff;
+  text-decoration:none;
+  padding:10px 18px;
+  border-radius:14px;
+  font-weight:900;
+  box-shadow:0 6px 20px rgba(29,112,247,.22);
+}
+
+/* Optional: ensure the hero block hugs the edges nicely */
+.trend-hero{
+  background:#1976D2;
+  color:#fff;
+  border-radius:18px;
+  padding:22px 28px;
+  display:grid;
+  grid-template-columns: 1fr 360px;
+  gap:18px;
+  align-items:center;
+  box-shadow:0 8px 28px rgba(16,76,151,.18);
+  margin-bottom: 18px;
+}
+.trend-hero .hero-id{
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.25);
+  border-radius:14px;
+  padding:12px 14px;
+  display:grid; gap:6px;
+  width:min(520px,100%);
+}
+.trend-hero .hero-right img{
+  width:100%; height:180px; object-fit:contain; border-radius:14px;
+}
+
+/* Grid of 4 charts spacing */
+.trend-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+@media (max-width: 1100px){
+  .trend-grid{ grid-template-columns: 1fr; }
+}
+
+.zones-help{
+  display:flex; flex-wrap:wrap; align-items:center; gap:14px;
+  background:#eaf2ff; border:1px solid #dbe8fe; padding:14px 16px;
+  border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+}
+.swatch{width:14px; height:14px; border-radius:4px; display:inline-block;}
+.swatch.safe{background:rgba(34,197,94,.35);}
+.swatch.warn{background:rgba(234,179,8,.45);}
+.swatch.danger{background:rgba(239,68,68,.40);}
+.z-note{margin-left:auto; color:#0f4aa6; font-size:12px; font-weight:600}
+.trend-card-head .note{margin-left:8px; color:#0f9d58; font-size:12px; font-weight:600}
+
+/* --- Footer container --- */
+.trend-footer{
+  margin-top: 18px;
+  margin-bottom: 28px;
+  padding: 18px 20px;
+  border: 1px solid #dbe8fe;
+  border-radius: 16px;
+  background: linear-gradient(180deg,#f3f8ff, #eaf2ff);
+  box-shadow:
+    0 6px 18px rgba(16,76,151,.08) inset,
+    0 2px 10px rgba(16,76,151,.10);
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+}
+
+/* Stack on mobile */
+@media (max-width: 900px){
+  .trend-footer{ flex-direction: column; }
+}
+
+/* --- Legend card --- */
+.zones-card{
+  flex: 1 1 auto;
+  background: #ffffff;
+  border: 1px solid #e6eefb;
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.05);
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 10px;
+}
+
+.zone{
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  column-gap: 10px;
+  line-height: 1.35;
+  color: #193b7a;
+}
+
+.zone.note{
+  margin-top: 4px;
+  color: #0f4aa6;
+  font-size: 13px;
+}
+
+.zone .tip{ font-size: 16px; }
+
+/* swatches */
+.swatch{
+  width: 14px; height: 14px; border-radius: 4px; display: inline-block;
+  border: 1px solid rgba(0,0,0,.05);
+}
+.swatch.safe   { background: rgba(34,197,94,.30); }
+.swatch.warn   { background: rgba(234,179,8,.40); }
+.swatch.danger { background: rgba(239,68,68,.40); }
+
+/* --- Action buttons area --- */
+.actions{
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* unified button style (keeps your tone, tighter look) */
+.btn{
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  box-shadow: 0 6px 14px rgba(25,118,210,.18), 0 2px 4px rgba(0,0,0,.05);
+  cursor: pointer;
+  transition: transform .06s ease, box-shadow .12s ease, background .12s ease;
+}
+.btn:active{ transform: translateY(1px); }
+
+.btn.primary{
+  color: #fff;
+  background: linear-gradient(180deg,#1e73e6,#0e56c2);
+}
+.btn.primary:hover{
+  box-shadow: 0 10px 20px rgba(25,118,210,.28), 0 3px 6px rgba(0,0,0,.08);
+}
+
+.btn.ghost{
+  color: #0e56c2;
+  background: #edf4ff;
+  border: 1px solid #cfe0ff;
+}
+.btn.ghost:hover{
+  background: #e5efff;
+}
+
+/* hide buttons in print */
+@media print{
+  .trend-footer .actions{ display: none !important; }
+  .trend-footer{ border: 0; box-shadow: none; background: transparent; }
+}
