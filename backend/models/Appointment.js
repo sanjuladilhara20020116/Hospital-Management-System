@@ -15,6 +15,7 @@ const appointmentSchema = new mongoose.Schema(
     patientId:  { type: String, required: true }, // P2025/200/123
     doctorRef:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     doctorId:   { type: String, required: true }, // D2025/100/007
+    doctorName: { type: String, required: true }, // redundant for easy access
 
     // Timing (UTC strings; UI can render local)
     date:      { type: String, required: true, index: true, validate: { validator: v => YMD.test(v), message: 'date must be YYYY-MM-DD' } },
@@ -34,6 +35,7 @@ const appointmentSchema = new mongoose.Schema(
     createdBy: { type: String, default: 'patient', enum: ['patient','doctor','admin'] },
 
     // Payment (optional)
+    paymentMethod: { type: String, enum: ['Cash','Online'], default: 'Cash' },
     priceLkr: { type: Number, default: 0, min: 0 },
     payment: {
       provider:   { type: String, default: '' },      // 'stripe', 'payhere', etc.
@@ -47,6 +49,8 @@ const appointmentSchema = new mongoose.Schema(
     patientName:  { type: String, default: '' },
     patientPhone: { type: String, default: '' },
     patientEmail: { type: String, default: '' },
+    patientNIC:   { type: String, default: '' },
+    patientPassport: { type: String, default: '' }
   },
   { timestamps: true }
 );
