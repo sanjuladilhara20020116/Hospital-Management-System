@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.js 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -44,6 +44,9 @@ import PaymentSuccess from './pages/appointments/PaymentSuccess';
 // Patient Details (doctor view)
 import PatientDetails from "./pages/record/PatientDetails";
 import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
+
+// ✅ NEW: Patient Medical Records (read-only)
+import PatientMedicalRecords from "./pages/record/PatientMedicalRecords";
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
@@ -127,6 +130,16 @@ function App() {
           element={
             <RoleRoute allowedRoles={['Patient']}>
               <MyLabReports />
+            </RoleRoute>
+          }
+        />
+
+        {/* ✅ NEW: Patient-only Medical Records (read-only) */}
+        <Route
+          path="/patient/medical-records"
+          element={
+            <RoleRoute allowedRoles={['Patient']}>
+              <PatientMedicalRecords />
             </RoleRoute>
           }
         />
