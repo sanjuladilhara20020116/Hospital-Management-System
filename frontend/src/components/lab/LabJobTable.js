@@ -33,18 +33,117 @@ import InsertPhotoOutlined from "@mui/icons-material/InsertPhotoOutlined";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
 
 import { alpha } from "@mui/material/styles";
-
-const TEST_TYPES = [
-  "Cholesterol",
-  "Diabetes",
-  "X-ray",
-  "Full Blood Count",
-  "Liver Function",
-  "Kidney Function",
-  "Other",
-];
+import Autocomplete from "@mui/material/Autocomplete";
 
 const TIME_SLOTS = ["Morning", "Afternoon", "Evening", "Night"];
+
+
+
+// -------------------------------------------------------------
+// VALIDATION POLICY (mirrors Create form in LabJobForm.jsx)
+// -------------------------------------------------------------
+const oneSpace = (s = "") => s.trim().replace(/\s+/g, " ");
+const nameCharOK = (ch) => /^[A-Za-z\s]$/.test(ch);
+const testCharOK = (ch) => /^[A-Za-z\s]$/.test(ch);
+const sanitize = (s = "", charOK) => s.split("").filter(charOK).join("");
+
+const IMAGING_BLOCK =
+  /(?:^|\b)(xray|x-ray|ultrasound|ct\b|mri\b|dicom)(?:\b|$)/i;
+
+// Final submit-time PID rule: P2025/NNN/NN–NNNN
+const PID_FINAL_RE = /^P2025\/\d{3}\/\d{2,4}$/;
+
+// Partial mask for typing/paste
+const PID_PARTIAL_RE = /^P2025(?:\/\d{0,3}(?:\/\d{0,4})?)?$/;
+
+const PID_PREFIX = "P2025/";
+const PID_MAX = 14; // P2025/ + 3 + / + 4
+
+function expectAt(idx) {
+  if (idx < 6) return PID_PREFIX[idx]; // P2025/
+  if (idx >= 6 && idx <= 8) return "digit"; // 3 digits
+  if (idx === 9) return "/"; // slash
+  if (idx >= 10 && idx <= 13) return "digit"; // last 2–4 digits
+  return null;
+}
+
+// Helper: always get the real <input> element (works for TextField & InputProps)
+const getInputEl = (e) =>
+  e.target instanceof HTMLInputElement
+    ? e.target
+    : e.currentTarget.querySelector("input");
+
+// SAFE: works whether you bind on TextField or via InputProps
+function handleEditPidKeyDown(e) {
+  const input = getInputEl(e);
+  if (!input) return;
+
+  const v = input.value ?? "";
+  const start = input.selectionStart ?? v.length;
+  const end = input.selectionEnd ?? v.length;
+
+  const ctrl =
+    e.ctrlKey ||
+    e.metaKey ||
+    [
+      "Backspace",
+      "Delete",
+      "Tab",
+      "Enter",
+      "Escape",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+    ].includes(e.key);
+  if (ctrl) return;
+
+  if (v.length >= PID_MAX && start === end) {
+    e.preventDefault();
+    return;
+  }
+
+  const exp = expectAt(start);
+  if (exp == null || start > v.length) {
+    e.preventDefault();
+    return;
+  }
+
+  const ch = e.key;
+
+  if (exp === "digit") {
+    if (!/^\d$/.test(ch)) e.preventDefault();
+    return;
+  }
+  if (exp === "/") {
+    if (ch !== "/") e.preventDefault();
+    return;
+  }
+
+  if (exp === "P") {
+   if (ch !== "P") e.preventDefault();          // only uppercase P
+ } else if (ch !== exp) {
+    e.preventDefault();
+  }
+}
+
+function handleEditPidPaste(e) {
+  const input = getInputEl(e);
+  if (!input) return;
+
+  const text = (e.clipboardData || window.clipboardData)
+    ?.getData("text")
+    ?.trim() ?? "";
+
+  const before = input.value.slice(0, input.selectionStart ?? 0);
+  const after = input.value.slice(input.selectionEnd ?? input.value.length);
+  const proposed = (before + text + after).toUpperCase();
+
+  if (!PID_PARTIAL_RE.test(proposed) || proposed.length > PID_MAX) {
+    e.preventDefault();
+  }
+}
+
 
 // small helpers
 const getFileName = (p = "") => p.split("/").pop() || "";
@@ -110,6 +209,9 @@ export default function LabJobTable({
   });
   const [editErrs, setEditErrs] = useState({});
 
+  // NEW: controlled input value for edit Autocomplete (mirrors Create form)
+  const [editTestInput, setEditTestInput] = useState("");
+
   const openUpload = (job) => {
     setSelectedJob(job);
     setFile(null);
@@ -128,6 +230,7 @@ export default function LabJobTable({
         : "",
       timeSlot: job.timeSlot || "",
     });
+    setEditTestInput(job.testType || "");
     setEditErrs({});
     setEditOpen(true);
   };
@@ -138,26 +241,63 @@ export default function LabJobTable({
   };
 
   const doUpload = async () => {
-    if (!file) return setError("Please choose a PDF/Image file");
-    const ok = /\.(pdf|png|jpg|jpeg)$/i.test(file.name);
-    if (!ok) return setError("Only PDF/PNG/JPG allowed");
+    if (!file) return setError("Please choose a PDF");
+    const ok = /\.pdf$/i.test(file.name);
+    if (!ok) return setError("Only PDF allowed");
     await onUpload(selectedJob._id, file);
     setUploadOpen(false);
   };
 
+  // Submit-time validation for Edit (mirrors Create form policy)
   const validateEdit = () => {
     const e = {};
-    if (!editVals.patientName.trim()) e.patientName = "Required";
-    if (!editVals.patientId.trim()) e.patientId = "Required";
-    if (!editVals.testType) e.testType = "Required";
-    if (!editVals.scheduledDate) e.scheduledDate = "Required";
+
+    // Patient Name — required + letters/spaces only
+    const nm = oneSpace(editVals.patientName);
+    if (!nm) e.patientName = "Required";
+    else if (!/^[A-Za-z]+(?:[A-Za-z\s]*[A-Za-z])?$/.test(nm)) {
+      e.patientName = "Letters and spaces only.";
+    }
+
+    // Patient ID — same final mask as create
+    const pid = (editVals.patientId || "").trim();
+    if (!pid) e.patientId = "Required";
+    else if (!PID_FINAL_RE.test(pid)) {
+      e.patientId =
+        "Must be P2025/NNN/NN–NNNN (e.g., P2025/123/45 or P2025/123/4567).";
+    }
+
+    // Test Type — required + block imaging + letters/spaces only (same as create)
+    const tt = oneSpace(editVals.testType || "");
+    if (!tt) e.testType = "Required";
+    else if (IMAGING_BLOCK.test(tt)) {
+      e.testType =
+        "PDF tests only. Imaging (X-ray/CT/MRI/Ultrasound) is not allowed.";
+    } else if (!/^[A-Za-z]+(?:[A-Za-z\s]*[A-Za-z])?$/.test(tt)) {
+      e.testType = "Letters and spaces only.";
+    }
+
+    // Scheduled Date — optional to match backend update rules
+    // If you want it required during viva, uncomment:
+    // if (!editVals.scheduledDate) e.scheduledDate = "Required";
+
+    
     setEditErrs(e);
     return Object.keys(e).length === 0;
   };
 
   const doUpdate = async () => {
     if (!validateEdit()) return;
-    await onUpdate(selectedJob._id, editVals);
+    await onUpdate(selectedJob._id, {
+      ...editVals,
+      // normalize like Create submit
+      patientName: oneSpace(editVals.patientName),
+      patientId: (editVals.patientId || "").trim(),
+      testType: oneSpace(editVals.testType),
+      scheduledDate: editVals.scheduledDate ? editVals.scheduledDate : undefined,
+    timeSlot: editVals.timeSlot ? editVals.timeSlot : undefined,
+      
+    });
     setEditOpen(false);
   };
 
@@ -256,7 +396,9 @@ export default function LabJobTable({
 
                 return (
                   <TableRow key={r._id} hover>
-                    <TableCell sx={{ fontWeight: 500 }}>{r.patientName}</TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      {r.patientName}
+                    </TableCell>
                     <TableCell className="mono">{r.patientId}</TableCell>
                     <TableCell className="mono">{r.referenceNo}</TableCell>
                     <TableCell>{r.testType}</TableCell>
@@ -294,7 +436,13 @@ export default function LabJobTable({
                                 <DescriptionOutlined fontSize="small" />
                               )
                             }
-                            label={isPdf(fname) ? "PDF" : isImage(fname) ? "Image" : "Report"}
+                            label={
+                              isPdf(fname)
+                                ? "PDF"
+                                : isImage(fname)
+                                ? "Image"
+                                : "Report"
+                            }
                             sx={{
                               cursor: "pointer",
                               fontWeight: 600,
@@ -310,7 +458,11 @@ export default function LabJobTable({
 
                     <TableCell align="right">
                       <ActionButton
-                        title={isCompleted ? "Download report" : "Report not available"}
+                        title={
+                          isCompleted
+                            ? "Download report"
+                            : "Report not available"
+                        }
                         onClick={() => onDownload && onDownload(r)}
                         icon={<DownloadIcon fontSize="small" />}
                         color="success"
@@ -358,7 +510,7 @@ export default function LabJobTable({
         <DialogContent>
           <input
             type="file"
-            accept=".pdf,.png,.jpg,.jpeg"
+            accept=".pdf"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
           />
           {error && (
@@ -377,43 +529,123 @@ export default function LabJobTable({
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>Edit Job</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
+          {/* Patient Name */}
           <TextField
             fullWidth
             sx={{ mb: 2 }}
             label="Patient Name"
             name="patientName"
             value={editVals.patientName}
-            onChange={(e) => setEditVals((v) => ({ ...v, patientName: e.target.value }))}
+            onChange={(e) =>
+              setEditVals((v) => ({ ...v, patientName: e.target.value }))
+            }
             error={!!editErrs.patientName}
             helperText={editErrs.patientName}
+            onKeyDown={(e) => {
+              if (e.key.length === 1 && !nameCharOK(e.key)) e.preventDefault();
+            }}
+            onPaste={(e) => {
+              const txt =
+                (e.clipboardData || window.clipboardData).getData("text");
+              const sanitized = sanitize(txt, nameCharOK);
+              if (sanitized !== txt) {
+                e.preventDefault();
+                setEditVals((v) => ({
+                  ...v,
+                  patientName: oneSpace(v.patientName + sanitized),
+                }));
+              }
+            }}
           />
+
+          {/* Patient ID */}
           <TextField
-            fullWidth
-            sx={{ mb: 2 }}
-            label="Patient ID (e.g., P2025/123/1)"
-            name="patientId"
-            value={editVals.patientId}
-            onChange={(e) => setEditVals((v) => ({ ...v, patientId: e.target.value }))}
-            error={!!editErrs.patientId}
-            helperText={editErrs.patientId}
-          />
-          <TextField
-            select
-            fullWidth
-            sx={{ mb: 2 }}
-            label="Test Type"
-            name="testType"
+  fullWidth
+  sx={{ mb: 2 }}
+  label="Patient ID (e.g., P2025/123/4567)"
+  name="patientId"
+  value={editVals.patientId}
+  onChange={(e) =>
+    setEditVals(v => ({ ...v, patientId: e.target.value }))
+  }
+  onBlur={(e) =>
+    setEditVals(v => ({ ...v, patientId: e.target.value.trim() }))
+  }
+  error={!!editErrs.patientId}
+  helperText={editErrs.patientId}
+  // ⬇️ move listeners here so they attach to the inner <input/>
+  InputProps={{
+    onKeyDown: handleEditPidKeyDown,
+    onPaste: handleEditPidPaste,
+  }}
+  inputProps={{ maxLength: PID_MAX }}
+/>
+
+
+          {/* Test Type (PDF only) — Autocomplete with sanitized input */}
+          <Autocomplete
+            freeSolo
+            disableClearable
+            autoHighlight
+            options={[
+              "Cholesterol",
+              "Diabetes",
+              "Lipid Profile",
+              "Full Blood Count",
+              "Liver Function",
+              "Kidney Function",
+              "Creatinine",
+              "Urea",
+              "Bilirubin",
+              "Electrolytes",
+              "HbA1c",
+              "Fasting Glucose",
+              "Random Glucose",
+              "Thyroid Profile",
+              "Hemoglobin",
+              "Vitamin D",
+              "CRP",
+              "ESR",
+              "Urine Routine",
+              "Stool Culture",
+            ]}
             value={editVals.testType}
-            onChange={(e) => setEditVals((v) => ({ ...v, testType: e.target.value }))}
-            error={!!editErrs.testType}
-            helperText={editErrs.testType}
-          >
-            {TEST_TYPES.map((t) => (
-              <MenuItem key={t} value={t}>
-                {t}
-              </MenuItem>
-            ))}
-          </TextField>
+            inputValue={editTestInput}
+            onInputChange={(_, newInput) =>
+              setEditTestInput(sanitize(newInput, testCharOK))
+            }
+            onChange={(_, newVal) =>
+              setEditVals((v) => ({
+                ...v,
+                testType: oneSpace(
+                  typeof newVal === "string" ? newVal : newVal || ""
+                ),
+              }))
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                fullWidth
+                sx={{ mb: 2 }}
+                label="Test Type (PDF only)"
+                name="testType"
+                error={!!editErrs.testType}
+                helperText={editErrs.testType}
+                onKeyDown={(e) => {
+                  if (e.key.length === 1 && !testCharOK(e.key)) e.preventDefault();
+                }}
+                onPaste={(e) => {
+                  const txt =
+                    (e.clipboardData || window.clipboardData).getData("text");
+                  const sanitized = sanitize(txt, testCharOK);
+                  if (sanitized !== txt) {
+                    e.preventDefault();
+                    setEditTestInput(sanitize(editTestInput + txt, testCharOK));
+                  }
+                }}
+              />
+            )}
+          />
 
           <TextField
             fullWidth
@@ -422,7 +654,9 @@ export default function LabJobTable({
             name="scheduledDate"
             InputLabelProps={{ shrink: true }}
             value={editVals.scheduledDate}
-            onChange={(e) => setEditVals((v) => ({ ...v, scheduledDate: e.target.value }))}
+            onChange={(e) =>
+              setEditVals((v) => ({ ...v, scheduledDate: e.target.value }))
+            }
             error={!!editErrs.scheduledDate}
             helperText={editErrs.scheduledDate}
           />
@@ -434,7 +668,9 @@ export default function LabJobTable({
             label="Time Slot (optional)"
             name="timeSlot"
             value={editVals.timeSlot}
-            onChange={(e) => setEditVals((v) => ({ ...v, timeSlot: e.target.value }))}
+            onChange={(e) =>
+              setEditVals((v) => ({ ...v, timeSlot: e.target.value }))
+            }
           >
             <MenuItem value="">— None —</MenuItem>
             {TIME_SLOTS.map((s) => (
@@ -446,7 +682,9 @@ export default function LabJobTable({
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={doUpdate}>Save</Button>
+          <Button variant="contained" onClick={doUpdate}>
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -454,11 +692,15 @@ export default function LabJobTable({
       <Dialog open={deleteOpen} onClose={() => setDeleteOpen(false)} fullWidth maxWidth="xs">
         <DialogTitle>Delete Job</DialogTitle>
         <DialogContent>
-          <Typography>Are you sure you want to delete this job? This cannot be undone.</Typography>
+          <Typography>
+            Are you sure you want to delete this job? This cannot be undone.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={doDelete}>Delete</Button>
+          <Button color="error" variant="contained" onClick={doDelete}>
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Paper>

@@ -17,25 +17,21 @@ const storage = multer.diskStorage({
   }
 });
 
-// allow PDF + common image types; validate both mimetype and extension
-const allowed = new Set([
-  'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/webp'
-]);
+// ✅ PDF-only (no images). Be tolerant of odd client mimetypes.
+// Accept if EITHER mimetype is application/pdf OR filename ends with .pdf
+const isPdfMime = (m) => String(m || '').toLowerCase() === 'application/pdf';
+const isPdfName = (name) => /\.pdf$/i.test(String(name || ''));
 
 const fileFilter = (req, file, cb) => {
-  const mimetypeOk = allowed.has(file.mimetype.toLowerCase());
-  const extOk = /\.(pdf|png|jpe?g|webp)$/i.test(file.originalname);
-  if (!mimetypeOk || !extOk) {
-    return cb(new Error('Only PDF, PNG, JPG, JPEG, WEBP are allowed'));
+  const mimeOk = isPdfMime(file.mimetype);
+  const nameOk = isPdfName(file.originalname);
+  if (!mimeOk && !nameOk) {
+    return cb(new Error('Only PDF files are allowed'));
   }
   cb(null, true);
 };
 
-// increase size a bit for PDFs (e.g., 20 MB)
+// keep size limit for PDFs (e.g., 20 MB)
 const uploadReport = multer({
   storage,
   fileFilter,

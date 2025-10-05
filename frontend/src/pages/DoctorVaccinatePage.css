@@ -1,0 +1,671 @@
+:root{
+  --bg:#f6f9ff;
+  --card:#ffffff;
+  --soft:#eef4ff;      /* soft panel / chip */
+  --muted:#5a6b87;
+  --text:#1f2a44;
+  --accent:#2f6fed;
+  --accent-strong:#2255d4;
+  --accent-ghost:#e6efff;
+  --ring:rgba(47,111,237,.25);
+  --success:#32b5a6;
+  --error:#e25555;
+  --border:#e6ecf5;
+}
+
+.vaccinate-page{
+  max-width:980px;
+  margin:28px auto 48px;
+  padding:0 16px;
+  color:var(--text);
+  background:var(--bg);
+}
+
+.page-header{
+  display:flex;justify-content:space-between;align-items:flex-end;
+  margin:0 0 16px;
+}
+
+.title-wrap h2{
+  margin:0;font-size:1.7rem;font-weight:800;color:#213250;letter-spacing:.2px;
+}
+.subtitle{margin-top:6px;font-size:.95rem;color:var(--muted)}
+
+.card{
+  background:
+    linear-gradient(180deg,#f7fbff,rgba(255,255,255,0)) 0 0/100% 90px no-repeat,
+    var(--card);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:22px;
+  box-shadow:0 6px 18px rgba(27,44,80,.06), 0 20px 40px rgba(27,44,80,.05);
+}
+
+.alert{
+  margin:12px 0 16px;padding:12px 14px;border-radius:12px;font-size:.95rem;
+  border:1px solid var(--border);
+}
+.alert.success{background:#e9f8f5;color:#0b6b62;border-color:#cdeee8}
+.alert.error{background:#ffecec;color:#7a1c1c;border-color:#ffd7d7}
+
+.form-grid{display:grid;gap:20px}
+.section{display:grid;gap:14px}
+.section-title{font-size:.96rem;color:var(--muted);font-weight:700}
+
+.two-col{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:760px){.two-col{grid-template-columns:1fr 1fr}}
+
+.form-control{display:grid;gap:8px}
+label{font-size:.96rem;color:#2f4061;font-weight:700}
+.req{color:#f7a32b;margin-left:4px}
+
+/* --- Inputs: bigger, softer, accessible --- */
+input,select,textarea{
+  width:100%;
+  min-height:44px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:#fff;
+  color:var(--text);
+  padding:12px 14px;
+  font-size:15px;
+  outline:none;
+  transition:border-color .15s, box-shadow .15s, background .15s, transform .06s ease;
+}
+textarea{resize:vertical;min-height:94px}
+input::placeholder,textarea::placeholder{color:#8aa0bf}
+
+input:focus,select:focus,textarea:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 4px var(--ring);
+  background:#fff;
+}
+
+/* Date & select: friendly controls */
+input[type="date"], input[type="datetime-local"]{
+  position:relative;
+  padding-right:40px;
+  background-image:url("data:image/svg+xml,%3Csvg width='18' height='18' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='2' y='4' width='14' height='12' rx='3' fill='%232f6fed' fill-opacity='.18'/%3E%3Cpath d='M5 2v4M13 2v4' stroke='%232253d4' stroke-width='1.6' stroke-linecap='round'/%3E%3Crect x='5' y='8' width='8' height='6' rx='1.6' fill='%232f6fed' fill-opacity='.25'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 12px center;
+}
+select{
+  appearance:none;
+  padding-right:44px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #7383a0 50%),
+    linear-gradient(135deg, #7383a0 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 22px) 17px,
+    calc(100% - 16px) 17px,
+    100% 0;
+  background-size:6px 6px, 6px 6px, 2.5em 2.5em;
+  background-repeat:no-repeat;
+}
+
+input[disabled],select[disabled],textarea[disabled]{
+  opacity:.75;cursor:not-allowed;background:#f9fbff
+}
+
+/* --- Actions & Primary Button --- */
+.actions{display:flex;justify-content:flex-end;margin-top:4px}
+
+.btn-primary{
+  appearance:none;border:none;border-radius:14px;
+  padding:14px 22px;
+  font-weight:800;font-size:15px;letter-spacing:.2px;
+  color:#fff;
+  background:
+    linear-gradient(180deg, var(--accent), var(--accent-strong));
+  box-shadow:
+    0 8px 18px rgba(47,111,237,.25),
+    0 3px 6px rgba(47,111,237,.18);
+  cursor:pointer;
+  transition:transform .06s ease, box-shadow .18s ease, filter .2s ease;
+}
+.btn-primary:hover{filter:brightness(1.07);
+  box-shadow:
+    0 10px 22px rgba(47,111,237,.28),
+    0 4px 10px rgba(47,111,237,.20);
+}
+.btn-primary:active{transform:translateY(1px)}
+.btn-primary:focus-visible{outline:3px solid var(--accent-ghost);outline-offset:2px}
+.btn-primary:disabled{
+  cursor:wait;filter:grayscale(.15) brightness(.93);
+  box-shadow:none;
+}
+
+/* --- Optional tiny helpers (auto spacing) --- */
+input,select,textarea{box-sizing:border-box}
+
+/* src/pages/DoctorVaccinatePage.css */
+.vaccinate-page {
+  padding: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.title-wrap h1 {
+  margin: 0 0 4px 0;
+  color: #2c3e50;
+  font-size: 28px;
+}
+
+.subtitle {
+  color: #7f8c8d;
+  font-size: 16px;
+}
+
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.alert.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.alert.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+}
+
+.section {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #ecf0f1;
+}
+
+.section:last-of-type {
+  border-bottom: none;
+}
+
+.section-title {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-control label {
+  font-weight: 500;
+  color: #34495e;
+}
+
+.req {
+  color: #e74c3c;
+}
+
+.form-control input,
+.form-control select,
+.form-control textarea {
+  padding: 10px 12px;
+  border: 1px solid #bdc3c7;
+  border-radius: 4px;
+  font-size: 16px;
+  transition: border-color 0.2s;
+}
+
+.form-control input:focus,
+.form-control select:focus,
+.form-control textarea:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.form-control input.error,
+.form-control select.error,
+.form-control textarea.error {
+  border-color: #e74c3c;
+}
+
+.field-error {
+  color: #e74c3c;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  font-size: 16px;
+}
+
+.btn-primary {
+  background-color: #3498db;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+
+.btn-primary:disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #ecf0f1;
+  color: #7f8c8d;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #bdc3c7;
+}
+
+/* DoctorVaccinations.css */
+
+.doctor-vaccinations-page {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  color: var(--text);
+  margin: 0 0 4px 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Status Toast */
+.status-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  color: white;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease;
+}
+
+.status-toast.success {
+  background-color: #4caf50;
+}
+
+.status-toast.error {
+  background-color: #f44336;
+}
+
+.status-toast.info {
+  background-color: #2196f3;
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Filters Card */
+.filters-card {
+  margin-bottom: 24px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-header .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.toggle-icon {
+  transition: transform 0.3s ease;
+}
+
+.toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.filters-content {
+  padding: 20px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.form-control label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.form-control input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-outline {
+  padding: 10px 16px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-outline:hover {
+  background-color: var(--accent-ghost);
+}
+
+/* Records Card */
+.records-card {
+  margin-bottom: 24px;
+}
+
+.records-card .card-header {
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+
+.results-count {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+.records-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.records-table th {
+  padding: 16px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 2px solid var(--border);
+}
+
+.records-table td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.even-row {
+  background-color: #fff;
+}
+
+.odd-row {
+  background-color: #fbfdff;
+}
+
+.odd-row:hover, .even-row:hover {
+  background-color: #f0f7ff;
+}
+
+.date-cell .date {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.date-cell .time {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.patient-cell.clickable {
+  cursor: pointer;
+}
+
+.patient-cell.clickable:hover {
+  background-color: var(--accent-ghost);
+}
+
+.patient-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.patient-id {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.vaccine-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dose-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-ghost);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cert-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.empty-field {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background-color: #f5f5f5;
+}
+
+.btn-icon.danger {
+  color: #d32f2f;
+  border-color: #ffcdd2;
+}
+
+.btn-icon.danger:hover {
+  background-color: #ffebee;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.processing-text {
+  color: var(--muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.no-data-row td {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-state h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .doctor-vaccinations-page {
+    padding: 16px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-actions {
+    flex-direction: column;
+  }
+  
+  .action-buttons {
+    flex-wrap: wrap;
+  }
+  
+  .records-table {
+    font-size: 14px;
+  }
+  
+  .records-table th,
+  .records-table td {
+    padding: 12px 8px;
+  }
+}

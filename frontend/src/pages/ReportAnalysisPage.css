@@ -1,106 +1,950 @@
-/* container & basics */
-.ra-wrap{max-width:1200px;margin:20px auto;padding:20px;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;background:#f9f9f9}
-.ra-back{margin-bottom:12px}
-.ra-title{margin:0 0 12px 0}
-.ra-error{color:crimson;margin:8px 0}
-.ra-pre{white-space:pre-wrap}
+/* ============== Page Canvas ============== */
+*{box-sizing:border-box}
 
-/* header card & badges */
-.ra-card{margin-bottom:20px;padding:20px;background:#f3f3f3;border-radius:20px;box-shadow:0 2px 6px rgba(0,0,0,.04);border:1px solid transparent}
-.ra-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(30,144,255,.12);border-color:rgba(30,144,255,.18)}
-.ra-header{background:#fff}
-.ra-badges{display:flex;gap:12px;flex-wrap:wrap}
-.ra-badge{border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;background:#f8fafc}
-.ra-badge__label{font-size:12px;color:#64748b}
-.ra-badge__value{font-size:14px;font-weight:700}
-
-/* separate ranges card that aligns with other right-column cards */
-.ra-ranges-outside { margin-top: -4px; } /* optional: pulls it closer to the section above */
-.ra-card-body--flat { background:#fff; border-radius:20px; padding:16px; box-shadow:0 8px 20px rgba(0,0,0,.05); }
-
-/* actions */
-.ra-actions{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.ra-btn{border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;color:#fff}
-.ra-btn-primary{background:linear-gradient(135deg,#667eea,#764ba2)}
-.ra-btn-cyan{background:#0ea5e9}
-.ra-hint{color:#64748b;margin:0}
-
-/* section headings */
-.ra-section-head{display:flex;align-items:center;gap:10px;margin-bottom:20px}
-.ra-section-head.ra-justify{justify-content:space-between}
-.ra-section-title{display:flex;align-items:center;gap:10px}
-.ra-dot{height:40px;width:40px;background:linear-gradient(145deg,#f0f4ff,#dbe6ff);border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:18px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
-.ra-rightbits{display:flex;align-items:center;gap:10px}
-.ra-time{font-size:12px;background:#fff;padding:4px 10px;border-radius:999px;color:#444}
-
-/* two-column layout */
-.ra-split{display:flex;gap:60px;align-items:flex-start}
-.ra-left{width:35%;display:flex;flex-direction:column;gap:20px}
-.ra-right{width:55%;display:flex;flex-direction:column;gap:20px}
-
-/* heart image */
-.ra-heart{width:100%;border-radius:20px;box-shadow:0 4px 12px rgba(0,0,0,.1);background:#fff}
-
-/* card body */
-.ra-card-body{background:#fff;border-radius:20px;padding:20px;box-shadow:0 8px 20px rgba(0,0,0,.05);font-size:16px}
-.ra-par{margin:0}
-.ra-muted{color:#94a3b8;margin:0}
-.ra-list{margin:0;padding-left:20px}
-
-/* metric grid */
-.ra-metric-grid{display:flex;gap:20px;justify-content:space-between;flex-wrap:wrap}
-.ra-metric{background:#fff;border-radius:16px;padding:12px;flex:1 1 150px;min-width:160px;position:relative;box-shadow:0 2px 6px rgba(0,0,0,.05)}
-.ra-metric__title{font-size:14px;font-weight:500;color:#333;margin-bottom:10px;padding-left:6px}
-.ra-metric__inner{background:#f6f9ff;border-radius:12px;padding:20px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.ra-badge-pill{position:absolute;top:10px;right:10px;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:500;text-transform:capitalize}
-.ra-badge-pill.neutral{background:#f0f0f0;color:#333}
-.ra-badge-pill.good{background:#e8f5e8;color:#2e7d32}
-.ra-badge-pill.mid{background:#fff3e0;color:#f57c00}
-.ra-badge-pill.bad{background:#ffebee;color:#d32f2f}
-.ra-metric__value{display:flex;align-items:baseline;gap:6px}
-.ra-metric__value .n{font-size:28px;font-weight:800;color:#1e90ff;line-height:1}
-.ra-metric__value .u{font-size:14px;color:#555}
-
-/* risk badge roundel in header */
-.ra-risk-badge{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff}
-.ra-risk-badge.safe{background:#4caf50}
-.ra-risk-badge.warning{background:#ff9800}
-.ra-risk-badge.danger{background:#f44336}
-.ra-risk-badge span{font-size:36px}
-
-/* Risk Summary strip */
-.ra-risk{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:#fff;box-shadow:0 8px 20px rgba(0,0,0,.05);border:1px solid transparent}
-.ra-risk__icon{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px}
-.ra-risk__text{font-size:16px;color:#1f2937}
-.ra-risk.safe{border-color:#d1fae5;background:linear-gradient(180deg,#ffffff 0%, #f0fff7 100%)}
-.ra-risk.safe .ra-risk__icon{background:#10b981;color:#fff;animation:calmPulse 2.5s ease-in-out infinite}
-.ra-risk.warning{border-color:#ffe9c7;background:linear-gradient(180deg,#ffffff 0%, #fff8ed 100%)}
-.ra-risk.warning .ra-risk__icon{background:#f59e0b;color:#fff}
-.ra-risk.danger{border-color:#fecaca;background:linear-gradient(180deg,#ffffff 0%, #fff0f0 100%);animation:panelAlarm 1.6s ease-in-out infinite}
-.ra-risk.danger .ra-risk__icon{background:#ef4444;color:#fff;animation:alarmPulse .9s ease-in-out infinite}
-
-@keyframes calmPulse{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.35)}50%{box-shadow:0 0 0 12px rgba(16,185,129,0)}}
-@keyframes alarmPulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(239,68,68,.45)}50%{transform:scale(1.07);box-shadow:0 0 0 14px rgba(239,68,68,0)}}
-@keyframes panelAlarm{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.1)}50%{box-shadow:0 0 0 10px rgba(239,68,68,0)}}
-
-/* compare row */
-.ra-compare{display:flex;justify-content:space-between;align-items:center;gap:20px}
-.ra-chart{flex:1;min-width:200px;height:160px}
-
-/* horizontal reference ranges */
-.ranges-row{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
-.range-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:12px;box-shadow:0 4px 14px rgba(0,0,0,.04)}
-.range-type{font-weight:600;color:#1f2937;margin-bottom:8px}
-.range-tags{display:flex;flex-wrap:wrap;gap:8px}
-.range-tag{font-size:12px;line-height:1.2;padding:8px 10px;border-radius:10px;border:1px solid transparent;display:inline-flex;gap:6px;align-items:center}
-.range-tag b{text-transform:capitalize}
-.range-tag.good{background:#e8f5e8;color:#166534;border-color:#b7e0b7}
-.range-tag.mid{background:#fff3e0;color:#9a6700;border-color:#ffe0b3}
-.range-tag.bad{background:#ffebee;color:#9f1239;border-color:#ffc7d1}
-
-/* responsive */
-@media (max-width:768px){
-  .ra-split{flex-direction:column}
-  .ra-left,.ra-right{width:100%}
-  .ra-chart{height:200px}
+.mock-wrap{
+  /* FULL WIDTH CANVAS (fixes outside whitespace) */
+  width:100%;
+  max-width:none;                 /* remove 1200px cap */
+  margin:0;                       /* no outer margins */
+  padding:0 clamp(14px, 2vw, 40px); /* fluid side gutters */
+  background:#E9F3FF;
+  font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 }
+
+/* Optional safety cap for ultra-wide displays; comment out if you want unlimited */
+@media (min-width: 1920px){
+  .mock-wrap{ max-width:1920px; margin-inline:auto; }
+}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.back-btn{background:#1976D2;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer}
+.actions{display:flex;gap:8px}
+.cta{background:#1976D2;color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:800;cursor:pointer}
+.cta.ghost{background:#5AA3FF}
+.cta.big{border-radius:16px;padding:14px 26px}
+.loading{color:#334155}
+.error{color:#B00020;margin-bottom:12px}
+.error.tiny{font-size:12px}
+
+/* ============== HERO ============== */
+.hero{
+  display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:center;
+  background:#1976D2;border-radius:12px;padding:18px 20px;color:#fff;
+  box-shadow:0 2px 8px rgba(25,118,210,.25);margin-bottom:14px
+}
+.hero.green{background:#1976D2;box-shadow:0 2px 8px rgba(46,125,50,.25)}
+.hero-right img{width:100%;height:160px;object-fit:contain;border-radius:12px}
+.hero-title{font-size:28px;font-weight:900;margin:0 0 10px 0}
+.hero-id{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:12px;padding:10px 12px;display:grid;gap:6px;width:min(520px,100%)}
+.id-row{display:flex;gap:6px}
+.k{width:120px;color:#D6E9FF;font-weight:800}
+.v{color:#fff;font-weight:800}
+
+/* ============== SECTION: Latest Report ============== */
+.section{background:transparent}
+.sec-head{display:flex;align-items:center;gap:10px;margin:14px 6px}
+.sec-icon{height:32px;width:32px;border-radius:50%;background:#EAF2FF;display:flex;align-items:center;justify-content:center}
+.sec-title{color:#0F172A;font-weight:800;margin:0}
+.sec-time{margin-left:auto;background:#DDEBFF;color:#0F4AA6;padding:6px 12px;border-radius:18px;font-size:12px;font-weight:800}
+
+/* KPI row (allow more runway on wide screens) */
+.kpi-row{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:16px;margin:8px 0 18px
+}
+@media (max-width:640px){.kpi-row{grid-template-columns:1fr}}
+
+.kpi{background:#E7F2FF;border-radius:14px;padding:14px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;box-shadow:0 1px 0 #E6ECF8}
+.drop-wrap{height:56px;width:56px;border-radius:50%;display:grid;place-items:center;border:6px solid #9AD1FF;background:#fff}
+.drop-wrap.green{border-color:#82E28A}
+.drop-wrap.blue{border-color:#88D5FF}
+.drop-wrap.red{border-color:#FF9AA0}
+.drop-wrap.orange{border-color:#FFC980}
+.drop-wrap.cyan{border-color:#8FE8F3}
+.drop{font-size:22px;color:#68C3FF}
+.kpi-val{display:flex;align-items:baseline;gap:6px}
+.kpi-val .n{font-size:34px;font-weight:900;color:#104C97;line-height:1}
+.kpi-val .u{font-size:12px;color:#334155}
+.kpi-label{font-weight:800;color:#104C97}
+.chip{margin-top:auto;background:#CFF7C9;color:#176B2E;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:800;text-transform:capitalize}
+.chip.mid{background:#FFF2C2;color:#8A5A00}
+.chip.bad{background:#FFD1D6;color:#9A1B1B}
+.chip.neutral{background:#E5E7EB;color:#334155}
+
+/* ============== Triple Row (Risk, Health, Comparison) ============== */
+.triple{
+  display:grid;
+  /* wider comparison card to avoid compression */
+  grid-template-columns:1fr 1fr 1.8fr;
+  gap:16px;margin-bottom:16px
+}
+@media (min-width:1440px){ .triple{ grid-template-columns:1fr 1fr 2fr; } }
+@media (max-width:1024px){.triple{grid-template-columns:1fr}}
+
+.card{background:#FFFFFF;border-radius:14px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.card-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.head-icon{height:34px;width:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#EAF2FF}
+.head-title{margin:0;color:#0F4AA6;font-weight:900}
+.legend-right{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:12px;color:#4B5563}
+.legend-right i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px}
+.legend-right .cur{background:#1976D2}
+.legend-right .prev{background:#B3D4FF}
+
+/* risk chip box (orange/green/red card) */
+.risk-chip{background:#F8E0B6;border:2px solid #F2B757;color:#7A3D00;border-radius:12px;padding:14px 16px;font-weight:800}
+.risk-chip.safe{background:#CFF7C9;border-color:#5CD06B;color:#14572A}
+.risk-chip.danger{background:#FFD6DB;border-color:#F28AA0;color:#7D1E2A}
+
+/* health/info pale blue panel */
+.info-pane{background:#DDEBFF;border-radius:12px;padding:14px 16px;color:#0F172A}
+
+/* comparison layout (bullet panel right of chart in mock) */
+.card-compare{ min-width:560px; }
+.compare-grid{display:grid;grid-template-columns:1fr 1.3fr;gap:16px}
+@media (max-width:1024px){.compare-grid{grid-template-columns:1fr}}
+.bullet-pane{background:#DDEBFF;border-radius:12px;padding:14px 16px}
+.bullet-pane ul{margin:0;padding-left:18px}
+.bullet-pane li{margin:8px 0;color:#0F172A}
+.mini-chart{height:clamp(240px,28vw,340px);border-radius:12px;overflow:hidden;background:#FFF}
+
+/* ============== Double Row (Reasons / Recs) ============== */
+.double{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+@media (max-width:1024px){.double{grid-template-columns:1fr}}
+.split-art{display:grid;grid-template-columns:260px 1fr;gap:16px}
+@media (max-width:860px){.split-art{grid-template-columns:1fr}}
+.split-art img{width:100%;height:180px;object-fit:contain;background:#FFF;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.blue-panel{background:#DDEBFF;border-radius:12px;padding:16px}
+.blue-panel ul{margin:0;padding-left:18px}
+.blue-panel li{margin:10px 0;color:#0F172A}
+
+/* CTA bottom-right */
+.cta-row{display:flex;justify-content:flex-end;margin:18px 0 22px}
+.cta-row .cta.big{background:#1061C9}
+
+/* ============== Ranges ============== */
+.ranges{margin-top:6px}
+.ranges-body{background:#fff;border-radius:12px;padding:12px}
+.ranges-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.range-card{background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:10px}
+.range-type{font-weight:800;color:#0F172A;margin-bottom:6px}
+.range-tags{display:flex;flex-wrap:wrap;gap:8px}
+.range-tag{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid transparent}
+.range-tag.good{background:#E6F7E8;color:#176B2E;border-color:#BDE8C2}
+.range-tag.mid{background:#FFF2C2;color:#8A5A00;border-color:#FFE29A}
+.range-tag.bad{background:#FFD6DB;color:#7D1E2A;border-color:#FFC2CC}
+
+/* small helpers */
+.notice{background:#FFF3E0;border-left:4px solid #FF9800;padding:10px 12px;border-radius:10px;margin:10px 0;color:#A35700}
+.card .tiny{margin-top:8px}
+.pre{white-space:pre-wrap}
+
+/* ===== Latest Report — exact-match tweaks ===== */
+
+/* Section head aligns like the mock: title left, time pill far right, sparkle near time */
+.sec-head--latest{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin: 0 6px 16px;
+}
+.sec-head--latest .sec-title{
+  color:#1A56C4;            /* richer blue for the title */
+  font-weight:900;
+}
+.sec-time{
+  margin-left:auto;
+  background:#E6F1FF;
+  color:#1A56C4;
+  padding:6px 12px;
+  border-radius:18px;
+  font-size:12px;
+  font-weight:800;
+}
+.sec-sparkle{
+  margin-left:10px;
+  color:#BFD8FF;
+  font-weight:900;
+  user-select:none;
+}
+
+/* Card background & spacing to match the screenshot */
+.kpi-row{
+  display:grid;
+  grid-template-columns:repeat(5, 1fr);
+  gap:22px;                 /* wider breathing space between tiles */
+}
+@media (max-width:1280px){ .kpi-row{ grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); } }
+
+.kpi{
+  background:#DFF0FF;       /* the very light blue tile */
+  border-radius:12px;
+  padding:16px 18px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:10px;
+  box-shadow:0 2px 0 rgba(26,86,196,0.08) inset; /* soft top edge */
+}
+
+/* tighter variant so the layout matches exactly */
+.kpi--tight{ padding:18px 20px; }
+
+/* The droplet ring: double-ring look via border + inner bg */
+.drop-wrap{
+  height:64px;width:64px;border-radius:50%;
+  display:grid;place-items:center;
+  border:6px solid #9AD1FF;         /* default stroke */
+  background:#fff;
+  box-shadow:inset 0 0 0 6px #F3F8FF; /* inner pale ring */
+}
+.drop-wrap.green{  border-color:#7DDC84; }
+.drop-wrap.blue{   border-color:#8FCBFF; }
+.drop-wrap.red{    border-color:#FF99A1; }
+.drop-wrap.orange{ border-color:#FFC374; }
+.drop-wrap.cyan{   border-color:#7FE6F0; }
+
+.drop{ font-size:22px; color:#68C3FF; }
+
+/* Number + mg/dl baseline exactly like the mock */
+.kpi-val{
+  display:flex; align-items:baseline; gap:6px; margin-top:6px;
+}
+.kpi-val .n{
+  font-size:36px; line-height:1; font-weight:900; color:#12427E;
+}
+.kpi-val .u{
+  font-size:13px; color:#28537E; font-weight:800;
+}
+
+/* Status chip (green/amber/red/neutral) */
+.chip{
+  margin-top:6px;
+  background:#CFF7C9; color:#176B2E;
+  border-radius:999px; padding:6px 12px;
+  font-size:12px; font-weight:800; text-transform:capitalize;
+  display:inline-flex; align-items:center;
+}
+.chip.mid{ background:#FFF3BF; color:#8A5A00; }
+.chip.bad{ background:#FFD6DB; color:#7D1E2A; }
+.chip.neutral{ background:#EAECEF; color:#334155; }
+
+/* Label sits at the bottom-left, strong weight */
+.kpi-label{
+  margin-top:8px;
+  font-weight:900; color:#174E96; letter-spacing:.1px;
+}
+
+/* Make the whole section look airier horizontally on wide screens */
+@media (min-width:1440px){
+  .kpi-row{ gap:26px; }
+  .kpi--tight{ padding:20px 22px; }
+  .kpi-val .n{ font-size:38px; }
+}
+
+/* ===== KPI: row layout to match mock exactly ===== */
+.kpi.kpi--row{
+  background:#DFF0FF;              /* same tile blue */
+  border-radius:18px;
+  padding:18px 22px;
+  display:grid;
+  grid-template-columns: 86px 1fr; /* ring | content */
+  grid-auto-rows:auto;
+  column-gap:18px;
+  row-gap:8px;
+  align-items:center;
+}
+
+/* ring (double-ring look) */
+.ring{
+  width:86px;height:86px;border-radius:50%;
+  display:grid;place-items:center;
+  background:#fff;
+  position:relative;
+  box-shadow: inset 0 0 0 10px #F1F7FF;   /* inner pale ring */
+  border:6px solid #91CEFF;               /* default stroke (blue) */
+}
+.ring::after{ /* subtle outer glow like the mock */
+  content:""; position:absolute; inset:-2px; border-radius:50%;
+  box-shadow:0 0 0 2px rgba(16, 76, 151, .05);
+}
+
+/* ring color variants */
+.ring.green{  border-color:#7ED957; }     /* Total */
+.ring.blue{   border-color:#8FCBFF; }     /* LDL  */
+.ring.red{    border-color:#FF99A1; }     /* HDL  */
+.ring.orange{ border-color:#FFC374; }     /* VLDL */
+.ring.cyan{   border-color:#7FE6F0; }     /* TG   */
+
+/* droplet glyph color matches ring hue */
+.glyph{ font-size:28px; }
+.glyph.green{ color:#22C55E; }
+.glyph.blue{  color:#3BA3FF; }
+.glyph.red{   color:#F35B66; }
+.glyph.orange{color:#F59E0B; }
+.glyph.cyan{  color:#06B6D4; }
+
+/* right side: number + unit baseline-aligned on one line */
+.kpi-main{ display:flex; flex-direction:column; gap:10px; }
+.kpi-top{ display:flex; align-items:baseline; gap:8px; }
+.kpi-top .n{ font-size:44px; line-height:1; font-weight:900; color:#12427E; }
+.kpi-top .u{ font-size:14px; font-weight:800; color:#28537E; }
+
+/* green status pill just under the value */
+.pill{
+  display:inline-flex; align-items:center;
+  padding:8px 14px; border-radius:999px;
+  font-size:13px; font-weight:800;
+}
+.pill.good{    background:#CFF7C9; color:#176B2E; }
+.pill.mid{     background:#FFF3BF; color:#8A5A00; }
+.pill.bad{     background:#FFD6DB; color:#7D1E2A; }
+.pill.neutral{ background:#EAECEF; color:#334155; }
+
+/* bottom label spans both columns and is bolder/bigger */
+.kpi-label{
+  grid-column:1 / -1;
+  margin-top:6px;
+  font-weight:900; color:#174E96; letter-spacing:.2px;
+}
+.kpi-label--big{ font-size:22px; }
+
+/* spacing consistency with your Latest Report header */
+.sec-head--latest{ margin:0 6px 18px; }
+
+/* === Latest Report container (white card) === */
+.latest-card{
+  background:#FFFFFF;
+  border-radius:18px;                 /* mock rounded */
+  box-shadow:0 6px 24px rgba(16,76,151,0.06);
+  padding:22px 24px 26px;
+  margin:16px 0 20px;
+}
+.latest-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+.latest-title{
+  margin:0; color:#1A56C4; font-weight:900;
+  font-size:32px; line-height:1.1; letter-spacing:.2px;
+}
+.latest-right{display:flex; align-items:center; gap:10px;}
+.latest-time{
+  background:#E6F0FF; color:#1A56C4;
+  border-radius:18px; padding:8px 12px; font-size:13px; font-weight:800;
+}
+.latest-sparkle{color:#BFD8FF; font-weight:900; user-select:none;}
+
+/* grid spacing matches mock */
+.kpi-row--latest{
+  grid-template-columns:repeat(5, 1fr);
+  gap:28px;                           /* more runway between tiles */
+}
+@media (max-width:1400px){ .kpi-row--latest{ gap:22px; } }
+@media (max-width:1100px){ .kpi-row--latest{ grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); } }
+
+/* === KPI tile corrections (side-by-side ring + value) === */
+.kpi.kpi--row{
+  background:#DCEEFF;                 /* mock tile blue (slightly cooler) */
+  border-radius:16px;                 /* mock corners on tile */
+  padding:18px 22px;
+  display:grid;
+  grid-template-columns:84px 1fr;     /* ring | content */
+  column-gap:18px; row-gap:8px; align-items:center;
+}
+
+/* Ring: thinner border, clearer inner ring, size tuned */
+.ring{
+  width:84px; height:84px; border-radius:50%;
+  display:grid; place-items:center; background:#fff;
+  position:relative;
+  border:5px solid #91CEFF;           /* default stroke thickness */
+  box-shadow: inset 0 0 0 8px #F2F7FF;/* inner pale ring */
+}
+.ring.green{  border-color:#6FD95B; }
+.ring.blue{   border-color:#8FCBFF; }
+.ring.red{    border-color:#FF8F99; }
+.ring.orange{ border-color:#FFBF70; }
+.ring.cyan{   border-color:#7FE6F0; }
+
+/* droplet hue follows ring */
+.glyph{ font-size:26px; }
+.glyph.green{  color:#16A34A; }
+.glyph.blue{   color:#3BA3FF; }
+.glyph.red{    color:#F04352; }
+.glyph.orange{ color:#F59E0B; }
+.glyph.cyan{   color:#06B6D4; }
+
+/* Number + mg/dl baseline tuning */
+.kpi-main{ display:flex; flex-direction:column; gap:8px; }
+.kpi-top{ display:flex; align-items:baseline; gap:10px; }
+.kpi-top .n{ font-size:40px; font-weight:900; color:#0F3E78; line-height:1; }
+.kpi-top .u{ font-size:14px; font-weight:800; color:#2A5A86; } /* darker bluish gray like mock */
+
+/* Pill smaller & tighter, sits right below number */
+.pill{
+  display:inline-flex; align-items:center;
+  padding:6px 12px; border-radius:999px;
+  font-size:13px; font-weight:800;
+}
+.pill.good{    background:#CFF7C9; color:#176B2E; }
+.pill.mid{     background:#FFF3BF; color:#8A5A00; }
+.pill.bad{     background:#FFD6DB; color:#7D1E2A; }
+.pill.neutral{ background:#EAECEF; color:#334155; }
+
+/* Label weight/size like mock; sits at bottom spanning full width */
+.kpi-label{
+  grid-column:1 / -1;
+  margin-top:8px;
+  font-weight:900; color:#174E96; letter-spacing:.1px;
+  font-size:22px;                      /* down from 24–28; matches mock */
+}
+
+/* Optional: slight soft inset on tile edges for that frosty look */
+.kpi.kpi--row{ box-shadow:inset 0 1px 0 rgba(255,255,255,.75); }
+
+/* === Three-up row: Risk / Health / Comparison === */
+.triple {
+  grid-template-columns: 1fr 1fr 1.8fr;
+  gap: clamp(18px, 2vw, 28px);
+}
+@media (min-width: 1440px) {
+  .triple { grid-template-columns: 1fr 1fr 2fr; }
+}
+
+/* Card shell */
+.card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 26px 28px;
+  box-shadow: 0 8px 28px rgba(16, 76, 151, 0.06);
+}
+
+/* Header (icon + title) */
+.card-head { gap: 14px; margin-bottom: 18px; }
+.head-icon {
+  width: 56px; height: 56px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #EAF2FF; box-shadow: inset 0 0 0 6px #F3F8FF;
+  font-size: 26px;
+}
+.head-title {
+  margin: 0; color: #0F4AA6; font-weight: 900;
+  font-size: 28px; letter-spacing: .2px;
+}
+
+/* Risk Summary pill */
+.risk-chip {
+  margin-top: 4px; padding: 16px 18px; border-radius: 14px;
+  font-size: 18px; line-height: 1.35;
+}
+
+/* Health Status panel */
+.info-pane {
+  background: #DCEEFF; border: 2px solid #1976D2;
+  border-radius: 14px; padding: 18px 20px;
+  color: #0F172A; font-size: 17px; line-height: 1.55;
+}
+
+/* Comparison card footprint */
+.card-compare { min-width: 640px; }
+
+/* Comparison internal grid: chart left, bullets right */
+.card-compare .compare-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: clamp(14px, 1.6vw, 24px);
+  align-items: start;
+}
+.card-compare .mini-chart { order: 1; }
+.card-compare .bullet-pane { order: 2; }
+
+/* Chart space and height */
+.card-compare .mini-chart {
+  height: clamp(240px, 30vw, 340px);
+  background: #fff; border-radius: 14px; padding: 6px 10px;
+}
+
+/* Legend (current / previous) */
+.legend-right {
+  margin-left: auto; display: flex; gap: 18px; align-items: center;
+  font-size: 14px; color: #475569; font-weight: 700;
+}
+.legend-right i { width: 14px; height: 14px; border-radius: 3px; margin-right: 6px; }
+.legend-right .cur { background: #1976D2; }
+.legend-right .prev { background: #BFD8FF; }
+
+/* Bullets panel */
+.bullet-pane {
+  background: #DCEEFF; border-radius: 14px; padding: 18px 20px;
+  font-size: 18px; line-height: 1.55;
+}
+.bullet-pane ul { margin: 0; padding-left: 22px; }
+.bullet-pane li { margin: 8px 0; }
+
+/* Vertical rhythm under the three-up row */
+.triple + .double,
+.triple + .ranges,
+.triple + .cta-row { margin-top: 18px; }
+
+
+/***** PIXEL-MATCH LOCK: Cholesterol report  ***************************/
+.mock-wrap.mock-match {
+  /* canvas breathing room to match screenshot width math */
+  padding-left: clamp(20px, 2.2vw, 36px) !important;
+  padding-right: clamp(20px, 2.2vw, 36px) !important;
+}
+
+/* --- HERO ---------------------------------------------------------- */
+.mock-wrap.mock-match .hero {
+  border-radius: 18px !important;
+  padding: 22px 28px !important;      /* +4/+8 vs current */
+  grid-template-columns: 1fr 360px !important;
+}
+.mock-wrap.mock-match .hero-title {
+  font-size: 32px !important;         /* from 28 → 32 */
+  line-height: 1.12 !important;
+  margin-bottom: 12px !important;
+}
+.mock-wrap.mock-match .hero-right img {
+  height: 176px !important;
+  border-radius: 14px !important;
+}
+.mock-wrap.mock-match .hero .hero-id {
+  border-radius: 14px !important;
+  padding: 12px 14px !important;
+}
+.mock-wrap.mock-match .hero .k { width: 132px !important; }
+
+/* --- LATEST REPORT CARD ------------------------------------------- */
+.mock-wrap.mock-match .latest-card {
+  border-radius: 20px !important;
+  padding: 26px 28px 28px !important;
+  margin: 18px 0 22px !important;
+  box-shadow: 0 8px 28px rgba(16,76,151,0.06) !important;
+}
+.mock-wrap.mock-match .latest-head { margin-bottom: 18px !important; }
+.mock-wrap.mock-match .latest-title {
+  font-size: 32px !important;
+  letter-spacing: .2px !important;
+}
+.mock-wrap.mock-match .latest-time {
+  padding: 8px 12px !important;
+  border-radius: 20px !important;
+  font-size: 13px !important;
+}
+
+/* Five-up row: exact columns + gap like mock */
+.mock-wrap.mock-match .kpi-row.kpi-row--latest {
+  grid-template-columns: repeat(5, 1fr) !important;
+  gap: 28px !important;               /* hard lock */
+}
+
+/* KPI tile = ring left, content right (tight spec) */
+.mock-wrap.mock-match .kpi.kpi--row {
+  background: #DCEEFF !important;
+  border-radius: 16px !important;
+  padding: 18px 22px !important;
+  grid-template-columns: 84px 1fr !important;
+  column-gap: 18px !important;
+  row-gap: 8px !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75) !important;
+}
+
+/* Ring size + inner ring thickness tuned */
+.mock-wrap.mock-match .kpi.kpi--row .ring {
+  width: 84px !important;
+  height: 84px !important;
+  border: 5px solid #91CEFF !important;
+  box-shadow: inset 0 0 0 8px #F2F7FF !important;
+}
+.mock-wrap.mock-match .kpi.kpi--row .glyph { font-size: 26px !important; }
+
+/* Number + unit baseline */
+.mock-wrap.mock-match .kpi.kpi--row .kpi-top .n {
+  font-size: 40px !important;
+  color: #0F3E78 !important;
+  line-height: 1 !important;
+}
+.mock-wrap.mock-match .kpi.kpi--row .kpi-top .u {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: #2A5A86 !important;
+}
+.mock-wrap.mock-match .kpi.kpi--row .pill {
+  padding: 6px 12px !important;
+  font-size: 13px !important;
+}
+.mock-wrap.mock-match .kpi.kpi--row .kpi-label {
+  font-size: 22px !important;
+  margin-top: 8px !important;
+  letter-spacing: .1px !important;
+}
+
+/* --- TRIPLE ROW (Risk / Health / Compare) ------------------------- */
+.mock-wrap.mock-match .triple {
+  grid-template-columns: 1fr 1fr 1.8fr !important;
+  gap: 24px !important;
+  margin-bottom: 18px !important;
+}
+@media (min-width: 1440px) {
+  .mock-wrap.mock-match .triple { grid-template-columns: 1fr 1fr 2fr !important; }
+}
+
+/* Card shell paddings match spec */
+.mock-wrap.mock-match .card {
+  border-radius: 18px !important;
+  padding: 26px 28px !important;
+  box-shadow: 0 8px 28px rgba(16,76,151,0.06) !important;
+}
+.mock-wrap.mock-match .card-head { gap: 14px !important; margin-bottom: 18px !important; }
+.mock-wrap.mock-match .head-icon {
+  width: 56px !important; height: 56px !important; font-size: 26px !important;
+  box-shadow: inset 0 0 0 6px #F3F8FF !important;
+}
+.mock-wrap.mock-match .head-title { font-size: 28px !important; }
+
+/* Risk badge + health panel paddings */
+.mock-wrap.mock-match .risk-chip { padding: 16px 18px !important; border-radius: 14px !important; font-size: 18px !important; }
+.mock-wrap.mock-match .info-pane {
+  background: #DCEEFF !important;
+  border: 2px solid #1976D2 !important;
+  padding: 18px 20px !important;
+  border-radius: 14px !important;
+  font-size: 17px !important;
+  line-height: 1.55 !important;
+}
+
+/* Comparison layout: chart left, bullets right, with precise gap */
+.mock-wrap.mock-match .card .compare-grid {
+  grid-template-columns: 1.3fr 1fr !important;
+  gap: 20px !important;
+  align-items: start !important;
+}
+.mock-wrap.mock-match .mini-chart {
+  height: clamp(240px, 30vw, 340px) !important;
+  padding: 6px 10px !important;
+}
+
+/* Recharts: trim internal padding to remove “mystery space” */
+.mock-wrap.mock-match .recharts-wrapper { margin: 0 !important; }
+.mock-wrap.mock-match .recharts-cartesian-grid-horizontal line,
+.mock-wrap.mock-match .recharts-cartesian-grid-vertical line { shape-rendering: crispEdges; }
+.mock-wrap.mock-match .recharts-legend-wrapper { margin-top: 4px !important; }
+
+/* --- DOUBLE ROW --------------------------------------------------- */
+.mock-wrap.mock-match .double { gap: 24px !important; margin-top: 18px !important; }
+.mock-wrap.mock-match .split-art { grid-template-columns: 260px 1fr !important; gap: 18px !important; }
+.mock-wrap.mock-match .split-art img { height: 180px !important; border-radius: 12px !important; }
+
+/* --- RANGES ------------------------------------------------------- */
+.mock-wrap.mock-match .ranges { margin-top: 18px !important; }
+.mock-wrap.mock-match .ranges-body { padding: 14px !important; }
+.mock-wrap.mock-match .ranges-row { gap: 14px !important; }
+
+/* --- Micro-typography lock --------------------------------------- */
+.mock-wrap.mock-match h1, .mock-wrap.mock-match h2, .mock-wrap.mock-match h3 {
+  letter-spacing: .2px !important;
+}
+/***** end pixel-match lock ******************************************/
+
+/* Chart wider than note + equal heights */
+.card-compare { --compare-h: 260px; } /* tune 240–300 to match your mock */
+
+.card-compare .compare-grid{
+  display:grid;
+  grid-template-columns: 1.6fr 1fr;   /* chart left (wider), note right */
+  gap: clamp(16px, 2vw, 24px);
+  align-items: stretch;               /* equalize heights */
+  min-height: var(--compare-h);
+}
+.card-compare .compare-grid > *{ height:100%; }
+
+.card-compare .mini-chart{
+  height:100%;
+  background:#fff;
+  border-radius:14px;
+  padding:6px 10px;
+  overflow:hidden;
+}
+
+.card-compare .bullet-pane{
+  background:#DCEEFF;
+  border-radius:14px;
+  padding:18px 20px;
+  height:100%;
+  display:flex; align-items:center;
+}
+.card-compare .bullet-pane ul{
+  margin:0; padding-left:22px; width:100%;
+  line-height:1.55; font-weight:700;
+}
+
+/* Wider dominance on very large screens */
+@media (min-width:1440px){
+  .card-compare .compare-grid{ grid-template-columns:1.8fr 1fr; --compare-h:280px; }
+}
+
+/* Stack cleanly on tablets/mobiles */
+@media (max-width:1024px){
+  .card-compare .compare-grid{
+    grid-template-columns:1fr; row-gap:16px; --compare-h:240px;
+  }
+}
+
+/* === Resize mandate: 3/4-width comparison; left cards stack and equal total height === */
+.triple{
+  display:grid;
+  grid-template-columns: 1fr 3fr;   /* left column = 1/4, right (comparison) = 3/4 */
+  grid-template-rows: auto auto;    /* two stacked rows on the left */
+  align-items: stretch;              /* equalize track heights */
+  gap: clamp(18px, 2vw, 28px);
+}
+
+/* place items without touching markup */
+.triple > .card:nth-child(1){ grid-column:1; grid-row:1; }          /* Risk Summary */
+.triple > .card:nth-child(2){ grid-column:1; grid-row:2; }          /* Health Status */
+.triple > .card.card-compare{ grid-column:2; grid-row:1 / span 2; } /* Comparison spans both rows */
+
+/* keep mobile UX unchanged */
+@media (max-width:1024px){
+  .triple{
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+  .triple > .card:nth-child(1),
+  .triple > .card:nth-child(2),
+  .triple > .card.card-compare{
+    grid-column:auto; grid-row:auto;
+  }
+}
+/* --- Resize enforcement: 3/4 compare; left stack; equal total height --- */
+.mock-wrap.mock-match .triple{
+  display:grid !important;
+  grid-template-columns: 1fr 3fr !important;   /* 25% | 75% */
+  grid-template-rows: auto auto !important;    /* Risk above Health */
+  align-items: stretch !important;
+  gap: clamp(18px, 2vw, 28px) !important;
+}
+
+/* Place items without touching JSX */
+.mock-wrap.mock-match .triple > .card:nth-child(1){
+  grid-column: 1 !important; grid-row: 1 !important;   /* Risk Summary */
+}
+.mock-wrap.mock-match .triple > .card:nth-child(2){
+  grid-column: 1 !important; grid-row: 2 !important;   /* Health Status */
+}
+.mock-wrap.mock-match .triple > .card.card-compare{
+  grid-column: 2 !important; grid-row: 1 / span 2 !important; /* Compare spans both rows */
+  min-width: 0 !important;   /* allow full expansion */
+  width: 100% !important;
+}
+
+/* Keep mobile behavior intact */
+@media (max-width:1024px){
+  .mock-wrap.mock-match .triple{
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+  }
+  .mock-wrap.mock-match .triple > .card:nth-child(1),
+  .mock-wrap.mock-match .triple > .card:nth-child(2),
+  .mock-wrap.mock-match .triple > .card.card-compare{
+    grid-column: auto !important; grid-row: auto !important;
+  }
+}
+
+/* ===== Diabetes parity with Cholesterol (layout + sizing) ===== */
+
+/* 1) Triple row: 25% | 75%, left cards stacked, compare spans both rows */
+.mock-wrap.mock-match .triple{
+  display: grid !important;
+  grid-template-columns: 1fr 3fr !important;   /* 1/4 | 3/4 */
+  grid-template-rows: auto auto !important;    /* Risk on top, Health below */
+  align-items: stretch !important;
+  gap: clamp(18px, 2vw, 28px) !important;
+}
+
+/* Position the three cards without touching JSX order */
+.mock-wrap.mock-match .triple > .card:nth-child(1){
+  grid-column: 1 !important; grid-row: 1 !important;   /* Risk Summary */
+}
+.mock-wrap.mock-match .triple > .card:nth-child(2){
+  grid-column: 1 !important; grid-row: 2 !important;   /* Health Status */
+}
+.mock-wrap.mock-match .triple > .card.card-compare{
+  grid-column: 2 !important; grid-row: 1 / span 2 !important; /* Compare across both rows */
+  min-width: 0 !important;   /* allow full expansion */
+  width: 100% !important;
+}
+
+/* 2) Normalize card chrome (radius, padding, shadow) across both views */
+.mock-wrap.mock-match .card,
+.mock-wrap.mock-match .latest-card{
+  border-radius: 18px !important;
+  padding: 26px 28px !important;
+  box-shadow: 0 8px 28px rgba(16,76,151,0.06) !important;
+}
+
+/* 3) Kill rogue margins from Diabetes wrappers so blocks line up */
+.mock-wrap.mock-match .section{
+  margin: 0 !important; padding: 0 !important; background: transparent !important;
+}
+
+/* 4) Ensure equal heights: grid stretches and cards fill their tracks */
+.mock-wrap.mock-match .triple > .card{ height: 100% !important; }
+
+/* 5) Comparison internals: chart left, bullets right, locked height (parity) */
+.mock-wrap.mock-match .card-compare{ --compare-h: 210px !important; min-width: 0 !important; }
+.mock-wrap.mock-match .card-compare .compare-grid{
+  display: grid !important;
+  grid-template-columns: 1.6fr 1fr !important;  /* chart gets more runway */
+  gap: clamp(16px, 2vw, 24px) !important;
+  align-items: stretch !important;
+  min-height: var(--compare-h) !important;
+}
+.mock-wrap.mock-match .card-compare .compare-grid > *{ height: 100% !important; }
+.mock-wrap.mock-match .card-compare .mini-chart{ padding: 6px 10px !important; }
+
+/* 6) Mobile: revert to single-column stacking */
+@media (max-width:1024px){
+  .mock-wrap.mock-match .triple{
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+  }
+  .mock-wrap.mock-match .triple > .card:nth-child(1),
+  .mock-wrap.mock-match .triple > .card:nth-child(2),
+  .mock-wrap.mock-match .triple > .card.card-compare{
+    grid-column: auto !important; grid-row: auto !important;
+  }
+}
+/* === Diabetes KPI tiles -> same visual system as Cholesterol === */
+.mock-wrap.mock-match .latest-card .kpi{
+  /* turn Diabetes <KpiTile/> into the same 2-column tile */
+  background:#DCEEFF !important;
+  border-radius:16px !important;
+  padding:18px 22px !important;
+  display:grid !important;
+  grid-template-columns:84px 1fr !important; /* ring | content */
+  column-gap:18px !important;
+  row-gap:8px !important;
+  align-items:center !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75) !important;
+}
+
+/* use the diabetes 'drop-wrap' as the same ring spec */
+.mock-wrap.mock-match .latest-card .kpi .drop-wrap{
+  width:84px !important; height:84px !important; border-radius:50% !important;
+  border:5px solid #91CEFF !important; background:#fff !important;
+  box-shadow: inset 0 0 0 8px #F2F7FF !important;
+  display:grid !important; place-items:center !important;
+}
+.mock-wrap.mock-match .latest-card .kpi .drop{ font-size:26px !important; }
+
+/* number + unit baseline and pill spacing */
+.mock-wrap.mock-match .latest-card .kpi .kpi-val{
+  display:flex !important; align-items:baseline !important; gap:8px !important;
+}
+.mock-wrap.mock-match .latest-card .kpi .kpi-val .n{
+  font-size:40px !important; line-height:1 !important; font-weight:900 !important; color:#0F3E78 !important;
+}
+.mock-wrap.mock-match .latest-card .kpi .kpi-val .u{
+  font-size:14px !important; font-weight:800 !important; color:#2A5A86 !important;
+}
+.mock-wrap.mock-match .latest-card .kpi .chip{
+  margin-top:4px !important; padding:6px 12px !important; font-size:13px !important; font-weight:800 !important;
+}
+.mock-wrap.mock-match .latest-card .kpi .kpi-label{
+  grid-column:1 / -1 !important; margin-top:8px !important;
+  font-size:22px !important; font-weight:900 !important; color:#174E96 !important;
+}
+/* unified Risk Summary surface */
+.risk-banner{
+  border-radius:14px;
+  padding:16px 18px;
+  border:2px solid transparent;
+  display:flex; flex-direction:column; gap:10px;
+}
+.risk-banner.safe{
+  background:#CFF7C9; border-color:#5CD06B; color:#14572A;
+}
+.risk-banner.warning{
+  background:#FFF3BF; border-color:#F8D86A; color:#8A5A00;
+}
+.risk-banner.danger{
+  background:#FFD6DB; border-color:#F28AA0; color:#7D1E2A;
+}
+.risk-banner .risk-banner__title{
+  font-weight:900; font-size:18px;
+}
+.risk-banner .risk-banner__msg{
+  font-size:16px; line-height:1.55;
+}
+
+/* hide the old blue info panel if any instance remains */
+.mock-wrap.mock-match .card .info-pane{ display:none !important; }
+
+/* Restore Health Status everywhere */
+.mock-wrap.mock-match .card .info-pane{
+  display:block !important;
+}
+
+/* Suppress the legacy blue note ONLY inside the Risk Summary card (left column) */
+.mock-wrap.mock-match .triple > .card:first-child .info-pane{
+  display:none !important;
+}
+
+/* Belt-and-suspenders: ensure the Health Status card (second card) always shows */
+.mock-wrap.mock-match .triple > .card:nth-child(2) .info-pane{
+  display:block !important;
+}
+
+/* --- Fix: let “Possible Reasons” and “Recommendations” have independent heights --- */
+.double{
+  display: flex;                 /* was grid */
+  gap: clamp(16px, 2vw, 24px);
+  align-items: flex-start;       /* no vertical stretching */
+  flex-wrap: nowrap;             /* two columns on desktop */
+}
+
+/* make both cards share the width nicely */
+.double > .card{
+  flex: 1 1 0;                   /* two equal columns */
+  min-width: 0;                  /* prevents overflow */
+}
+
+/* responsive: stack on tablets/phones */
+@media (max-width: 1024px){
+  .double{
+    flex-wrap: wrap;
+  }
+  .double > .card{
+    flex: 1 1 100%;
+  }
+}
+
+/* ensure inner split (image + blue panel) stays compact */
+.split-art{
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items: start;            /* don't stretch the blue panel */
+}
+@media (max-width: 860px){
+  .split-art{ grid-template-columns: 1fr; }
+}
+
+/* keep the artwork from forcing height */
+.split-art img{
+  width: 100%;
+  height: auto;                  /* was a fixed 180px in some versions */
+  max-height: 180px;             /* cap it, but let it shrink */
+  object-fit: contain;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+
+/* blue panel just wraps content */
+.blue-panel{
+  background:#DDEBFF;
+  border-radius:12px;
+  padding:16px;
+}
+

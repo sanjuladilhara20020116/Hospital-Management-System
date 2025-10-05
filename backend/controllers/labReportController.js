@@ -12,7 +12,23 @@ const { extractFromReport, analyzeValues } = require('../utils/aiExtract');
 // Hand off Diabetes work to a separate controller
 const diabetesCtrl = require('./diabetesController');
 
-// -------------------- helpers --------------------
+function attachPatientMeta(doc) {
+  if (!doc) return doc;
+  const r = doc.toObject ? doc.toObject() : doc;
+  const p = r.patientId;
+  const name =
+    p && typeof p === 'object'
+      ? `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.userId || ''
+      : '';
+  const pid =
+    p && typeof p === 'object'
+      ? (p.userId || String(p._id || ''))
+      : String(r.patientId || '');
+  return { ...r, _patient: { id: pid, name } };
+}
+
+
+/* ------------------------------ helpers ---------------------------------- */
 const isObjectId = (s) => typeof s === 'string' && /^[a-f0-9]{24}$/i.test(s);
 const ensureAbsolute = (p) => (path.isAbsolute(p) ? p : path.join(process.cwd(), p));
 const uploadsDir = path.join(__dirname, '..', 'uploads');
@@ -62,8 +78,22 @@ async function callOpenRouterJSON(payload) {
   return ej?.choices?.[0]?.message?.content ?? '{}';
 }
 
+/* ---------------- Oldest-un-analyzed gate (shared helper) ---------------- */
+async function blockIfOlderUnanalyzedExists(reportDoc) {
+  const older = await LabReport.findOne({
+    patientId: reportDoc.patientId,
+    reportType: reportDoc.reportType,
+    isAnalyzed: { $ne: true },
+    $or: [
+      { uploadDate: { $lt: reportDoc.uploadDate || reportDoc.createdAt } },
+      { createdAt:  { $lt: reportDoc.uploadDate || reportDoc.createdAt } },
+    ],
+  }).sort({ uploadDate: 1, createdAt: 1 }); // oldest first
 
-// -------------------- CRUD --------------------
+  return older || null;
+}
+
+/* --------------------------------- CRUD ---------------------------------- */
 exports.createLabJob = async (req, res) => {
   try {
     const { patientId, testType, assignedDate } = req.body;
@@ -114,7 +144,6 @@ exports.uploadLabReport = async (req, res) => {
   }
 };
 
-
 exports.getReportsByPatient = async (req, res) => {
   try {
     const { patientId } = req.params;
@@ -147,13 +176,25 @@ exports.deleteReport = async (req, res) => {
   }
 };
 
-// -------------------- ANALYZE BY REPORT _id --------------------
+/* ------------------------ ANALYZE BY REPORT _id -------------------------- */
 exports.analyzeReport = async (req, res) => {
   try {
     const { id } = req.params;
 
     const report = await LabReport.findById(id);
     if (!report) return res.status(404).json({ ok: false, message: 'Report not found' });
+
+    // enforce oldest-first if required
+    const blocker = await blockIfOlderUnanalyzedExists(report);
+    if (blocker) {
+      return res.status(412).json({
+        ok: false,
+        code: 'OLDER_UNANALYZED_EXISTS',
+        message: 'You must analyze older reports first.',
+        nextId: blocker._id,
+        nextDate: blocker.uploadDate || blocker.createdAt,
+      });
+    }
 
     if (report.isAnalyzed) {
       return res.status(409).json({ ok: true, message: 'Already analyzed', reportId: report._id, report });
@@ -171,7 +212,7 @@ exports.analyzeReport = async (req, res) => {
       return diabetesCtrl.analyzeAndSave(req, res);
     }
 
-    // ---- Cholesterol path (unchanged) ----
+    // ---- Cholesterol path ----
     const extracted = await extractFromReport({
       filePath: absolutePath,
       originalName: path.basename(absolutePath),
@@ -182,6 +223,7 @@ exports.analyzeReport = async (req, res) => {
       ldl: extracted.ldl,
       hdl: extracted.hdl,
       triglycerides: extracted.triglycerides,
+      vldl: extracted.vldl,
       totalCholesterol: extracted.totalCholesterol,
       units: extracted.units || 'mg/dL',
     });
@@ -195,6 +237,7 @@ exports.analyzeReport = async (req, res) => {
         ldl: extracted.ldl ?? null,
         hdl: extracted.hdl ?? null,
         triglycerides: extracted.triglycerides ?? null,
+        vldl: extracted.vldl ?? null, 
         units: extracted.units || 'mg/dL',
         notes: extracted.notes || '',
       },
@@ -203,29 +246,38 @@ exports.analyzeReport = async (req, res) => {
       analyzedAt: new Date(),
     };
 
-    const updated = await LabReport.findByIdAndUpdate(
+        const updated = await LabReport.findByIdAndUpdate(
       report._id,
       { $set: payload },
       { new: true }
     );
 
-    await saveCholesterolSnapshot(updated); // writes/updates the snapshot + enforces last-5
+    await saveCholesterolSnapshot(updated);
 
+    // return a populated + friendly version
+    const populated = await LabReport
+      .findById(updated._id)
+      .populate('patientId', '_id userId firstName lastName');
 
-    return res.json({ ok: true, reportId: updated._id, report: updated });
+    return res.json({ ok: true, reportId: populated._id, report: attachPatientMeta(populated) });
+
   } catch (err) {
     console.error('analyzeReport error:', err);
     res.status(500).json({ ok: false, message: err.message });
   }
 };
 
-// -------------------- GET ONE REPORT --------------------
+/* ------------------------------ GET ONE ---------------------------------- */
 exports.getReport = async (req, res) => {
   try {
     const { id } = req.params;
-    const dbDoc = await LabReport.findById(id);
+    const dbDoc = await LabReport
+      .findById(id)
+      .populate('patientId', '_id userId firstName lastName');
+
     if (!dbDoc) return res.status(404).json({ ok: false, message: 'Not found' });
 
+    // keep your legacy bucket migration exactly as you have it
     const r = dbDoc.toObject();
     const a = r.analysis || {};
 
@@ -246,13 +298,78 @@ exports.getReport = async (req, res) => {
       };
     }
 
-    return res.json({ ok: true, report: r });
+    return res.json({ ok: true, report: attachPatientMeta(r) });
   } catch (err) {
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
 
-// -------------------- ANALYZE BY REFERENCE (LB-...) --------------------
+
+// near the other helpers
+// helpers (one copy only)
+// --- keep exactly one copy of these helpers near the top ---
+
+
+
+const sendInlineFile = (res, absPath, filename) => {
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${path.basename(filename || absPath)}"`);
+  return res.sendFile(absPath);
+};
+
+
+// /api/reports/:id/view
+// keep your existing helpers at the top: isObjectId, ensureAbsolute, sendInlineFile
+
+exports.viewReportFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // If it's not a valid ObjectId, treat it as referenceNo
+    if (!isObjectId(id)) {
+      // First try a LabReport that already exists with this referenceNo
+      const byRefReport = await LabReport.findOne({ referenceNo: id });
+      if (byRefReport) {
+        const abs = ensureAbsolute(byRefReport.filePath || '');
+        if (!abs || !fs.existsSync(abs)) {
+          return res.status(404).json({ ok:false, message: 'Report file missing' });
+        }
+        return sendInlineFile(res, abs, `report-${byRefReport.referenceNo}.pdf`);
+      }
+
+      // Fallback: if no LabReport row, try the LabJob reference flow
+      req.params.referenceNo = id; // reuse your existing handler
+      return exports.viewByReferenceFile(req, res);
+    }
+
+    // Normal path: treat as ObjectId
+    const doc = await LabReport.findById(id);
+    if (!doc) return res.status(404).json({ ok:false, message: 'Report not found' });
+
+    const abs = ensureAbsolute(doc.filePath || '');
+    if (!abs || !fs.existsSync(abs)) {
+      return res.status(404).json({ ok:false, message: 'Report file missing' });
+    }
+    return sendInlineFile(res, abs, `report-${doc.referenceNo || doc._id}.pdf`);
+  } catch (e) {
+    return res.status(500).json({ ok:false, message: e.message });
+  }
+};
+
+
+// /api/reports/by-ref/:referenceNo/view
+exports.viewByReferenceFile = async (req, res) => {
+  const { referenceNo } = req.params;
+  const job = await LabJob.findOne({ referenceNo, status: 'Completed' });
+  if (!job || !job.reportFile) return res.status(404).json({ ok:false, message: 'Report not found for reference' });
+  const abs = path.isAbsolute(job.reportFile) ? job.reportFile : path.join(uploadsDir, job.reportFile);
+  if (!fs.existsSync(abs)) return res.status(404).json({ ok:false, message: 'Report file missing on disk' });
+  return sendInlineFile(res, abs, `report-${referenceNo}.pdf`);
+};
+
+
+
+/* ---------------------- ANALYZE BY REFERENCE (LB-...) --------------------- */
 exports.analyzeByReference = async (req, res) => {
   try {
     const { referenceNo } = req.params;
@@ -272,12 +389,25 @@ exports.analyzeByReference = async (req, res) => {
       reportType: job.testType,
       filePath: abs,
       uploadDate: job.completedAt || new Date(),
+      referenceNo: job.referenceNo,
     };
     const report = await LabReport.findOneAndUpdate(
       { patientId: job.patientRef, reportType: job.testType, filePath: abs },
       { $setOnInsert: base },
       { new: true, upsert: true }
     );
+
+    // enforce oldest-first before doing work
+    const blocker = await blockIfOlderUnanalyzedExists(report);
+    if (blocker) {
+      return res.status(412).json({
+        ok: false,
+        code: 'OLDER_UNANALYZED_EXISTS',
+        message: 'You must analyze older reports first.',
+        nextId: blocker._id,
+        nextDate: blocker.uploadDate || blocker.createdAt,
+      });
+    }
 
     if (report.isAnalyzed) {
       return res.status(409).json({ ok: true, message: 'Already analyzed', reportId: report._id, report });
@@ -300,6 +430,7 @@ exports.analyzeByReference = async (req, res) => {
       ldl: extracted.ldl,
       hdl: extracted.hdl,
       triglycerides: extracted.triglycerides,
+      vldl: extracted.vldl,
       totalCholesterol: extracted.totalCholesterol,
       units: extracted.units || 'mg/dL',
     });
@@ -314,6 +445,7 @@ exports.analyzeByReference = async (req, res) => {
         ldl: extracted.ldl ?? null,
         hdl: extracted.hdl ?? null,
         triglycerides: extracted.triglycerides ?? null,
+        vldl: extracted.vldl ?? null, 
         units: extracted.units || 'mg/dL',
         notes: extracted.notes || '',
       },
@@ -322,23 +454,27 @@ exports.analyzeByReference = async (req, res) => {
       analyzedAt: new Date(),
     };
 
-    const updated = await LabReport.findOneAndUpdate(
+        const updated = await LabReport.findOneAndUpdate(
       { _id: report._id },
       { $set: payload },
       { new: true }
     );
 
-    await saveCholesterolSnapshot(updated); // writes/updates the snapshot + enforces last-5
+    await saveCholesterolSnapshot(updated);
 
+    const populated = await LabReport
+      .findById(updated._id)
+      .populate('patientId', '_id userId firstName lastName');
 
-    return res.json({ ok: true, reportId: updated._id, report: updated });
+    return res.json({ ok: true, reportId: populated._id, report: attachPatientMeta(populated) });
+
   } catch (err) {
     console.error('analyzeByReference error:', err);
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
 
-// -------------------- GET BY REFERENCE --------------------
+/* ---------------------------- GET BY REFERENCE ---------------------------- */
 exports.getByReference = async (req, res) => {
   try {
     const { referenceNo } = req.params;
@@ -349,20 +485,23 @@ exports.getByReference = async (req, res) => {
       ? (path.isAbsolute(job.reportFile) ? job.reportFile : path.join(uploadsDir, job.reportFile))
       : null;
 
-    const report = await LabReport.findOne({
-      patientId: job.patientRef,
-      reportType: job.testType,
-      ...(abs ? { filePath: abs } : {}),
-    });
+        const report = await LabReport
+      .findOne({
+        patientId: job.patientRef,
+        reportType: job.testType,
+        ...(abs ? { filePath: abs } : {}),
+      })
+      .populate('patientId', '_id userId firstName lastName');
 
     if (!report) return res.status(404).json({ ok: false, message: 'Report not found for this reference' });
-    return res.json({ ok: true, report });
+    return res.json({ ok: true, report: attachPatientMeta(report) });
+
   } catch (err) {
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
 
-// -------------------- /api/analyze (by key) --------------------
+/* --------------------------- /api/analyze (key) --------------------------- */
 exports.runAnalysis = async (req, res) => {
   try {
     const { key } = req.body || {};
@@ -388,115 +527,118 @@ exports.runAnalysis = async (req, res) => {
   }
 };
 
-// -------------------- Cholesterol advice --------------------
-// -------------------- AI Coach advice via OpenRouter (LLM) --------------------
+/* ---------------------------- AI Coach / Advice --------------------------- */
 exports.getAdvice = async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await LabReport.findById(id);
-    if (!doc) return res.status(404).json({ ok: false, message: 'Report not found' });
+    if (!doc) return res.status(404).json({ ok: false, message: "Report not found" });
 
-    const r  = doc.toObject();
-    const ex = r.extracted || {};
-    let a    = r.analysis || {};
-    const type = String(r.reportType || '').toLowerCase();
-
-    // If cholesterol analysis is legacy shape, adapt to buckets for clarity
-    const isLegacy =
-      a && typeof a === 'object' &&
-      ('ldlStatus' in a || 'hdlStatus' in a || 'triglycerideStatus' in a || 'totalCholesterolStatus' in a);
-
-    const toCategory = (s = '') => {
-      const t = String(s).toLowerCase();
-      if (!t || t.includes('unknown')) return 'unknown';
-      if (t.includes('optimal') || t.includes('protective') || t.includes('desirable') || t.includes('normal') || t.includes('good')) return 'good';
-      if (t.includes('near') || t.includes('borderline')) return 'moderate';
-      if (t.includes('high')) return 'bad';
-      return 'unknown';
-    };
-
-    if (type.includes('chol') && isLegacy) {
-      a = {
-        ldl:              { value: ex.ldl ?? null,              category: toCategory(a.ldlStatus) },
-        hdl:              { value: ex.hdl ?? null,              category: toCategory(a.hdlStatus) },
-        triglycerides:    { value: ex.triglycerides ?? null,    category: toCategory(a.triglycerideStatus) },
-        totalCholesterol: { value: ex.totalCholesterol ?? null, category: toCategory(a.totalCholesterolStatus) },
-        notes: a.summary || '',
-        nextSteps: Array.isArray(a.tips) ? a.tips : [],
-      };
+    if (!process.env.OPENROUTER_API_KEY) {
+      return res.status(503).json({ ok: false, message: "Advice unavailable: missing OPENROUTER_API_KEY" });
     }
 
-    // ---------- Build compact payload for the model ----------
-    const payload = { reportType: r.reportType, extracted: ex };
+    const r = doc.toObject();
+    const ex = r.extracted || {};
+    const type = String(r.reportType || "").toLowerCase();
 
-    if (type.includes('chol')) {
-      payload.analysisBuckets = {
-        ldl:              a?.ldl?.category || 'unknown',
-        hdl:              a?.hdl?.category || 'unknown',
-        triglycerides:    a?.triglycerides?.category || 'unknown',
-        totalCholesterol: a?.totalCholesterol?.category || 'unknown',
+    // ------- Build compact, value-centric payload for GPT -------
+    let input;
+    if (type.includes("chol")) {
+      input = {
+        kind: "cholesterol",
+        units: ex.units || "mg/dL",
+        totalCholesterol: ex.totalCholesterol ?? null,
+        ldl: ex.ldl ?? null,
+        hdl: ex.hdl ?? null,
+        triglycerides: ex.triglycerides ?? null,
+        testDate: ex.testDate || null,
+        labName: ex.labName || null,
       };
-    } else {
-      // Diabetes: compute statuses so model has clear context
-      const gUnit = ex.glucoseUnits || 'mg/dL';
-      const toMgDl = (v) => (v == null ? null : (gUnit === 'mmol/L' ? Number(v) * 18 : Number(v)));
-      const fasting = toMgDl(ex.fastingGlucose);
-      const pp      = toMgDl(ex.postPrandialGlucose ?? ex.ogtt2h);
-      const random  = toMgDl(ex.randomGlucose);
-      const a1c     = ex.hba1c != null ? Number(ex.hba1c) : null;
+    } else if (type.includes("diab")) {
+      // Normalize glucose into mg/dL so the model can reason cleanly
+      const gUnit = ex.glucoseUnits || "mg/dL";
+      const toMgDl = (v) => (v == null ? null : (gUnit === "mmol/L" ? Number(v) * 18 : Number(v)));
+
+      const fasting   = toMgDl(ex.fastingGlucose);
+      const pp2h      = toMgDl(ex.postPrandialGlucose ?? ex.ogtt2h);
+      const random    = toMgDl(ex.randomGlucose);
+      const a1c       = ex.hba1c != null ? Number(ex.hba1c) : null;
 
       const classify = {
-        fasting(v){ if (v==null) return 'unknown'; if (v>=126) return 'Diabetes'; if (v>=100) return 'Prediabetes'; return 'Normal'; },
-        pp2h(v){    if (v==null) return 'unknown'; if (v>=200) return 'Diabetes'; if (v>=140) return 'Prediabetes'; return 'Normal'; },
-        random(v){  if (v==null) return 'unknown'; if (v>=200) return 'Diabetes'; if (v>=140) return 'Prediabetes'; return 'Normal'; },
-        a1c(p){     if (p==null) return 'unknown'; if (p>=6.5)  return 'Diabetes'; if (p>=5.7)  return 'Prediabetes'; return 'Normal'; },
+        fasting(v){ if (v==null) return "unknown"; if (v>=126) return "Diabetes"; if (v>=100) return "Prediabetes"; return "Normal"; },
+        pp2h(v){    if (v==null) return "unknown"; if (v>=200) return "Diabetes"; if (v>=140) return "Prediabetes"; return "Normal"; },
+        random(v){  if (v==null) return "unknown"; if (v>=200) return "Diabetes"; if (v>=140) return "Prediabetes"; return "Normal"; },
+        a1c(p){     if (p==null) return "unknown"; if (p>=6.5)  return "Diabetes"; if (p>=5.7)  return "Prediabetes"; return "Normal"; },
       };
-      payload.statuses = {
-        fasting: classify.fasting(fasting),
-        postPrandial: classify.pp2h(pp),
-        random: classify.random(random),
-        hba1c: classify.a1c(a1c),
+
+      input = {
+        kind: "diabetes",
+        units: { glucose: gUnit, hba1c: ex.hba1cUnits || "%" },
+        valuesMgDl: { fasting, postPrandial: pp2h, random, hba1c: a1c },
+        statuses: {
+          fasting: classify.fasting(fasting),
+          postPrandial: classify.pp2h(pp2h),
+          random: classify.random(random),
+          hba1c: classify.a1c(a1c),
+        },
+        raw: {
+          fastingGlucose: ex.fastingGlucose ?? null,
+          postPrandialGlucose: ex.postPrandialGlucose ?? null,
+          ogtt2h: ex.ogtt2h ?? null,
+          randomGlucose: ex.randomGlucose ?? null,
+          hba1c: ex.hba1c ?? null,
+        },
+        testDate: ex.testDate || null,
+        labName: ex.labName || null,
       };
-      payload.glucoseMgDl = { fasting, postPrandial: pp, random, hba1c: a1c };
+    } else {
+      return res.status(400).json({ ok: false, message: "Unsupported report type for advice" });
     }
 
-    // ---------- LLM call (OpenRouter) ----------
-    const system = `
-You are a careful medical explainer. Return ONLY compact JSON, no markdown.
-Keys required:
-- "healthStatus": short sentence.
-- "reasons": array (2-5 short, neutral bullets).
-- "recommendations": array (3-6 short, non-medical-advice bullets).
-- "breakdown": object of one-sentence meanings for each provided marker.
-Avoid diagnoses; be educational and neutral. Use units provided (assume mg/dL for glucose, % for HbA1c if missing).
-`.trim();
+    const SYSTEM = `
+You are a non-diagnostic health coach. Use the provided numeric values to infer plausible contributing factors and practical, safe next steps.
+Do NOT just restate statuses like "LDL is high"—give likely reasons (diet patterns, lifestyle, common conditions/meds) and targeted, realistic recommendations.
+Keep it short, specific, and actionable. No medication changes. Avoid alarmist tone.
 
-    const user = `Lab context:\n${JSON.stringify(payload)}\n\nReturn ONLY the JSON with the required keys.`;
+Return JSON ONLY (no markdown) with this schema; omit empty keys:
+{
+  "healthStatus": string,
+  "reasons": string[],
+  "recommendations": string[],
+  "breakdown": { "...": string },
+  "disclaimer": string
+}`.trim();
+
+    const MODEL = (typeof TEXT_MODEL !== "undefined" && TEXT_MODEL) ? TEXT_MODEL : "openai/gpt-4o-mini";
+    const USER = `INPUT: ${JSON.stringify(input)}`;
 
     const content = await callOpenRouterJSON({
-      model: 'openai/gpt-4o-mini',
+      model: MODEL,
       messages: [
-        { role: 'system', content: system },
-        { role: 'user',   content: user  },
+        { role: "system", content: SYSTEM },
+        { role: "user",   content: USER }
       ],
-      temperature: 0.2,
+      temperature: 0.3
     });
 
-    const out = safeParseJSON(content) || {};
-    // normalize shape defensively
-    out.reasons = Array.isArray(out.reasons) ? out.reasons : [];
-    out.recommendations = Array.isArray(out.recommendations) ? out.recommendations : [];
-    out.breakdown = out.breakdown && typeof out.breakdown === 'object' ? out.breakdown : {};
+    const parsed = safeParseJSON(content) || {};
+    const advice = {
+      healthStatus: parsed.healthStatus || (type.includes("chol") ? "Lipid profile reviewed." : "Glucose profile reviewed."),
+      reasons: Array.isArray(parsed.reasons) ? parsed.reasons : [],
+      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+      breakdown: (parsed.breakdown && typeof parsed.breakdown === "object") ? parsed.breakdown : {},
+      disclaimer: parsed.disclaimer || "This is general information, not a medical diagnosis. Please consult your clinician."
+    };
 
-    return res.json({ ok: true, advice: out });
+    return res.json({ ok: true, advice });
   } catch (err) {
-    console.error('getAdvice error:', err);
+    console.error("getAdvice error:", err);
     return res.status(500).json({ ok: false, message: err.message });
   }
 };
 
-
-// -------------------- READ-ONLY PREVIEW for FE --------------------
+/* --------------------------- Extract Preview (RO) -------------------------- */
 // GET /api/reports/:id/extract-preview
 exports.previewExtract = async (req, res) => {
   try {
@@ -509,7 +651,7 @@ exports.previewExtract = async (req, res) => {
       return res.status(404).json({ ok: false, message: "Report file missing on disk" });
     }
 
-    // If Diabetes → forward to diabetes preview (keeps parity with your FE without duplication)
+    // If Diabetes → forward to diabetes preview
     if (/(diab)/i.test(String(doc.reportType || ''))) {
       return diabetesCtrl.preview(req, res);
     }
@@ -528,22 +670,19 @@ exports.previewExtract = async (req, res) => {
   }
 };
 
-// ================== TIME SERIES & COMPARE (for charts/summary) ==================
-
-/** Build a compact numeric snapshot from a report's extracted values. */
+/* -------------------- TIME SERIES & COMPARE (for charts) ------------------- */
 function _snapshot(report) {
   const ex = report?.extracted || {};
   const type = String(report?.reportType || '');
   const snap = { date: report?.uploadDate || report?.createdAt || null };
 
   if (/chol/i.test(type)) {
-    // Cholesterol
     if (ex.totalCholesterol != null) snap.totalCholesterol = Number(ex.totalCholesterol);
     if (ex.ldl != null)             snap.ldl = Number(ex.ldl);
     if (ex.hdl != null)             snap.hdl = Number(ex.hdl);
     if (ex.triglycerides != null)   snap.triglycerides = Number(ex.triglycerides);
+    if (ex.vldl != null)            snap.vldl = Number(ex.vldl);
   } else if (/diab/i.test(type)) {
-    // Diabetes
     if (ex.fastingGlucose != null)      snap.fastingGlucose = Number(ex.fastingGlucose);
     if (ex.postPrandialGlucose != null) snap.postPrandialGlucose = Number(ex.postPrandialGlucose);
     if (ex.randomGlucose != null)       snap.randomGlucose = Number(ex.randomGlucose);
@@ -554,9 +693,7 @@ function _snapshot(report) {
   return snap;
 }
 
-/** GET /api/patients/:patientId/series?type=Cholesterol|Diabetes
- *  Returns arrays you can use for charts. If `type` omitted, returns both.
- */
+/** GET /api/patients/:patientId/series?type=Cholesterol|Diabetes */
 exports.getTimeSeries = async (req, res) => {
   try {
     const { patientId } = req.params;
@@ -578,11 +715,9 @@ exports.getTimeSeries = async (req, res) => {
       if (/diab/i.test(r.reportType)) diab.push(snap);
     }
 
-    // If client asked a specific type, send just that
     if (type && /chol/i.test(type)) return res.json({ ok: true, type: 'Cholesterol', series: chol });
     if (type && /diab/i.test(type)) return res.json({ ok: true, type: 'Diabetes', series: diab });
 
-    // Otherwise both (handy for dashboards)
     return res.json({ ok: true, cholesterol: chol, diabetes: diab });
   } catch (err) {
     console.error('getTimeSeries error:', err);
@@ -590,21 +725,16 @@ exports.getTimeSeries = async (req, res) => {
   }
 };
 
-/** GET /api/reports/:id/compare
- *  Compares this report to the previous one (same patient & type).
- *  Returns deltas per metric for your “increase/decrease” UI.
- */
+/** GET /api/reports/:id/compare */
 exports.compareToPrevious = async (req, res) => {
   try {
     const { id } = req.params;
     const current = await LabReport.findById(id);
     if (!current) return res.status(404).json({ ok: false, message: 'Report not found' });
 
-    // find the immediately previous report of the same type for the same patient
     const prev = await LabReport.findOne({
       patientId: current.patientId,
       reportType: current.reportType,
-      // earlier uploadDate (fallback to createdAt if uploadDate missing)
       $or: [
         { uploadDate: { $lt: current.uploadDate || current.createdAt } },
         { createdAt: { $lt: current.uploadDate || current.createdAt } },
@@ -615,17 +745,15 @@ exports.compareToPrevious = async (req, res) => {
     const exCur  = current.extracted || {};
     const exPrev = prev?.extracted || {};
 
-    // choose fields by type
     const fields = /chol/i.test(type)
-      ? ['totalCholesterol', 'ldl', 'hdl', 'triglycerides']
-      : ['fastingGlucose', 'postPrandialGlucose', 'randomGlucose', 'ogtt2h', 'hba1c'];
+  ? ['totalCholesterol', 'ldl', 'hdl', 'vldl', 'triglycerides'] // <-- added vldl
+  : ['fastingGlucose', 'postPrandialGlucose', 'randomGlucose', 'ogtt2h', 'hba1c'];
 
     const deltas = {};
     for (const k of fields) {
       const curV  = (exCur[k]  != null) ? Number(exCur[k])  : null;
       const prevV = (exPrev[k] != null) ? Number(exPrev[k]) : null;
 
-      // Only compute delta when we have both numbers
       const has = Number.isFinite(curV) && Number.isFinite(prevV);
       deltas[k] = {
         current: Number.isFinite(curV)  ? curV  : null,

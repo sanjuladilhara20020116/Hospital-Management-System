@@ -20,3 +20,4 @@ export function nicOrPassportValid(nic, passport) {
   return true;
 }
 
+//validation 

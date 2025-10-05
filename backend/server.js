@@ -1,4 +1,4 @@
-// server.js
+// backend/server.js
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -15,7 +15,6 @@ const STATIC_ALLOWED = new Set(
     process.env.APP_BASE_URL,  // if it points at your React app
   ].filter(Boolean)
 );
-
 // allow http://localhost:<port> and http://<LAN-IP>:<port>
 const LAN_REGEX = /^http:\/\/(?:localhost|\d{1,3}(?:\.\d{1,3}){3}):\d+$/;
 
@@ -23,9 +22,7 @@ app.use(
   cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true); // Postman/curl/same-origin
-      if (STATIC_ALLOWED.has(origin) || LAN_REGEX.test(origin)) {
-        return cb(null, true);
-      }
+      if (STATIC_ALLOWED.has(origin) || LAN_REGEX.test(origin)) return cb(null, true);
       return cb(null, false); // silently block unknown origins
     },
     credentials: true,
@@ -53,18 +50,28 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const pharmacyRoutes = require('./routes/pharmacyRoutes');
 const packageRoutes = require('./routes/packageRoutes');
 const cartRoutes = require('./routes/cartRoutes');
-const bookingRoutes = require('./routes/bookingRoutes');      // /api/bookings
-const appointmentRoutes = require('./routes/appointmentRoutes'); // /api/appointments
-const availabilityRoutes = require('./routes/availabilityRoutes');
 
-const labJobRoutes = require('./routes/labJobRoutes');
-const userReportRoutes = require('./routes/userReportRoutes');
-const publicReportRoutes = require('./routes/publicReportRoutes');
-const labReportRoutes = require('./routes/labReportRoutes');
+const bookingRoutes = require('./routes/bookingRoutes');            // /api/bookings
+const appointmentRoutes = require('./routes/appointmentRoutes');    // /api/appointments
+const availabilityRoutes = require('./routes/availabilityRoutes');  // /api/availability
 
-const diabetesRoutes = require('./routes/diabetesRoutes');
-const analyzeRoutes = require('./routes/analyzeRoutes');
-const cholesterolRoutes = require('./routes/cholesterol');
+const vaccinationRoutes = require('./routes/vaccinations');         // /api/vaccinations
+const userLookupRoutes = require('./routes/userLookup');            // /api/user-lookup (doctor-only)
+
+const labJobRoutes = require('./routes/labJobRoutes');              // /api/lab-jobs
+const userReportRoutes = require('./routes/userReportRoutes');      // /api/users (reports subset)
+const publicReportRoutes = require('./routes/publicReportRoutes');  // /api/public/reports
+const labReportRoutes = require('./routes/labReportRoutes');        // /api/reports
+
+const diabetesRoutes = require('./routes/diabetesRoutes');          // /api/*
+const analyzeRoutes = require('./routes/analyzeRoutes');            // /api/*
+const cholesterolRoutes = require('./routes/cholesterol');          // /api/*
+
+const allergyRoutes = require('./routes/allergyRoutes');            // /api/*
+const clinicalRecordRoutes = require('./routes/clinicalRecordRoutes'); // /api/clinical-records
+const prescriptionRoutes = require('./routes/prescriptionRoutes');     // /api/prescriptions
+const diagnosisCardRoutes = require('./routes/diagnosisCardRoutes');   // /api/diagnosis-cards
+const admissionNoteRoutes = require('./routes/admissionNoteRoutes');   // /api/admission-notes
 
 /* Core feature mounts */
 app.use('/api/auth', authRoutes);
@@ -78,14 +85,18 @@ app.use('/api/pharmacy', pharmacyRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/cart', cartRoutes);
 
-/* Bookings & Appointments (fix: do NOT mount bookingRoutes under /api/appointments) */
-app.use('/api/bookings', bookingRoutes);           // correct mount for bookings
-app.use('/api/appointments', appointmentRoutes);   // appointments only here
+/* Bookings & Appointments */
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/appointments', appointmentRoutes);
 app.use('/api/availability', availabilityRoutes);
+
+/* Vaccinations + patient lookup */
+app.use('/api/vaccinations', vaccinationRoutes);
+app.use('/api/user-lookup', userLookupRoutes);
 
 /* Lab modules / reports */
 app.use('/api/lab-jobs', labJobRoutes);
-app.use('/api/users', userReportRoutes);           // mounted alongside userRoutes (ensure no path collisions inside files)
+app.use('/api/users', userReportRoutes);           // paths inside route files must avoid collisions
 app.use('/api/public/reports', publicReportRoutes);
 app.use('/api/reports', labReportRoutes);
 
@@ -94,29 +105,29 @@ app.use('/api', diabetesRoutes);
 app.use('/api', analyzeRoutes);
 app.use('/api', cholesterolRoutes);
 
+/* Allied medical record features */
+app.use('/api', allergyRoutes);
+app.use('/api/clinical-records', clinicalRecordRoutes);
+app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/diagnosis-cards', diagnosisCardRoutes);
+app.use('/api/admission-notes', admissionNoteRoutes);
+
+
+// mount
+app.use('/api/patients', require('./routes/patients'));
+
+
+// TEMP alias to support /api/by-ref/:referenceNo/view
+/* TEMP alias to support /api/by-ref/:referenceNo/view */
+app.get('/api/by-ref/:referenceNo/view', (req, res) => {
+  const ref = encodeURIComponent(req.params.referenceNo);
+  res.redirect(302, `/api/reports/by-ref/${ref}/view`);
+});
+
 /* -------------------- Optional: placeholders (keep silent 200s) -------------------- */
 app.get('/api/stats', (_req, res) => res.json({ patients: 0, doctors: 0, labs: 0 }));
 app.get('/api/doctors/featured', (_req, res) => res.json([]));
 app.get('/api/testimonials', (_req, res) => res.json([]));
-
-
-//allergyRoutes
-const allergyRoutes = require('./routes/allergyRoutes');
-app.use('/api', allergyRoutes);
-
-// Clinical Records (doctor visit notes) - additive
-app.use('/api/clinical-records', require('./routes/clinicalRecordRoutes'));
-
-// Prescriptions (medical records) - additive
-app.use('/api/prescriptions', require('./routes/prescriptionRoutes'));
-
-// Diagnosis card
-app.use('/api/diagnosis-cards', require('./routes/diagnosisCardRoutes'));
-
-// Admission Note
-app.use('/api/admission-notes', require('./routes/admissionNoteRoutes'));
-
-
 
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {
@@ -124,7 +135,7 @@ app.use('/api', (req, res) => {
 });
 
 /* -------------------- Global error handler -------------------- */
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error('UNCAUGHT ERROR:', err);
   res.status(500).json({ message: 'Unexpected server error' });
 });
