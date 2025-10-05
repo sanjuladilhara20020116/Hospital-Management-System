@@ -1,96 +1,95 @@
-// src/App.js
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-
+// frontend/src/App.js
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
 // Auth / public
-import Registration from './pages/Registration';
-import Login from './pages/Login';
-import HomePage from './pages/HomePage';
+import Registration from "./pages/Registration";
+import Login from "./pages/Login";
+import HomePage from "./pages/HomePage";
 
 // Feature pages
-import WardManagement from './pages/WardManagement';
-import DepartmentManagement from './pages/DepartmentManagement';
-import SupplierManagement from './pages/SupplierManagement';
+import WardManagement from "./pages/WardManagement";
+import DepartmentManagement from "./pages/DepartmentManagement";
+import SupplierManagement from "./pages/SupplierManagement";
 
 // Dashboards by role
-import PatientDashboard from './pages/PatientDashboard';
-import DoctorDashboard from './pages/DoctorDashboard';
-import PharmacistDashboard from './pages/PharmacistDashboard';
-import HospitalManagerDashboard from './pages/HospitalManagerDashboard';
-import LabAdminDashboard from './pages/LabAdminDashboard';
+import PatientDashboard from "./pages/PatientDashboard";
+import DoctorDashboard from "./pages/DoctorDashboard";
+import PharmacistDashboard from "./pages/PharmacistDashboard";
+import HospitalManagerDashboard from "./pages/HospitalManagerDashboard";
+import LabAdminDashboard from "./pages/LabAdminDashboard";
 
 // Existing new modules
-import Inventory from './pages/Inventory';
-import Pharmacy from './pages/Pharmacy';
+import Inventory from "./pages/Inventory";
+import Pharmacy from "./pages/Pharmacy";
 
 // Health Check Packages flow
-import ManagePackages from './pages/ManagePackages';
-import HealthcarePackages from './pages/HealthcarePackages';
-import Cart from './pages/Cart';
-import MyBookings from './pages/MyBookings';
+import ManagePackages from "./pages/ManagePackages";
+import HealthcarePackages from "./pages/HealthcarePackages";
+import Cart from "./pages/Cart";
+import MyBookings from "./pages/MyBookings";
 
-// ✅ Your additional pages
-import MyLabReports from './pages/MyLabReports';
-import PatientReportDownload from './pages/PatientReportDownload';
-
+// Reports
+import MyLabReports from "./pages/MyLabReports";
+import PatientReportDownload from "./pages/PatientReportDownload";
 import ReportAnalysisPage from "./pages/ReportAnalysisPage";
 import CholesterolDashboard from "./pages/CholesterolDashboard";
 import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
-// ✅ added safely
-import PaymentSuccess from './pages/appointments/PaymentSuccess';
+// Appointments (from dewduniMain)
+import AppointmentSearchPage from "./pages/appointments/AppointmentSearchPage";
+import PaymentSuccess from "./pages/appointments/PaymentSuccess";
+import AppointmentDetails from "./pages/appointments/AppointmentDetails";
+import PaymentCheckout from "./pages/appointments/PaymentCheckout";
 
 // Patient Details (doctor view)
 import PatientDetails from "./pages/record/PatientDetails";
 import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
 
-
-// ✅ Vaccination pages (added)
-import DoctorVaccinatePage from './pages/DoctorVaccinatePage';
-import DoctorVaccinations from './pages/DoctorVaccinations';
-import PatientVaccinations from './pages/PatientVaccinations';
-import VaccinationDetail from './pages/VaccinationDetail';
-import DoctorVaccinationSearch from './pages/DoctorVaccinationSearch';
+// Vaccination module
+import DoctorVaccinatePage from "./pages/DoctorVaccinatePage";
+import DoctorVaccinations from "./pages/DoctorVaccinations";
+import PatientVaccinations from "./pages/PatientVaccinations";
+import VaccinationDetail from "./pages/VaccinationDetail";
+import DoctorVaccinationSearch from "./pages/DoctorVaccinationSearch";
 
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
-    const raw = localStorage.getItem('user');
+    const raw = localStorage.getItem("user");
     return raw ? JSON.parse(raw) : null; // expects { userId, role, ... }
   } catch {
     return null;
   }
 }
 
-// Role guard (kept minimal; blocks if not logged in or role not allowed)
+// Role guard (minimal)
 function RoleRoute({ allowedRoles, children }) {
   const user = getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
   if (!allowedRoles.includes(user.role)) {
-    return <div style={{ padding: 24, color: '#c00' }}>Unauthorized Role</div>;
+    return <div style={{ padding: 24, color: "#c00" }}>Unauthorized Role</div>;
   }
   return children;
 }
 
-// Switch dashboard component by role (now passes userId)
+// Switch dashboard component by role (passes userId)
 function DashboardSwitch() {
   const user = getCurrentUser();
   if (!user) return <Navigate to="/login" replace />;
-
   switch (user.role) {
-    case 'Patient':
-      return <PatientDashboard userId={user.userId} />;          // ✅ pass userId
-    case 'Doctor':
-      return <DoctorDashboard userId={user.userId} />;            // (safe to pass)
-    case 'Pharmacist':
-      return <PharmacistDashboard userId={user.userId} />;        // (safe to pass)
-    case 'HospitalManager':
-      return <HospitalManagerDashboard userId={user.userId} />;   // (safe to pass)
-    case 'LabAdmin':
-      return <LabAdminDashboard userId={user.userId} />;          // (safe to pass)
+    case "Patient":
+      return <PatientDashboard userId={user.userId} />;
+    case "Doctor":
+      return <DoctorDashboard userId={user.userId} />;
+    case "Pharmacist":
+      return <PharmacistDashboard userId={user.userId} />;
+    case "HospitalManager":
+      return <HospitalManagerDashboard userId={user.userId} />;
+    case "LabAdmin":
+      return <LabAdminDashboard userId={user.userId} />;
     default:
-      return <div style={{ padding: 24, color: '#c00' }}>Unauthorized Role</div>;
+      return <div style={{ padding: 24, color: "#c00" }}>Unauthorized Role</div>;
   }
 }
 
@@ -104,7 +103,13 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registration />} />
 
-        {/* ✅ Your extra public route for report download page */}
+        {/* Appointment flow (public entry + checkout + success + details) */}
+        <Route path="/appointments" element={<AppointmentSearchPage />} />
+        <Route path="/appointments/checkout" element={<PaymentCheckout />} />
+        <Route path="/appointments/success" element={<PaymentSuccess />} />
+        <Route path="/appointments/details" element={<AppointmentDetails />} />
+
+        {/* Public route for report download */}
         <Route path="/lab-report" element={<PatientReportDownload />} />
 
         {/* Unified dashboard route with role guard + switch */}
@@ -113,11 +118,11 @@ function App() {
           element={
             <RoleRoute
               allowedRoles={[
-                'Patient',
-                'Doctor',
-                'Pharmacist',
-                'HospitalManager',
-                'LabAdmin',
+                "Patient",
+                "Doctor",
+                "Pharmacist",
+                "HospitalManager",
+                "LabAdmin",
               ]}
             >
               <DashboardSwitch />
@@ -125,20 +130,21 @@ function App() {
           }
         />
 
-        {/* ✅ Your patient-only My Lab Reports route */}
+        {/* Patient-only My Lab Reports */}
         <Route
           path="/my-reports"
           element={
-            <RoleRoute allowedRoles={['Patient']}>
+            <RoleRoute allowedRoles={["Patient"]}>
               <MyLabReports />
             </RoleRoute>
           }
         />
+
         {/* Doctor-only Patient Details routes */}
         <Route
           path="/doctor/patients"
           element={
-            <RoleRoute allowedRoles={['Doctor']}>
+            <RoleRoute allowedRoles={["Doctor"]}>
               <PatientDetailsPlaceholder />
             </RoleRoute>
           }
@@ -146,12 +152,11 @@ function App() {
         <Route
           path="/doctor/patients/:patientId"
           element={
-            <RoleRoute allowedRoles={['Doctor']}>
+            <RoleRoute allowedRoles={["Doctor"]}>
               <PatientDetails />
             </RoleRoute>
           }
         />
-
 
         {/* Manager-only pages */}
         <Route path="/manager-dashboard" element={<HospitalManagerDashboard />} />
@@ -172,13 +177,16 @@ function App() {
         {/* Report analysis */}
         <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
         <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
-        <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
+        <Route
+          path="/cholesterol-trends/:patientId"
+          element={<CholesterolTrendsPage />}
+        />
 
-        {/* ✅ Vaccination routes (with role guards) */}
+        {/* Vaccination routes (keep current hub as /vaccinations/home) */}
         <Route
           path="/vaccinations/new"
           element={
-            <RoleRoute allowedRoles={['Doctor']}>
+            <RoleRoute allowedRoles={["Doctor"]}>
               <DoctorVaccinatePage />
             </RoleRoute>
           }
@@ -186,7 +194,7 @@ function App() {
         <Route
           path="/vaccinations/doctor"
           element={
-            <RoleRoute allowedRoles={['Doctor']}>
+            <RoleRoute allowedRoles={["Doctor"]}>
               <DoctorVaccinations />
             </RoleRoute>
           }
@@ -194,7 +202,7 @@ function App() {
         <Route
           path="/vaccinations/mine"
           element={
-            <RoleRoute allowedRoles={['Patient']}>
+            <RoleRoute allowedRoles={["Patient"]}>
               <PatientVaccinations />
             </RoleRoute>
           }
@@ -202,7 +210,7 @@ function App() {
         <Route
           path="/vaccinations/:id"
           element={
-            <RoleRoute allowedRoles={['Doctor', 'Patient']}>
+            <RoleRoute allowedRoles={["Doctor", "Patient"]}>
               <VaccinationDetail />
             </RoleRoute>
           }
@@ -210,7 +218,7 @@ function App() {
         <Route
           path="/vaccinations/home"
           element={
-            <RoleRoute allowedRoles={['Doctor']}>
+            <RoleRoute allowedRoles={["Doctor"]}>
               <DoctorVaccinationSearch />
             </RoleRoute>
           }

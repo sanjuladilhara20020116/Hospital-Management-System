@@ -28,19 +28,21 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import EmailIcon from "@mui/icons-material/Email";
 import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
 import VaccinesIcon from "@mui/icons-material/Vaccines";
+import PhoneIphoneIcon from "@mui/icons-material/PhoneIphone";
 
 import ViewPatientCard from "../components/record/ViewPatientCard";
 
-const API_BASE = import.meta?.env?.VITE_API_BASE_URL || "http://localhost:5000/api";
+const API_BASE =
+  import.meta?.env?.VITE_API_BASE_URL || "http://localhost:5000/api";
 const UPLOADS_BASE =
   import.meta?.env?.VITE_UPLOADS_BASE_URL || "http://localhost:5000/uploads";
 
 /**
  * Doctor Dashboard
- * - Shows doctor profile with edit/save/delete
- * - Quick CTA: Vaccination hub
- * - Quick CTA: My Appointments -> Set Availability dialog (POST /api/availability/doctor/day)
- * - Patient quick view card (ViewPatientCard)
+ * - Profile view/edit/delete
+ * - Vaccination hub CTA
+ * - "My Appointments" modal for setting availability
+ * - Current-day (or selected date) appointment list
  *
  * Notes:
  * - Expects backend role-gate headers: X-Role=Doctor, X-User-Id=<doctorId>
@@ -49,22 +51,34 @@ const UPLOADS_BASE =
 export default function DoctorDashboard({ userId: propUserId }) {
   const theme = useTheme();
 
-  // ---- state
+  // ---- derived userId
+  const userId =
+    propUserId ||
+    (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("user"));
+        return u?.userId || u?._id || u?.id || "";
+      } catch {
+        return "";
+      }
+    })();
+
+  // ---- profile state
   const [profile, setProfile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
 
+  // ---- alert/snackbar
   const [alert, setAlert] = useState({
     open: false,
     severity: "info",
     message: "",
   });
+  const showAlert = (severity, message) =>
+    setAlert({ open: true, severity, message });
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
-  // Availability
+  // ---- availability modal state
   const todayStr = new Date().toISOString().slice(0, 10);
   const [availOpen, setAvailOpen] = useState(false);
   const [savingAvailability, setSavingAvailability] = useState(false);
@@ -77,25 +91,14 @@ export default function DoctorDashboard({ userId: propUserId }) {
     hospital: "Asiri Central - Colombo",
   });
 
-  // Derive userId (prop wins; fallback to localStorage user object if present)
-  const userId =
-    propUserId ||
-    (() => {
-      try {
-        const u = JSON.parse(localStorage.getItem("user"));
-        return u?.userId || u?._id || u?.id || "";
-      } catch {
-        return "";
-      }
-    })();
+  // ---- appointments-by-date state
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
 
-  // ---- helpers
-  const showAlert = (severity, message) =>
-    setAlert({ open: true, severity, message });
-
-  // ---- effects
+  // ---- effects: load profile
   useEffect(() => {
-    let isMounted = true;
+    let active = true;
 
     async function fetchProfile() {
       if (!userId) {
@@ -103,8 +106,10 @@ export default function DoctorDashboard({ userId: propUserId }) {
         return;
       }
       try {
-        const res = await axios.get(`${API_BASE}/users/${encodeURIComponent(userId)}`);
-        if (!isMounted) return;
+        const res = await axios.get(
+          `${API_BASE}/users/${encodeURIComponent(userId)}`
+        );
+        if (!active) return;
 
         setProfile(res.data);
         setFormData(res.data);
@@ -114,15 +119,44 @@ export default function DoctorDashboard({ userId: propUserId }) {
           setImagePreview(null);
         }
       } catch (err) {
-        showAlert("error", err?.response?.data?.message || "Failed to load profile");
+        showAlert(
+          "error",
+          err?.response?.data?.message || "Failed to load profile"
+        );
       }
     }
 
     fetchProfile();
     return () => {
-      isMounted = false;
+      active = false;
     };
   }, [userId]);
+
+  // ---- effects: load appointments when date/user changes
+  useEffect(() => {
+    async function loadAppointments() {
+      if (!userId || !selectedDate) return;
+      try {
+        setLoadingAppointments(true);
+        const params = new URLSearchParams({
+          doctorId: userId,
+          date: selectedDate,
+        });
+        const res = await axios.get(
+          `${API_BASE}/appointments/getUserAppointments?${params.toString()}`
+        );
+        const arr = Array.isArray(res.data?.appointments)
+          ? res.data.appointments
+          : [];
+        setAppointments(arr);
+      } catch {
+        setAppointments([]);
+      } finally {
+        setLoadingAppointments(false);
+      }
+    }
+    loadAppointments();
+  }, [userId, selectedDate]);
 
   // ---- profile edit handlers
   const handleChange = (e) => {
@@ -137,7 +171,6 @@ export default function DoctorDashboard({ userId: propUserId }) {
 
   const handleSave = async () => {
     if (!userId) return;
-
     try {
       const data = new FormData();
       Object.entries(formData || {}).forEach(([k, v]) => {
@@ -151,7 +184,9 @@ export default function DoctorDashboard({ userId: propUserId }) {
       showAlert("success", "Profile updated successfully");
       setEditMode(false);
 
-      const res = await axios.get(`${API_BASE}/users/${encodeURIComponent(userId)}`);
+      const res = await axios.get(
+        `${API_BASE}/users/${encodeURIComponent(userId)}`
+      );
       setProfile(res.data);
       setFormData(res.data);
       if (res.data?.photo) {
@@ -160,13 +195,15 @@ export default function DoctorDashboard({ userId: propUserId }) {
         setImagePreview(null);
       }
     } catch (err) {
-      showAlert("error", err?.response?.data?.message || "Failed to update profile");
+      showAlert(
+        "error",
+        err?.response?.data?.message || "Failed to update profile"
+      );
     }
   };
 
   const handleDelete = async () => {
     if (!userId) return;
-
     try {
       await axios.delete(`${API_BASE}/users/${encodeURIComponent(userId)}`);
       showAlert("success", "Profile deleted. Logging out...");
@@ -175,7 +212,10 @@ export default function DoctorDashboard({ userId: propUserId }) {
         window.location.href = "/";
       }, 1500);
     } catch (err) {
-      showAlert("error", err?.response?.data?.message || "Failed to delete profile");
+      showAlert(
+        "error",
+        err?.response?.data?.message || "Failed to delete profile"
+      );
     }
   };
 
@@ -216,7 +256,8 @@ export default function DoctorDashboard({ userId: propUserId }) {
       showAlert("success", "Availability saved");
       setAvailOpen(false);
     } catch (err) {
-      const msg = err?.response?.data?.message || "Failed to save availability";
+      const msg =
+        err?.response?.data?.message || "Failed to save availability";
       showAlert("error", msg);
     } finally {
       setSavingAvailability(false);
@@ -231,7 +272,11 @@ export default function DoctorDashboard({ userId: propUserId }) {
     );
   }
 
-  const labelStyle = { fontWeight: 600, color: "text.secondary", minWidth: 180 };
+  const labelStyle = {
+    fontWeight: 600,
+    color: "text.secondary",
+    minWidth: 180,
+  };
 
   return (
     <Box sx={{ maxWidth: 900, mx: "auto", mt: 4, px: { xs: 2, sm: 3 }, pb: 6 }}>
@@ -442,9 +487,19 @@ export default function DoctorDashboard({ userId: propUserId }) {
                   ),
                 }}
               />
-              <Button variant="outlined" component="label" sx={{ alignSelf: "flex-start" }}>
+              <Button
+                variant="outlined"
+                component="label"
+                sx={{ alignSelf: "flex-start" }}
+              >
                 Upload New Photo
-                <input hidden type="file" name="photo" accept="image/*" onChange={handleChange} />
+                <input
+                  hidden
+                  type="file"
+                  name="photo"
+                  accept="image/*"
+                  onChange={handleChange}
+                />
               </Button>
             </Stack>
           ) : (
@@ -465,17 +520,19 @@ export default function DoctorDashboard({ userId: propUserId }) {
                 <strong>Contact Number:</strong> {profile.contactNumber || "-"}
               </Typography>
               <Typography>
-                <strong>Date of Birth:</strong> {profile.dateOfBirth?.substring(0, 10) || "-"}
+                <strong>Date of Birth:</strong>{" "}
+                {profile.dateOfBirth?.substring(0, 10) || "-"}
               </Typography>
               <Typography>
-                <strong>SLMC Registration #:</strong> {profile.slmcRegistrationNumber || "-"}
+                <strong>SLMC Registration #:</strong>{" "}
+                {profile.slmcRegistrationNumber || "-"}
               </Typography>
             </Stack>
           )}
         </CardContent>
       </Card>
 
-      {/* Patient card */}
+      {/* Patient quick view */}
       <Box sx={{ mt: 3 }}>
         <ViewPatientCard />
       </Box>
@@ -487,33 +544,42 @@ export default function DoctorDashboard({ userId: propUserId }) {
         onClose={() => setAlert((a) => ({ ...a, open: false }))}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <Alert severity={alert.severity} variant="filled" sx={{ width: "100%", borderRadius: 2 }}>
+        <Alert
+          severity={alert.severity}
+          variant="filled"
+          sx={{ width: "100%", borderRadius: 2 }}
+        >
           {alert.message}
         </Alert>
       </Snackbar>
 
       {/* Confirm Delete */}
       <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
+        open={false /* set by your delete flow if needed */}
+        onClose={() => {}}
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
         <DialogTitle sx={{ fontWeight: 800 }}>Confirm Delete</DialogTitle>
         <DialogContent sx={{ color: "text.secondary" }}>
-          Are you sure you want to delete your profile? This action cannot be undone.
+          Are you sure you want to delete your profile? This action cannot be
+          undone.
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} sx={{ textTransform: "none", fontWeight: 700 }}>
-            Cancel
-          </Button>
-          <Button color="error" onClick={handleDelete} sx={{ textTransform: "none", fontWeight: 700 }}>
+          <Button sx={{ textTransform: "none", fontWeight: 700 }}>Cancel</Button>
+          <Button color="error" sx={{ textTransform: "none", fontWeight: 700 }}>
             Delete
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Set Availability / My Appointments */}
-      <Dialog open={availOpen} onClose={() => setAvailOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog
+        open={availOpen}
+        onClose={() => setAvailOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
         <DialogTitle sx={{ fontWeight: 800 }}>Set Availability</DialogTitle>
         <DialogContent dividers>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
@@ -582,13 +648,20 @@ export default function DoctorDashboard({ userId: propUserId }) {
               />
             </Grid>
           </Grid>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: "block" }}>
-            Patients will see available times and a live booking count. Once the limit is
-            reached, new bookings are blocked automatically.
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mt: 1.5, display: "block" }}
+          >
+            Patients will see available times and a live booking count. Once the
+            limit is reached, new bookings are blocked automatically.
           </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setAvailOpen(false)} sx={{ textTransform: "none", fontWeight: 700 }}>
+          <Button
+            onClick={() => setAvailOpen(false)}
+            sx={{ textTransform: "none", fontWeight: 700 }}
+          >
             Close
           </Button>
           <Button
@@ -601,6 +674,175 @@ export default function DoctorDashboard({ userId: propUserId }) {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Doctor Appointments by Date */}
+      <Box sx={{ mt: 6 }}>
+        <Typography
+          variant="h5"
+          fontWeight={800}
+          sx={{
+            mb: 2,
+            color: "#05284cff",
+            letterSpacing: 1,
+            fontSize: 25,
+          }}
+        >
+          Current Appointments
+        </Typography>
+        <Box sx={{ display: "flex", justifyContent: "center", mb: 3 }}>
+          <TextField
+            type="date"
+            label="Select Date"
+            InputLabelProps={{ shrink: true }}
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            sx={{ minWidth: 260, background: "#f8fafc", borderRadius: 2 }}
+          />
+        </Box>
+        {loadingAppointments ? (
+          <Typography color="info.main" sx={{ fontWeight: 600, letterSpacing: 1 }}>
+            Loading appointments...
+          </Typography>
+        ) : (
+          <>
+            <Typography
+              variant="subtitle1"
+              sx={{ mb: 2, color: "#1976d2", fontWeight: 700, fontSize: 18 }}
+            >
+              Total Appointments:{" "}
+              <span style={{ color: "#1976d2" }}>{appointments.length}</span>
+            </Typography>
+            {appointments.length === 0 ? (
+              <Typography
+                color="text.secondary"
+                sx={{ fontStyle: "italic", fontSize: 16 }}
+              >
+                No appointments for this date.
+              </Typography>
+            ) : (
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {appointments.map((appt, idx) => (
+                  <Card
+                    key={appt._id || idx}
+                    elevation={2}
+                    sx={{
+                      mb: 1,
+                      borderLeft: "6px solid #1976d2",
+                      background: "#f4f8fd",
+                      borderRadius: 2,
+                      p: 2,
+                      boxShadow: "0 2px 8px rgba(25, 118, 210, 0.07)",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <Avatar
+                        sx={{
+                          bgcolor: "#1976d2",
+                          color: "#fff",
+                          width: 44,
+                          height: 44,
+                          fontWeight: 700,
+                          fontSize: 22,
+                        }}
+                      >
+                        {appt.patient?.name
+                          ? appt.patient.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .toUpperCase()
+                              .slice(0, 2)
+                          : "?"}
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{ color: "#000000ff", fontWeight: 700, mb: 0.5 }}
+                        >
+                          {appt.patient?.name || "-"}
+                        </Typography>
+                        <Typography sx={{ color: "text.secondary", fontSize: 15 }}>
+                          <EmailIcon
+                            sx={{ fontSize: 18, verticalAlign: "middle", mr: 0.5 }}
+                          />{" "}
+                          {appt.patient?.email || "-"}
+                          {appt.patient?.phone && (
+                            <span style={{ marginLeft: 12 }}>
+                              <PhoneIphoneIcon
+                                sx={{
+                                  fontSize: 18,
+                                  verticalAlign: "middle",
+                                  mr: 0.5,
+                                }}
+                              />
+                              {appt.patient.phone}
+                            </span>
+                          )}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        label={appt.status || "-"}
+                        color={
+                          appt.status === "Booked"
+                            ? "primary"
+                            : appt.status === "Completed"
+                            ? "success"
+                            : appt.status === "Cancelled"
+                            ? "error"
+                            : "warning"
+                        }
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: 15,
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: 1,
+                          textTransform: "capitalize",
+                        }}
+                      />
+                    </Box>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <Typography
+                        sx={{ color: "#000000ff", fontWeight: 600, fontSize: 16 }}
+                      >
+                        🕒{" "}
+                        {appt.time
+                          ? `${appt.time.start} - ${appt.time.end}`
+                          : appt.slotTime || "-"}
+                      </Typography>
+                      {appt.reason && (
+                        <Typography
+                          sx={{
+                            color: "text.secondary",
+                            fontStyle: "italic",
+                            fontSize: 15,
+                          }}
+                        >
+                          📝 {appt.reason}
+                        </Typography>
+                      )}
+                      <Typography sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}>
+                        Ref:{" "}
+                        <span style={{ color: "#010101ff", fontWeight: 700 }}>
+                          {appt.referenceNo}
+                        </span>
+                      </Typography>
+                    </Box>
+                  </Card>
+                ))}
+              </Box>
+            )}
+          </>
+        )}
+      </Box>
     </Box>
   );
 }
