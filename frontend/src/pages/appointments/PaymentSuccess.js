@@ -1,31 +1,23 @@
 // src/pages/appointments/PaymentSuccess.jsx
-import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Box, Typography, Button, Stack } from '@mui/material';
+import { useEffect } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import API from '../../api';
 
 export default function PaymentSuccess() {
-  const nav = useNavigate();
-  const { state } = useLocation();
-  const appt = state?.appt;
+  const [sp] = useSearchParams();
+  const id = sp.get('appointment');
+
+  useEffect(() => {
+    if (id) API.post('/api/appointments/pay/confirm', { appointmentId: id });
+  }, [id]);
 
   return (
-    <Box sx={{ maxWidth: 640, mx: 'auto', mt: 6 }}>
-      <Typography variant="h4" fontWeight={800} color="success.main">Payment Successful</Typography>
-      {appt ? (
-        <Stack spacing={1} sx={{ mt: 2 }}>
-          <Typography>Reference: <b>{appt.referenceNo}</b></Typography>
-          <Typography>Date: {appt.date}</Typography>
-          <Typography>Time: {appt.startTime} – {appt.endTime}</Typography>
-          <Typography>Status: {appt.status}</Typography>
-          <Typography>Queue No (Appointment No): <b>{appt.queueNo}</b></Typography>
-        </Stack>
-      ) : (
-        <Typography sx={{ mt: 2 }}>Appointment confirmed.</Typography>
-      )}
-      <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-        <Button variant="contained" onClick={() => nav('/dashboard')}>Go to Dashboard</Button>
-        <Button variant="text" onClick={() => nav('/appointments')}>Book another</Button>
-      </Stack>
-    </Box>
+    <div style={{ padding: 24 }}>
+      <h2>Payment Successful</h2>
+      <p>Your appointment has been confirmed.</p>
+      {id && <a href={`http://localhost:5000/api/appointments/${id}/receipt.pdf`} target="_blank" rel="noreferrer">Download Receipt (PDF)</a>}
+      <div><Link to="/dashboard">Go to My Appointments</Link></div>
+    </div>
   );
 }
+

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { FaTimes, FaCalendarAlt, FaUser, FaPhone } from 'react-icons/fa';
 
 const AppointmentModal = ({ doctors, onClose }) => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState({ //holds all input values in one object.
     name: '',
     phone: '',
     email: '',
