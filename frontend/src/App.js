@@ -36,27 +36,17 @@ import ReportAnalysisPage from "./pages/ReportAnalysisPage";
 import CholesterolDashboard from "./pages/CholesterolDashboard";
 import CholesterolTrendsPage from "./pages/CholesterolTrendsPage";
 
-// ✅ added safely
-import PaymentSuccess from './pages/appointments/PaymentSuccess';
-
-// Patient Details (doctor view)
-import PatientDetails from "./pages/record/PatientDetails";
-import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
-
-
-// ✅ Vaccination pages (added)
-import DoctorVaccinatePage from './pages/DoctorVaccinatePage';
-import DoctorVaccinations from './pages/DoctorVaccinations';
-import PatientVaccinations from './pages/PatientVaccinations';
-import VaccinationDetail from './pages/VaccinationDetail';
-import DoctorVaccinationSearch from './pages/DoctorVaccinationSearch';
 // Appointments (from dewduniMain)
 import AppointmentSearchPage from "./pages/appointments/AppointmentSearchPage";
 import PaymentSuccess from "./pages/appointments/PaymentSuccess";
 import AppointmentDetails from "./pages/appointments/AppointmentDetails";
 import PaymentCheckout from "./pages/appointments/PaymentCheckout";
 
-// Vaccination module (from SanjulaMain)
+// Patient Details (doctor view)
+import PatientDetails from "./pages/record/PatientDetails";
+import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
+
+// Vaccination module
 import DoctorVaccinatePage from "./pages/DoctorVaccinatePage";
 import DoctorVaccinations from "./pages/DoctorVaccinations";
 import PatientVaccinations from "./pages/PatientVaccinations";
@@ -149,11 +139,12 @@ function App() {
             </RoleRoute>
           }
         />
+
         {/* Doctor-only Patient Details routes */}
         <Route
           path="/doctor/patients"
           element={
-            <RoleRoute allowedRoles={['Doctor']}>
+            <RoleRoute allowedRoles={["Doctor"]}>
               <PatientDetailsPlaceholder />
             </RoleRoute>
           }
@@ -161,12 +152,11 @@ function App() {
         <Route
           path="/doctor/patients/:patientId"
           element={
-            <RoleRoute allowedRoles={['Doctor']}>
+            <RoleRoute allowedRoles={["Doctor"]}>
               <PatientDetails />
             </RoleRoute>
           }
         />
-
 
         {/* Manager-only pages */}
         <Route path="/manager-dashboard" element={<HospitalManagerDashboard />} />
@@ -192,7 +182,7 @@ function App() {
           element={<CholesterolTrendsPage />}
         />
 
-        {/* Vaccination routes */}
+        {/* Vaccination routes (keep current hub as /vaccinations/home) */}
         <Route
           path="/vaccinations/new"
           element={
