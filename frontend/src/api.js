@@ -10,6 +10,12 @@ API.interceptors.request.use((config) => {
     if (user?.userId) {
       config.headers["x-user-id"] = user.userId;   // 👈 important
     }
+
+    // 👇 Added: include JWT if present (keeps existing behavior intact)
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
   } catch {}
   return config;
 });

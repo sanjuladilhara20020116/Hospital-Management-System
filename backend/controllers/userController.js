@@ -65,3 +65,27 @@ exports.deleteUserProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+/* ----------------------------------------------------------
+ * Dev-only auth stubs (NO JWT) so routes can use protect/allowRoles
+ * Send headers from frontend when needed:
+ *   - X-Role: Patient | Doctor | Pharmacist | HospitalManager | LabAdmin
+ *   - X-User-Id: e.g. P2025/001
+ * ---------------------------------------------------------- */
+exports.protect = (req, _res, next) => {
+  const role = (req.headers['x-role'] || 'Patient').toString();
+  const userId = (req.headers['x-user-id'] || '').toString();
+  req.user = { role, userId };
+  next();
+};
+
+exports.allowRoles = (...roles) => (req, res, next) => {
+  const userRole = req.user?.role;
+  if (!userRole || !roles.includes(userRole)) {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+  next();
+};
+
+// optional alias if some routes import authorizeRoles
+exports.authorizeRoles = exports.allowRoles;
