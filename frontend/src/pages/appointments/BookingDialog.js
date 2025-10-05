@@ -1,5 +1,5 @@
-// src/pages/appointments/BookingDialog.jsx
 
+// src/pages/appointments/BookingDialog.jsx
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,46 +10,27 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import PaymentIcon from '@mui/icons-material/Payment';
 import LockIcon from '@mui/icons-material/Lock';
-
-import React, { useState } from "react";
-import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, Grid, Snackbar, Alert, Box, Typography
-} from "@mui/material";
-import { useNavigate } from "react-router-dom";
-
 import API from "../../api";
+import { rx, nicOrPassportValid } from "../../utils/validators";
 
-// ---- Safe, local validators (no external rx import needed) ----
-const RX = {
-  personName: /^[A-Za-z\s]{2,40}$/,               // letters + spaces
-  phone: /^[0-9+()\-\s]{7,20}$/,                   // simple phone
-  email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,          // simple email
-};
-
-export default function BookingDialog({
-  open,
-  onClose,
-  doctorId,
-  doctorName,
-  date,
-  session, // expect { range: { start, end }, ... }
-}) {
-  const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("user") || "{}"); // { userId, role, ... }
-
+const TITLES = ["Mr.", "Ms.", "Mrs.", "Master", "Dr."];
 
 export default function BookingDialog({ open, onClose, doctorId, doctorName, date, session, onBooked }) {
   const navigate = useNavigate();
-
   const [form, setForm] = useState({
-    patientName: "",
+    nationality: "LOCAL",
+    title: "Mr.",
+    name: "",
+    phoneCode: "+94",
     phone: "",
+    nic: "",
+    passport: "",
     email: "",
-    nicOrPassport: "",
+    address: "",
+    ongoingNumber: "YES",
+    noShowRefund: false,
     reason: "",
   });
-
   const [status, setStatus] = useState({ type: "", msg: "" });
   const [submitting, setSubmitting] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -62,42 +43,20 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
   const hospitalCharge = 1000;
   const serviceFee = 250;
   const total = doctorCharge + hospitalCharge + serviceFee;
-//before payment final validate
+
   const canSubmit = useMemo(() => {
     if (!open) return false;
     if (!rx.nameSubmit.test(form.name)) return false;                // letters & spaces only
-    if (!rx.phone.test(form.phone)) return false;                     // digits 9–12
-    if (!nicOrPassportValid(form.nic.trim(), form.passport.trim())) return false; // one must be valid
+    if (!rx.phone.test(form.phone)) return false;
+    if (!nicOrPassportValid(form.nic.trim(), form.passport.trim())) return false;
     if (form.email && !/.+@.+\..+/.test(form.email)) return false;
-    if (form.reason && !rx.reason.test(form.reason)) return false;           // safe chars
+    if (form.reason && !rx.reason.test(form.reason)) return false;
     return true;
   }, [open, form]);
 
-  const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState({ open: false, severity: "info", message: "" });
+  const handle = (k, v) => setForm(s => ({ ...s, [k]: v }));
 
-  const show = (severity, message) =>
-    setToast({ open: true, severity, message });
-
-  const update = (e) =>
-    setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
-
-  // Defensive: ensure we have date and a session range
-  const slotStart = session?.range?.start || "";
-  const slotEnd = session?.range?.end || "";
-
-
-  const valid = () => {
-    if (!date || !slotStart || !slotEnd) {
-      show("error", "Missing date or time slot. Please pick a session again.");
-      return false;
-    }
-    const name = (form.patientName || "").trim();
-    const phone = (form.phone || "").trim();
-    const email = (form.email || "").trim();
-    const idNo = (form.nicOrPassport || "").trim();
-
-  // Payment online card details gateway validation
+  // Payment gateway validation
   const gatewayValid = useMemo(() => {
     if (!gateway.cardNumber.match(/^\d{16}$/)) return false;
     if (!gateway.expiry.match(/^(0[1-9]|1[0-2])\/(\d{2})$/)) return false;
@@ -116,7 +75,7 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
     setStatus({ type: "", msg: "" });
   };
 
-  // Handles the final (submit)booking (after payment method selected)
+  // Handles the final booking (after payment method selected)
   const handleFinalSubmit = async () => {
     if (!paymentMethod) {
       setStatus({ type: "error", msg: "Please select a payment method." });
@@ -153,7 +112,7 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
           breakdown: {
             doctorCharge,
             hospitalCharge,
-            serviceFee,//display just details 
+            serviceFee,
             total
           }
         }
@@ -174,91 +133,15 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
       // Navigate to AppointmentDetails page with appointment data
       navigate("/appointments/details", { state: { appointment: r.data.appointment } });
       onBooked?.(r.data.appointment);
-
-    if (!name || !RX.personName.test(name)) {
-      show("error", "Enter a valid patient name (letters & spaces only).");
-      return false;
-    }
-    if (!phone || !RX.phone.test(phone)) {
-      show("error", "Enter a valid phone number.");
-      return false;
-    }
-    if (email && !RX.email.test(email)) {
-      show("error", "Enter a valid email.");
-      return false;
-    }
-    if (!idNo) {
-      show("error", "NIC/Passport is required.");
-      return false;
-    }
-    if (!user?.userId) {
-      show("error", "You must be logged in as a patient to continue.");
-      return false;
-    }
-    return true;
-  };
-
-  const makeIntent = async () => {
-    if (!valid()) return;
-
-    try {
-      setBusy(true);
-
-      // The backend must accept this payload at POST /api/appointments/intent
-      const payload = {
-        doctorId,
-        doctorName,
-        date,
-        startTime: slotStart,
-        patientId: user.userId,
-        patientName: form.patientName.trim(),
-        patientPhone: form.phone.trim(),
-        patientEmail: (form.email || "").trim(),
-        idNo: form.nicOrPassport.trim(),
-        reason: (form.reason || "").trim(),
-      };
-
-      const { data } = await API.post("/api/appointments/intent", payload);
-
-      // Expecting { pendingId, amount, currency }
-      if (!data?.pendingId) {
-        show("error", data?.message || "Could not create checkout session.");
-        return;
-      }
-
-      navigate("/appointments/checkout", {
-        state: {
-          pendingId: data.pendingId,
-          amount: data.amount ?? 0,
-          currency: data.currency ?? "LKR",
-          summary: {
-            doctorId,
-            doctorName,
-            date,
-            time: `${slotStart} – ${slotEnd}`,
-            patientName: form.patientName,
-            patientPhone: form.phone,
-            patientEmail: form.email,
-            idNo: form.nicOrPassport,
-            reason: form.reason,
-          },
-        },
-        replace: true,
-      });
-
-      onClose?.();
-
     } catch (e) {
-      // No crash—just inform the user
-      const msg = e?.response?.data?.message || "Validation error (400). Please check fields.";
-      show("error", msg);
+      const msg = e?.response?.data?.message || "Booking failed.";
+      setStatus({ type: "error", msg });
     } finally {
-      setBusy(false);
+      setSubmitting(false);
     }
   };
 
   return (
-
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ sx: { background: '#fff' } }}>
       <DialogTitle sx={{ fontWeight: 700, fontSize: 22, letterSpacing: 0.5, color: '#1976d2', pb: 1.5 }}>
         {doctorName} • {date} • {session?.range?.start} → {session?.range?.end}
@@ -270,7 +153,7 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
               Complete within <b>09:17</b> (example). Queue no. will be assigned on submit.
             </Typography>
           </Grid>
-               
+
           <Grid item xs={12}>
             <RadioGroup row value={form.nationality} onChange={(e) => handle("nationality", e.target.value)}>
               <FormControlLabel value="LOCAL" control={<Radio color="primary" />} label="LOCAL" />
@@ -590,7 +473,7 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
             )}
           </Paper>
         )}
-      </DialogContent> 
+      </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} disabled={submitting} sx={{ borderRadius: 2, fontWeight: 600 }}>Cancel</Button>
         {!showPayment ? (
@@ -598,7 +481,7 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
             {submitting ? "Booking…" : "Continue"}
           </Button>
         ) : (
-          <Button //a Cancel button,
+          <Button
             variant="contained"
             onClick={handleFinalSubmit}
             disabled={submitting || (paymentMethod === "online" && !gatewayValid)}
@@ -609,97 +492,6 @@ export default function BookingDialog({ open, onClose, doctorId, doctorName, dat
         )}
       </DialogActions>
     </Dialog>
-  );
-}
-//before payment final validate - 46-55 / icon 9-14
-//18-33 patientge appointment eka sadaha details gann thiye 
-//41-45 payment total eka set karanawa
-//46-55 validation before payment
-//59-66 Payment online card details gateway validation(format validation only.)
-//79-118  Handles the final (submit)booking (after payment method selected)
-//Send email confirmation after successful booking 121-128
-//Navigate to AppointmentDetails page with appointment data 133-142
-//157-162 local foriegn   // 144-355 css part //Mock Payment Gateway UI-357 //card ui 361-74
-//376-381 Card network logo (static Visa) 
-// Card details layout: Card Holder on one line, Expiry and CVC below 380-410
-//411-475 card format validation
-=======
-    <>
-      <Dialog open={open} onClose={busy ? undefined : onClose} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {doctorName || "Doctor"} • {date || "—"} • {slotStart || "??"} → {slotEnd || "??"}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            Complete within a few minutes. Queue number is assigned after successful payment.
-          </Typography>
-
-          <Box sx={{ mt: 2 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <TextField
-                  name="patientName"
-                  label="Patient Name"
-                  fullWidth
-                  value={form.patientName}
-                  onChange={update}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  name="phone"
-                  label="Phone"
-                  fullWidth
-                  value={form.phone}
-                  onChange={update}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  name="email"
-                  label="Email (optional)"
-                  fullWidth
-                  value={form.email}
-                  onChange={update}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  name="nicOrPassport"
-                  label="NIC / Passport"
-                  fullWidth
-                  value={form.nicOrPassport}
-                  onChange={update}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  name="reason"
-                  label="Reason (optional)"
-                  fullWidth
-                  value={form.reason}
-                  onChange={update}
-                />
-              </Grid>
-            </Grid>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button variant="contained" onClick={makeIntent} disabled={busy}>
-            {busy ? "Preparing..." : "Continue to Payment"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      >
-        <Alert severity={toast.severity} variant="filled">{toast.message}</Alert>
-      </Snackbar>
-    </>
   );
 }
 

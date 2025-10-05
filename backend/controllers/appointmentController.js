@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const DoctorAvailability = require('../models/DoctorAvailability');
@@ -6,7 +5,7 @@ const User = require('../models/User');
 const genRef = require('../utils/generateApptRef');
 const { stepSlots, toMinutes, rangesOverlap } = require('../utils/slotUtils');
 
-const CUT_OFF_MIN = 15; // minutes
+const CUT_OFF_MIN = 15; // stop booking within 15 min of session start
 
 function dayKey(dateStr) {
   const d = new Date(dateStr + 'T00:00:00.000Z');
@@ -22,7 +21,7 @@ function withinRanges(hhmm, ranges) {
   }
   return false;
 }
-//api ekak
+
 async function getDoctorAndAvailability(doctorId) {
   const doctor = await User.findOne({ userId: doctorId, role: 'Doctor' }).select('_id userId firstName lastName');
   if (!doctor) throw new Error('Doctor not found');
@@ -39,20 +38,14 @@ async function getDoctorAndAvailability(doctorId) {
 }
 
 // Build "sessions" for a day from availability ranges
-
-/* ------------------------------------------------------------------ */
-/* Helpers used by sessions/slots so we consistently EXCLUDE intents  */
-/* ------------------------------------------------------------------ */
-
 async function computeSessions(doctorRef, dateStr, avail) {
   const key = dayKey(dateStr);
   const ranges = avail.weeklyHours[key] || [];
   if (!ranges.length) return [];
 
-  // Count only paid/real bookings (NOT 'AwaitingPayment')
-  const sameDay = await Appointment.find({
-    doctorRef, date: dateStr, status: { $in: ['Booked', 'Confirmed'] }
-  }).select('startTime');
+  // fetch existing appts on that date for counts
+  const sameDay = await Appointment.find({ doctorRef, date: dateStr, status: { $ne: 'Cancelled' } })
+    .select('startTime');
 
   const taken = new Set(sameDay.map(a => a.startTime));
   const nowUtc = new Date();
@@ -61,10 +54,12 @@ async function computeSessions(doctorRef, dateStr, avail) {
     const slots = stepSlots([r], avail.durationMinutes);
     const active = slots.filter(s => taken.has(s.startTime)).length;
     const remaining = Math.max(0, avail.sessionCapacity - active);
+    const sessionStartMin = toMinutes(r.start);
 
-    // cut-off label
+    // booking cut-off
+    let bookable = true;
     const sessionStartUtc = new Date(`${dateStr}T${r.start}:00.000Z`);
-    const bookable = ((sessionStartUtc - nowUtc) / 60000) >= CUT_OFF_MIN;
+    if ((sessionStartUtc - nowUtc) / 60000 < CUT_OFF_MIN) bookable = false;
 
     const label = !bookable ? 'CLOSED' : (remaining > 0 ? 'AVAILABLE' : 'FULL');
 
@@ -77,7 +72,6 @@ async function computeSessions(doctorRef, dateStr, avail) {
     };
   });
 }
-
 
 // PATCH: Edit appointment (reschedule time only)
 exports.editAppointment = async (req, res) => {
@@ -136,64 +130,37 @@ exports.deleteAppointment = async (req, res) => {
 
 
 // PUBLIC: Sessions summary for a doctor&date (capacity & active counts)
-
-/* ---------------------- Public discovery endpoints ---------------------- */
-
 exports.getSessions = async (req, res) => {
   try {
     const { doctorId } = req.params;
     const { date } = req.query;
-
-    const doctor = await User.findOne({ userId: doctorId, role: 'Doctor' })
-      .select('_id userId firstName lastName');
-    if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
-
-    let avail = await DoctorAvailability.findOne({ doctorRef: doctor._id });
-    if (!avail) {
-      avail = await DoctorAvailability.create({
-        doctorRef: doctor._id,
-        durationMinutes: 15,
-        sessionCapacity: 30,
-        weeklyHours: { mon:[], tue:[], wed:[], thu:[], fri:[], sat:[], sun:[] }
-      });
-    }
-
+    const { doctor, avail } = await getDoctorAndAvailability(doctorId);
     const sessions = await computeSessions(doctor._id, date, avail);
-    res.json({
-      doctor: { id: doctor.userId, name: `${doctor.firstName} ${doctor.lastName}` },
-      date,
-      sessions
-    });
+    res.json({ doctor: { id: doctor.userId, name: `${doctor.firstName} ${doctor.lastName}` }, date, sessions });
   } catch (e) {
     console.error('getSessions error:', e);
     res.status(500).json({ message: e.message || 'Failed to load sessions' });
   }
 };
 
+// PUBLIC: Free slots for a doctor&date (respect capacity & taken)
 exports.getSlots = async (req, res) => {
   try {
     const { doctorId } = req.params;
     const { date } = req.query;
-
-    const doctor = await User.findOne({ userId: doctorId, role: 'Doctor' })
-      .select('_id userId');
-    if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
-
-    const avail = await DoctorAvailability.findOne({ doctorRef: doctor._id });
-    if (!avail) return res.json({ date, durationMinutes: 15, capacityPerSession: 0, slots: [] });
-
+    const { doctor, avail } = await getDoctorAndAvailability(doctorId);
     const key = dayKey(date);
     const ranges = avail.weeklyHours[key] || [];
     const slots = stepSlots(ranges, avail.durationMinutes);
 
-    // cut-off
+    // remove past/cut-off slots
     const nowUtc = new Date();
     const filteredByTime = slots.filter(s => {
       const slotStart = new Date(`${date}T${s.startTime}:00.000Z`);
       return (slotStart - nowUtc) / 60000 >= CUT_OFF_MIN;
     });
 
-    // remove date-specific blocks/breaks
+    // remove breaks/blocks (date-specific)
     const dateStart = new Date(`${date}T00:00:00.000Z`);
     const dateEnd   = new Date(`${date}T23:59:59.999Z`);
     const blocked = [...(avail.breaks||[]), ...(avail.blocks||[])]
@@ -206,40 +173,32 @@ exports.getSlots = async (req, res) => {
       return !blocked.some(b => rangesOverlap(sUtc.getTime(), eUtc.getTime(), b.start.getTime(), b.end.getTime()));
     });
 
-    // take out already booked (exclude intents)
+    // take out already booked slots
     const taken = new Set(
-      (await Appointment.find({
-        doctorRef: doctor._id, date,
-        status: { $in: ['Booked', 'Confirmed'] }
-      }).select('startTime')).map(a => a.startTime)
+      (await Appointment.find({ doctorRef: doctor._id, date, status: { $ne: 'Cancelled' } }).select('startTime'))
+        .map(a => a.startTime)
     );
 
     const free = freeTimeSlots.filter(s => !taken.has(s.startTime));
+
     res.json({
       date,
       durationMinutes: avail.durationMinutes,
       capacityPerSession: avail.sessionCapacity,
-      slots: free
+      slots: free // [{startTime, endTime}]
     });
   } catch (e) {
     console.error('getSlots error:', e);
     res.status(500).json({ message: e.message || 'Failed to load slots' });
   }
 };
-//this part 
+
 // BOOK (Patient)
 exports.create = async (req, res) => {
-
-
-/* --------------------- Reserve → Pay → Confirm flow --------------------- */
-
-// 1) Create booking INTENT (AwaitingPayment) — DOES NOT affect counts
-exports.createIntent = async (req, res) => {
-
   const session = await mongoose.startSession();
   try {
-    const { patientId, doctorId, date, startTime, reason = '' } = req.body;
-
+    const actor = req.actorPatient; // from actorPatient middleware
+    if (!actor) return res.status(401).json({ message: 'Unauthorized' });
 
     const { patientId, doctorId, date, startTime, name, phone, nic, passport, email, reason, paymentMethod, priceLkr } = req.body;
     // Resolve patient + doctor
@@ -249,47 +208,41 @@ exports.createIntent = async (req, res) => {
   const doctor  = await User.findOne({ userId: doctorId, role: 'Doctor' }).select('_id userId firstName lastName');
   if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
 
-    const patient = await User.findOne({ userId: patientId, role: 'Patient' }).select('_id userId');
-    if (!patient) return res.status(404).json({ message: 'Patient not found' });
-
-    const doctor  = await User.findOne({ userId: doctorId, role: 'Doctor' }).select('_id userId firstName lastName');
-    if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
-
-
+    // Load availability
     const avail = await DoctorAvailability.findOne({ doctorRef: doctor._id });
     if (!avail) return res.status(409).json({ message: 'Doctor availability not configured' });
 
+    // Validate slot belongs to working ranges
     const key = dayKey(date);
     const ranges = (avail.weeklyHours[key] || []);
     const inWorking = ranges.some(r => startTime >= r.start && startTime < r.end);
     if (!inWorking) return res.status(400).json({ message: 'Selected time is outside doctor working hours' });
 
-    // cut-off
+    // Cut-off guard
     const now = new Date();
     const slotStartUtc = new Date(`${date}T${startTime}:00.000Z`);
-    if ((slotStartUtc - now) / 60000 < CUT_OFF_MIN) {
-      return res.status(400).json({ message: 'Booking closed for this time' });
-    }
-
-    // capacity check using ONLY paid bookings
-    const range = ranges.find(r => startTime >= r.start && startTime < r.end);
-    const paidAppts = await Appointment.find({
-      doctorRef: doctor._id, date,
-      startTime: { $gte: range.start, $lt: range.end },
-      status: { $in: ['Booked','Confirmed'] }
-    }).select('_id');
-
-    if (paidAppts.length >= avail.sessionCapacity) {
-      return res.status(409).json({ message: 'Session is full' });
-    }
+    if ((slotStartUtc - now) / 60000 < 15) return res.status(400).json({ message: 'Booking closed for this time' });
 
     const endTimeMin = toMinutes(startTime) + avail.durationMinutes;
     const endTime = `${String(Math.floor(endTimeMin/60)).padStart(2,'0')}:${String(endTimeMin%60).padStart(2,'0')}`;
-    const referenceNo = genRef();
 
-    let doc;
+    // Count active in the session window to compute queue (based on that range)
+    const range = ranges.find(r => startTime >= r.start && startTime < r.end);
+    const sessionAppts = await Appointment.find({
+      doctorRef: doctor._id, date,
+      startTime: { $gte: range.start, $lt: range.end },
+      status: { $ne: 'Cancelled' }
+    }).select('_id startTime').sort({ startTime: 1 });
+
+    if (sessionAppts.length >= avail.sessionCapacity) {
+      return res.status(409).json({ message: 'Session is full' });
+    }
+
+    // TRANSACTION: insert with unique (doctorRef,date,startTime)
     await session.withTransaction(async () => {
-      const created = await Appointment.create([{
+      const referenceNo = genRef();
+
+      const appt = await Appointment.create([{
         referenceNo,
         patientRef: patient._id,
         patientId: patient.userId,
@@ -299,7 +252,6 @@ exports.createIntent = async (req, res) => {
         date,
         startTime,
         endTime,
-
         status: 'Booked',
         paymentMethod: paymentMethod || '',
         priceLkr: priceLkr || 0,
@@ -310,92 +262,23 @@ exports.createIntent = async (req, res) => {
         patientEmail: email || '',
         patientNIC: nic || '',
         patientPassport: passport || ''
-
-        status: 'AwaitingPayment',   // key
-        queueNo: 0,                  // assigned on payment success
-        reason
-
       }], { session });
-      doc = created[0];
+
+      res.status(201).json({ message: 'Appointment booked', appointment: appt[0] });
     });
 
-    res.status(201).json({
-      message: 'Intent created',
-      appointment: {
-        _id: doc._id,
-        referenceNo: doc.referenceNo,
-        doctor: { id: doctor.userId, name: `${doctor.firstName} ${doctor.lastName}` },
-        date, startTime, endTime
-      }
-    });
   } catch (e) {
     if (e?.code === 11000) {
-      return res.status(409).json({ message: 'Slot already reserved. Please pick another.' });
+      return res.status(409).json({ message: 'Slot already taken. Please pick another.' });
     }
-    console.error('createIntent error:', e);
-    res.status(500).json({ message: 'Server error creating intent' });
+    console.error('create appointment error:', e);
+    res.status(500).json({ message: 'Server error creating appointment' });
   } finally {
     session.endSession();
   }
 };
 
-// 2) Confirm payment — assign queue and mark Confirmed
-exports.pay = async (req, res) => {
-  const session = await mongoose.startSession();
-  try {
-    const { id } = req.params;
-    const { nameOnCard, cardNumber, exp, cvc } = req.body;
-
-    const appt = await Appointment.findById(id);
-    if (!appt) return res.status(404).json({ message: 'Appointment not found' });
-    if (appt.status !== 'AwaitingPayment') {
-      return res.status(409).json({ message: `Cannot pay for status ${appt.status}` });
-    }
-
-    // MOCK payment validation
-    const ok = String(cardNumber || '').trim().length >= 12;
-    if (!ok) {
-      appt.status = 'Cancelled';
-      await appt.save();
-      return res.status(402).json({ message: 'Payment failed' });
-    }
-
-    const avail = await DoctorAvailability.findOne({ doctorRef: appt.doctorRef });
-    const key = dayKey(appt.date);
-    const range = (avail.weeklyHours[key] || [])
-      .find(r => appt.startTime >= r.start && appt.startTime < r.end);
-
-    const paidAppts = await Appointment.find({
-      doctorRef: appt.doctorRef,
-      date: appt.date,
-      startTime: { $gte: range.start, $lt: range.end },
-      status: { $in: ['Booked','Confirmed'] }
-    }).select('_id').sort({ startTime: 1 });
-
-    await session.withTransaction(async () => {
-      appt.status = 'Confirmed';
-      appt.queueNo = paidAppts.length + 1;
-      appt.payment = {
-        provider: 'mock',
-        status: 'succeeded',
-        externalId: `MOCK-${appt.referenceNo}`,
-        paidAt: new Date(),
-        cardLast4: String(cardNumber).slice(-4)
-      };
-      await appt.save({ session });
-    });
-
-    res.json({ message: 'Payment success', appointment: appt });
-  } catch (e) {
-    console.error('pay error:', e);
-    res.status(500).json({ message: 'Server error confirming payment' });
-  } finally {
-    session.endSession();
-  }
-};
-
-/* ----------------------------- Lists & ops ------------------------------ */
-
+// LIST for Patient
 exports.listForPatient = async (req, res) => {
   try {
     const { patientId, status, from, to, doctorId } = req.query;
@@ -420,6 +303,7 @@ exports.listForPatient = async (req, res) => {
   }
 };
 
+// LIST for Doctor
 exports.listForDoctor = async (req, res) => {
   try {
     const { doctorId } = req.params;
@@ -444,17 +328,18 @@ exports.listForDoctor = async (req, res) => {
   }
 };
 
+// STATUS change (Doctor)
 exports.changeStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-
     const appt = await Appointment.findById(id);
     if (!appt) return res.status(404).json({ message: 'Appointment not found' });
 
-    const allowed = new Set(['Booked','CheckedIn','Completed','Cancelled','NoShow','Confirmed']);
+    const allowed = new Set(['Booked','CheckedIn','Completed','Cancelled','NoShow']);
     if (!allowed.has(status)) return res.status(400).json({ message: 'Invalid status' });
 
+    // Simple state rules
     if (appt.status === 'Completed') return res.status(409).json({ message: 'Already completed' });
     if (appt.status === 'Cancelled') return res.status(409).json({ message: 'Already cancelled' });
 
@@ -467,6 +352,7 @@ exports.changeStatus = async (req, res) => {
   }
 };
 
+// RESCHEDULE (Patient or Doctor)
 exports.reschedule = async (req, res) => {
   const session = await mongoose.startSession();
   try {
@@ -486,7 +372,7 @@ exports.reschedule = async (req, res) => {
 
     const now = new Date();
     const slotStartUtc = new Date(`${date}T${startTime}:00.000Z`);
-    if ((slotStartUtc - now) / 60000 < CUT_OFF_MIN) return res.status(400).json({ message: 'Booking closed for this time' });
+    if ((slotStartUtc - now) / 60000 < 15) return res.status(400).json({ message: 'Booking closed for this time' });
 
     const endTimeMin = toMinutes(startTime) + avail.durationMinutes;
     const endTime = `${String(Math.floor(endTimeMin/60)).padStart(2,'0')}:${String(endTimeMin%60).padStart(2,'0')}`;
@@ -495,8 +381,8 @@ exports.reschedule = async (req, res) => {
     const sessionAppts = await Appointment.find({
       doctorRef: appt.doctorRef, date,
       startTime: { $gte: range.start, $lt: range.end },
-      status: { $in: ['Booked','Confirmed'] }
-    }).select('_id').sort({ startTime: 1 });
+      status: { $ne: 'Cancelled' }
+    }).select('_id startTime').sort({ startTime: 1 });
 
     if (sessionAppts.length >= avail.sessionCapacity) {
       return res.status(409).json({ message: 'Session is full' });
@@ -523,13 +409,11 @@ exports.reschedule = async (req, res) => {
   }
 };
 
-/* ----------------------- Doctor availability (me) ----------------------- */
-
+// Doctor Availability CRUD (basic: get/set)
 exports.getAvailability = async (req, res) => {
   try {
-    const actor = req.actorDoctor || {}; // if you have middleware
-    const docRef = actor._id || req.query.doctorRef;
-    const doc = await DoctorAvailability.findOne({ doctorRef: docRef });
+    const actor = req.actorDoctor;
+    const doc = await DoctorAvailability.findOne({ doctorRef: actor._id });
     res.json(doc || {});
   } catch (e) {
     res.status(500).json({ message: 'Failed to load availability' });
@@ -538,11 +422,10 @@ exports.getAvailability = async (req, res) => {
 
 exports.setAvailability = async (req, res) => {
   try {
-    const actor = req.actorDoctor || {};
-    const docRef = actor._id || req.body.doctorRef;
+    const actor = req.actorDoctor;
     const { durationMinutes, sessionCapacity, weeklyHours, breaks, blocks, timezone } = req.body;
     const up = await DoctorAvailability.findOneAndUpdate(
-      { doctorRef: docRef },
+      { doctorRef: actor._id },
       { $set: { durationMinutes, sessionCapacity, weeklyHours, breaks, blocks, timezone } },
       { new: true, upsert: true }
     );
