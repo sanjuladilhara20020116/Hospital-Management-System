@@ -762,7 +762,7 @@ export default function PatientDashboard({ userId }) {
                     Logout
                   </Button>
 
-                  {/* NEW: My Lab Reports (from your code) */}
+                  {/* NEW: My Lab Reports (existing) */}
                   <Button
                     size="small"
                     variant="outlined"
@@ -771,6 +771,17 @@ export default function PatientDashboard({ userId }) {
                     sx={{ borderRadius: 2, px: 2 }}
                   >
                     My Lab Reports
+                  </Button>
+
+                  {/* ✅ NEW: Medical Records (patient read-only page) */}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => navigate('/patient/medical-records')}
+                    startIcon={<MedicalIcon />}
+                    sx={{ borderRadius: 2, px: 2 }}
+                  >
+                    Medical Records
                   </Button>
                 </Box>
 
