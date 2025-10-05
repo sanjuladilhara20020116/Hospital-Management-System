@@ -1,5 +1,5 @@
 // src/components/record/MedicalRecordsHub.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import PrescriptionList from "./prescriptions/PrescriptionList";
 import DiagnosisList from "./diagnosis/DiagnosisList";
 import AdmissionList from "./admission/AdmissionList";
@@ -28,13 +28,19 @@ export default function MedicalRecordsHub({
   patientId,
   isDoctor = true,
   onAdd, // optional callback: onAdd(activeKey)
+  hideLab = false, // ✅ NEW: hide LAB Reports tab entirely on pages like patient view
 }) {
   const [section, setSection] = useState("med"); // "med" | "lab"
   const [active, setActive] = useState("record");
-  const [createSignal, setCreateSignal] = useState(0);         // Record
+  const [createSignal, setCreateSignal] = useState(0); // Record
   const [createSignalPresc, setCreateSignalPresc] = useState(0); // Prescription
-  const [createSignalDiag, setCreateSignalDiag] = useState(0);   // Diagnosis
-  const [createSignalAdm, setCreateSignalAdm] = useState(0);     // Admission
+  const [createSignalDiag, setCreateSignalDiag] = useState(0); // Diagnosis
+  const [createSignalAdm, setCreateSignalAdm] = useState(0); // Admission
+
+  // If LAB is hidden and section somehow isn't "med", snap back to "med"
+  useEffect(() => {
+    if (hideLab && section !== "med") setSection("med");
+  }, [hideLab, section]);
 
   const activeLabel = useMemo(() => {
     const found = SUBPARTS.find((s) => s.key === active);
@@ -43,6 +49,8 @@ export default function MedicalRecordsHub({
 
   // Clear create signals when switching sections
   const goSection = (value) => {
+    // ✅ prevent switching to 'lab' if it's hidden
+    if (hideLab && value === "lab") return;
     setSection(value);
     if (value !== "med") {
       setCreateSignal(0);
@@ -115,13 +123,13 @@ export default function MedicalRecordsHub({
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
+            gridTemplateColumns: hideLab ? "1fr" : "1fr 1fr", // ✅ one column if LAB hidden
             borderBottom: (t) => `1px solid ${t.palette.divider}`,
             bgcolor: "background.paper",
           }}
         >
           <Segment value="med">Medical Records</Segment>
-          <Segment value="lab">LAB Reports</Segment>
+          {!hideLab && <Segment value="lab">LAB Reports</Segment>}
         </Box>
 
         {/* MEDICAL RECORDS TABS */}
@@ -238,7 +246,7 @@ export default function MedicalRecordsHub({
                 </Typography>
               )
             ) : (
-              // LAB REPORTS: selectable, intentionally blank
+              // LAB REPORTS: selectable, intentionally blank (won't show if hideLab=true)
               <Stack sx={{ flex: 1 }} />
             )}
           </Paper>
