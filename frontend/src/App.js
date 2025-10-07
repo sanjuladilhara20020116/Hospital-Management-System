@@ -1,6 +1,3 @@
-// src/App.js 
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 // frontend/src/App.js
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
@@ -51,6 +48,7 @@ import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder"
 
 // ✅ NEW: Patient Medical Records (read-only)
 import PatientMedicalRecords from "./pages/record/PatientMedicalRecords";
+
 // Vaccination module
 import DoctorVaccinatePage from "./pages/DoctorVaccinatePage";
 import DoctorVaccinations from "./pages/DoctorVaccinations";
@@ -149,7 +147,7 @@ function App() {
         <Route
           path="/patient/medical-records"
           element={
-            <RoleRoute allowedRoles={['Patient']}>
+            <RoleRoute allowedRoles={["Patient"]}>
               <PatientMedicalRecords />
             </RoleRoute>
           }
@@ -192,10 +190,7 @@ function App() {
         {/* Report analysis */}
         <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
         <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
-        <Route
-          path="/cholesterol-trends/:patientId"
-          element={<CholesterolTrendsPage />}
-        />
+        <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
 
         {/* Vaccination routes (keep current hub as /vaccinations/home) */}
         <Route
