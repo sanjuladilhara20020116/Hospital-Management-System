@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react"; 
 import {
   Box, Card, CardContent, CardActions, Typography, Button,
   Stack, Alert, IconButton, CircularProgress, Dialog, DialogTitle,
@@ -181,22 +181,25 @@ export default function PrescriptionList({ patientId, isDoctor, createSignal = 0
               <Button size="small" startIcon={<VisibilityIcon />} onClick={() => setOpenView(it)}>
                 View
               </Button>
+
+              {/* Download visible to everyone */}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                  downloadFile(
+                    `${API_BASE}/api/prescriptions/${encodeURIComponent(it._id)}/pdf`,
+                    `Prescription_${it.prescriptionId || it._id}.pdf`
+                  )
+                }
+              >
+                Download PDF
+              </Button>
+
               {isDoctor && (
                 <>
                   <Button size="small" startIcon={<EditIcon />} onClick={() => setEditItem(it)}>
                     Edit
-                  </Button>
-                  <Button
-                    size="small"
-                    startIcon={<PictureAsPdfIcon />}
-                    onClick={() =>
-                      downloadFile(
-                        `${API_BASE}/api/prescriptions/${encodeURIComponent(it._id)}/pdf`,
-                        `Prescription_${it.prescriptionId || it._id}.pdf`
-                      )
-                    }
-                  >
-                    Download PDF
                   </Button>
                   <IconButton
                     color="error"
