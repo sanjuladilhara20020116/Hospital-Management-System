@@ -56,6 +56,9 @@ import PatientVaccinations from "./pages/PatientVaccinations";
 import VaccinationDetail from "./pages/VaccinationDetail";
 import DoctorVaccinationSearch from "./pages/DoctorVaccinationSearch";
 
+// BMI (public)
+import BMICalculator from "./pages/BMICalculator";
+
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
@@ -105,6 +108,9 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registration />} />
+
+        {/* ✅ Public wellness tool */}
+        <Route path="/bmi" element={<BMICalculator />} />
 
         {/* Appointment flow (public entry + checkout + success + details) */}
         <Route path="/appointments" element={<AppointmentSearchPage />} />
