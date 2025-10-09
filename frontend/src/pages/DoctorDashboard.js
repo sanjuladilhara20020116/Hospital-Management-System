@@ -96,6 +96,10 @@ export default function DoctorDashboard({ userId: propUserId }) {
   const [appointments, setAppointments] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
 
+  // ---- NEW: delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   // ---- effects: load profile
   useEffect(() => {
     let active = true;
@@ -203,19 +207,23 @@ export default function DoctorDashboard({ userId: propUserId }) {
   };
 
   const handleDelete = async () => {
-    if (!userId) return;
+    if (!userId || deleting) return;
     try {
+      setDeleting(true);
       await axios.delete(`${API_BASE}/users/${encodeURIComponent(userId)}`);
       showAlert("success", "Profile deleted. Logging out...");
       setTimeout(() => {
         localStorage.removeItem("user");
         window.location.href = "/";
-      }, 1500);
+      }, 1200);
     } catch (err) {
       showAlert(
         "error",
         err?.response?.data?.message || "Failed to delete profile"
       );
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -394,7 +402,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
               <Button
                 variant="outlined"
                 color="error"
-                onClick={() => setDeleteDialogOpen(true)}
+                onClick={() => setDeleteDialogOpen(true)}  // <-- FIX: now defined
                 sx={{ textTransform: "none", fontWeight: 700 }}
               >
                 Delete
@@ -555,8 +563,8 @@ export default function DoctorDashboard({ userId: propUserId }) {
 
       {/* Confirm Delete */}
       <Dialog
-        open={false /* set by your delete flow if needed */}
-        onClose={() => {}}
+        open={deleteDialogOpen}                       // <-- FIX: controlled by state
+        onClose={() => setDeleteDialogOpen(false)}    // <-- FIX: close handler
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
         <DialogTitle sx={{ fontWeight: 800 }}>Confirm Delete</DialogTitle>
@@ -565,9 +573,20 @@ export default function DoctorDashboard({ userId: propUserId }) {
           undone.
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button sx={{ textTransform: "none", fontWeight: 700 }}>Cancel</Button>
-          <Button color="error" sx={{ textTransform: "none", fontWeight: 700 }}>
-            Delete
+          <Button
+            onClick={() => setDeleteDialogOpen(false)}
+            disabled={deleting}
+            sx={{ textTransform: "none", fontWeight: 700 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            onClick={handleDelete}
+            disabled={deleting}
+            sx={{ textTransform: "none", fontWeight: 700 }}
+          >
+            {deleting ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -177,22 +177,25 @@ export default function DiagnosisList({ patientId, isDoctor, createSignal = 0 })
               <Button size="small" startIcon={<VisibilityIcon />} onClick={() => setOpenView(it)}>
                 View
               </Button>
+
+              {/* Download visible to everyone */}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                  downloadFile(
+                    `${API_BASE}/api/diagnosis-cards/${encodeURIComponent(it._id)}/pdf`,
+                    `DiagnosisCard_${it.diagnosisCardId || it._id}.pdf`
+                  )
+                }
+              >
+                Download PDF
+              </Button>
+
               {isDoctor && (
                 <>
                   <Button size="small" startIcon={<EditIcon />} onClick={() => setEditItem(it)}>
                     Edit
-                  </Button>
-                  <Button
-                    size="small"
-                    startIcon={<PictureAsPdfIcon />}
-                    onClick={() =>
-                      downloadFile(
-                        `${API_BASE}/api/diagnosis-cards/${encodeURIComponent(it._id)}/pdf`,
-                        `DiagnosisCard_${it.diagnosisCardId || it._id}.pdf`
-                      )
-                    }
-                  >
-                    Download PDF
                   </Button>
                   <IconButton
                     color="error"

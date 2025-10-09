@@ -46,6 +46,9 @@ import PaymentCheckout from "./pages/appointments/PaymentCheckout";
 import PatientDetails from "./pages/record/PatientDetails";
 import PatientDetailsPlaceholder from "./pages/record/PatientDetailsPlaceholder";
 
+// ✅ NEW: Patient Medical Records (read-only)
+import PatientMedicalRecords from "./pages/record/PatientMedicalRecords";
+
 // Vaccination module
 import DoctorVaccinatePage from "./pages/DoctorVaccinatePage";
 import DoctorVaccinations from "./pages/DoctorVaccinations";
@@ -140,6 +143,16 @@ function App() {
           }
         />
 
+        {/* ✅ NEW: Patient-only Medical Records (read-only) */}
+        <Route
+          path="/patient/medical-records"
+          element={
+            <RoleRoute allowedRoles={["Patient"]}>
+              <PatientMedicalRecords />
+            </RoleRoute>
+          }
+        />
+
         {/* Doctor-only Patient Details routes */}
         <Route
           path="/doctor/patients"
@@ -177,10 +190,7 @@ function App() {
         {/* Report analysis */}
         <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
         <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
-        <Route
-          path="/cholesterol-trends/:patientId"
-          element={<CholesterolTrendsPage />}
-        />
+        <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
 
         {/* Vaccination routes (keep current hub as /vaccinations/home) */}
         <Route
