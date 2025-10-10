@@ -1,3 +1,4 @@
+// src/pages/MyBookings.js
 import React, { useEffect, useState } from 'react';
 import {
   Box, Container, Typography, Button, Card, CardContent, Chip, Divider,
@@ -70,13 +71,14 @@ export default function MyBookings() {
     }
   };
 
-  // --- helpers for PDF/logo ---
-  const hexToRgb = (hex) => {
-    const s = hex.replace('#', '');
+  // ----------------- shared helpers -----------------
+  const toRGB = (hex) => {
+    const s = (hex || '').replace('#', '');
     const v = s.length === 3 ? s.split('').map(c => c + c).join('') : s;
-    const n = parseInt(v, 16);
+    const n = parseInt(v || '000000', 16);
     return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
   };
+  const currency = (n) => `Rs. ${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
   const blobToDataURL = (blob) =>
     new Promise((resolve, reject) => {
@@ -152,156 +154,312 @@ export default function MyBookings() {
     }
   };
 
-  // --- Styled PDF generation with logo in header ---
+  // ---------- data enrichment helpers ----------
+  const fetchPackagesMap = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/packages`, { cache: 'no-store' });
+      const arr = await res.json().catch(() => []);
+      if (!res.ok || !Array.isArray(arr)) return new Map();
+      return new Map(arr.map(p => [p.name, p]));
+    } catch {
+      return new Map();
+    }
+  };
+
+  const safeImageDataURL = async (url) => {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      const mime = (blob.type || '').toLowerCase();
+      if (mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg') || mime.includes('webp')) {
+        return await blobToDataURL(blob);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const png = await imageToPngDataURL(objectUrl);
+        return png;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch {
+      return null;
+    }
+  };
+
+  // ---------- drawing helpers ----------
+  const drawDivider = (doc, x1, y, x2, hex = '#E5E7EB') => {
+    const { r, g, b } = toRGB(hex);
+    doc.setDrawColor(r, g, b);
+    doc.setLineWidth(1);
+    doc.line(x1, y, x2, y);
+  };
+
+  const drawPill = (doc, { x, y, h = 26, text = '', padX = 12, fill = '#0ea5e9', color = '#fff', radius = 12, size = 12, weight = 'bold' }) => {
+    const w = doc.getTextWidth(text) + padX * 2;
+    const { r, g, b } = toRGB(fill);
+    doc.setFillColor(r, g, b);
+    doc.roundedRect(x, y, w, h, radius, radius, 'F');
+    doc.setTextColor(color);
+    doc.setFont('helvetica', weight);
+    doc.setFontSize(size);
+    doc.text(String(text), x + w / 2, y + h / 2 + 3.5, { align: 'center' });
+    return w;
+  };
+
+  // ---------- PDF generation (refined; no status ribbons) ----------
   const downloadPDF = async () => {
     if (!selected) return;
 
-    // colors from theme
+    // palette
     const primaryHex = theme.palette.primary.main;
-    const textHex = '#222222';
-    const mutedHex = '#666666';
-    const borderHex = '#DDDFE3';
+    const primaryDark = theme.palette.primary.dark || theme.palette.primary.main;
+    const borderHex = '#E5E7EB';
+    const textHex = '#111827';
+    const mutedHex = '#6B7280';
 
-    const primary = hexToRgb(primaryHex);
-    const border = hexToRgb(borderHex);
+    // hydrate items
+    const pkgsByName = await fetchPackagesMap();
+    const enrichedItems = (selected.items || []).map(it => {
+      const pkg = pkgsByName.get(it.packageName) || {};
+      return {
+        ...it,
+        tests: Array.isArray(pkg.tests) ? pkg.tests : [],
+        photoUrl: pkg.photo ? `${API_BASE}${pkg.photo}` : null
+      };
+    });
 
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setProperties({
+      title: `Booking ${selected._id}`,
+      subject: 'Healthcare Package Booking',
+      author: 'LifeNext',
+      creator: 'LifeNext Web App',
+    });
+
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const left = 40;
+    const right = pageW - 40;
 
     // Header band
-    doc.setFillColor(primary.r, primary.g, primary.b);
-    doc.rect(0, 0, pageWidth, 90, 'F');
+    const prim = toRGB(primaryHex);
+    doc.setFillColor(prim.r, prim.g, prim.b);
+    doc.rect(0, 0, pageW, 96, 'F');
 
-    // Try to load & add logo (safe handling)
+    // Logo
     try {
       const logo = await loadLogo(LOGO_URL);
       if (logo?.dataURL && logo?.format) {
-        // Fit within 130x50 box at (40,20)
-        doc.addImage(logo.dataURL, logo.format, 40, 20, 130, 65);
+        doc.addImage(logo.dataURL, logo.format, left, 18, 140, 60);
       }
-    } catch (err) {
-      console.warn('Logo addImage failed — skipping logo.', err);
-      // continue silently
-    }
+    } catch { /* ignore */ }
 
-    // Title + ID (right)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
+    // Title / ID
     doc.setTextColor('#ffffff');
-    doc.text('Booking Details', pageWidth - 40, 42, { align: 'right' });
-    doc.setFontSize(11);
-    doc.text(`ID: ${selected._id}`, pageWidth - 40, 62, { align: 'right' });
-
-    // Info box
-    let y = 120;
-    doc.setDrawColor(border.r, border.g, border.b);
-    doc.setLineWidth(1);
-    doc.roundedRect(40, y - 10, pageWidth - 80, 110, 6, 6);
-
-    doc.setTextColor(textHex);
-    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Summary', 54, y + 5);
-
+    doc.setFontSize(22);
+    doc.text('Booking', right, 40, { align: 'right' });
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(mutedHex);
+    doc.setFontSize(11);
+    doc.text(`ID: ${selected._id}`, right, 60, { align: 'right' });
+
+    // Summary Card
+    let y = 120;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(left, y - 10, pageW - 80, 150, 8, 8, 'F');
+    drawDivider(doc, left, y + 58, right, borderHex);
+
+    // Section title
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(textHex);
+    doc.text('Summary', left + 12, y + 6);
+
+    // Payment masked meta
+    const payCard = selected.payment?.card || selected.card || {};
+    const brand = payCard.brand ? String(payCard.brand).toUpperCase() : null;
+    const last4 = payCard.last4 ? String(payCard.last4) : null;
+    const exp = (payCard.expMonth && payCard.expYear)
+      ? `${String(payCard.expMonth).padStart(2, '0')}/${String(payCard.expYear).slice(-2)}`
+      : null;
+    const maskedCard = (brand && last4) ? `${brand} •••• ${last4}${exp ? `  (exp ${exp})` : ''}` : '—';
+
+    const colA = left + 12;
+    const colB = left + Math.floor((pageW - 80) / 2) + 12;
+    const lineGap = 18;
+    let rowA = y + 28, rowB = y + 28;
+
+    const printKV = (k, v, x, yy) => {
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(mutedHex);
+      doc.setFontSize(10); doc.text(k, x, yy);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(textHex);
+      doc.setFontSize(11); doc.text(String(v), x + 130, yy);
+    };
 
     const dateStr = new Date(selected.appointmentDate).toLocaleDateString();
     const timeStr = new Date(selected.appointmentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const method = selected.payment?.method === 'ONLINE' ? 'Online Payment' : 'Pay at Center';
+    const statusUpper = (selected.status || 'Pending').toUpperCase();
 
-    const lines = [
-      ['Status:', selected.status || 'Pending'],
+    [
+      ['Status:', statusUpper],
       ['Appointment:', `${dateStr} ${timeStr}`],
       ['Payment Method:', method],
+      ['Payment (masked):', maskedCard],
       ['Patient Name:', selected.patientName || '—'],
       ['Patient Email:', selected.patientEmail || '—'],
-    ];
-
-    // 2-column layout inside box
-    let leftX = 54, rightX = pageWidth / 2 + 10;
-    let rowY = y + 28;
-    const rowGap = 18;
-
-    lines.forEach((pair, i) => {
-      const [label, value] = pair;
-      const useRight = i >= Math.ceil(lines.length / 2);
-      const x = useRight ? rightX : leftX;
-      if (useRight && i === Math.ceil(lines.length / 2)) rowY = y + 28;
-
-      doc.setTextColor(mutedHex);
-      doc.setFont('helvetica', 'bold');
-      doc.text(label, x, rowY);
-
-      doc.setTextColor(textHex);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(value), x + 110, rowY);
-
-      rowY += rowGap;
+    ].forEach((pair, i) => {
+      const [k, v] = pair;
+      if (i < 3) { printKV(k, v, colA, rowA); rowA += lineGap; }
+      else { printKV(k, v, colB, rowB); rowB += lineGap; }
     });
 
-    // Items table
-    const startY = y + 130;
-    autoTable(doc, {
-      startY,
-      margin: { left: 40, right: 40 },
-      head: [['Package', 'Tests', 'Qty', 'Unit (Rs.)', 'Subtotal (Rs.)']],
-      body: (selected.items || []).map(it => ([
-        it.packageName,
-        String(it.testsCount || 0),
-        String(it.quantity),
-        Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 }),
-        Number(it.unitPrice * it.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })
-      ])),
-      styles: {
-        font: 'helvetica',
-        fontSize: 11,
-        cellPadding: 8,
-        lineColor: borderHex,
-        lineWidth: 0.6,
-        textColor: '#1f2937'
-      },
-      headStyles: {
-        fillColor: primary,
-        textColor: '#ffffff',
-        fontStyle: 'bold',
-        halign: 'left'
-      },
-      alternateRowStyles: { fillColor: '#f8fafc' },
-      columnStyles: {
-        1: { halign: 'center' },
-        2: { halign: 'center', cellWidth: 60 },
-        3: { halign: 'right', cellWidth: 110 },
-        4: { halign: 'right', cellWidth: 130 }
+    // --- ITEMS TABLE (green header visible) ---
+const tableStartY = y + 160;
+
+// Use RGB arrays (required by some jspdf-autotable versions)
+const HEADER_GREEN = [22, 163, 74];   // #16A34A
+const BORDER_GRAY  = [229, 231, 235]; // #E5E7EB
+
+autoTable(doc, {
+  startY: tableStartY,
+  margin: { left, right: 40 },
+  head: [['Package', 'Tests', 'Qty', 'Unit (Rs.)', 'Subtotal (Rs.)']],
+  body: enrichedItems.map(it => ([
+    it.packageName,
+    String(it.tests?.length || it.testsCount || 0),
+    String(it.quantity),
+    Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 }),
+    Number(it.unitPrice * it.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+  ])),
+  styles: {
+    font: 'helvetica',
+    fontSize: 11,
+    cellPadding: 8,
+    lineColor: BORDER_GRAY,
+    lineWidth: 0.6,
+    textColor: '#111827'
+  },
+  headStyles: {
+    fillColor: HEADER_GREEN,     // ✅ array, not object
+    textColor: [255, 255, 255],  // white text
+    fontStyle: 'bold',
+    fontSize: 11,
+    halign: 'left',
+    valign: 'middle',
+    lineColor: [255, 255, 255],  // white vertical dividers like your mock
+    lineWidth: 1
+  },
+  alternateRowStyles: { fillColor: '#F9FAFB' },
+  columnStyles: {
+    1: { halign: 'center', cellWidth: 80 },
+    2: { halign: 'center', cellWidth: 60 },
+    3: { halign: 'right',  cellWidth: 110 },
+    4: { halign: 'right',  cellWidth: 130 }
+  },
+  tableLineColor: BORDER_GRAY,
+  tableLineWidth: 0.6
+});
+
+    // Totals card (right)
+    const totalsY = doc.lastAutoTable.finalY + 18;
+    const totalsH = 70;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(pageW - 260, totalsY, 220, totalsH, 10, 10, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor('#6B7280');
+    doc.text('Total Amount', pageW - 245, totalsY + 24);
+    drawPill(doc, {
+      x: pageW - 245, y: totalsY + 34,
+      text: currency(selected.totalAmount || 0),
+      fill: primaryDark, color: '#fff'
+    });
+
+    // ---------- Package Details BELOW total amount ----------
+    let detailsY = totalsY + totalsH + 30;
+    const bottomPad = 60;
+    if (detailsY > pageH - bottomPad) {
+      doc.addPage();
+      detailsY = 50;
+    }
+
+    // Heading
+    doc.setFont('helvetica', 'bold'); doc.setTextColor('#111827'); doc.setFontSize(14);
+    doc.text('Package Details', left, detailsY);
+    detailsY += 10;
+    drawDivider(doc, left, detailsY + 8, right, borderHex);
+    detailsY += 20;
+
+    // Cards
+    for (const it of enrichedItems) {
+      const testsCount = (it.tests?.length || 0);
+      const estimated = Math.max(96, testsCount * 12 + 46);
+      if (detailsY + estimated > pageH - bottomPad) { doc.addPage(); detailsY = 50; }
+
+      // Card
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(left, detailsY, pageW - 80, estimated, 10, 10, 'F');
+
+      // Name/qty/price
+      doc.setFont('helvetica', 'bold'); doc.setTextColor('#111827'); doc.setFontSize(12);
+      doc.text(it.packageName, left + 14, detailsY + 24);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor('#6B7280'); doc.setFontSize(10);
+      doc.text(`Qty: ${it.quantity}`, left + 14, detailsY + 42);
+      doc.text(`Unit: ${currency(it.unitPrice)}    •    Subtotal: ${currency(it.unitPrice * it.quantity)}`, left + 90, detailsY + 42);
+
+      // Thumbnail (optional)
+      const thumbW = 120, thumbH = 78;
+      const thumbX = right - thumbW - 12, thumbY = detailsY + 14;
+      if (it.photoUrl) {
+        try {
+          const dataUrl = await safeImageDataURL(it.photoUrl);
+          if (dataUrl) {
+            doc.setDrawColor(230, 230, 230);
+            doc.roundedRect(thumbX - 6, thumbY - 6, thumbW + 12, thumbH + 12, 8, 8);
+            doc.addImage(dataUrl, 'PNG', thumbX, thumbY, thumbW, thumbH);
+          }
+        } catch {}
       }
-    });
 
-    // Total box
-    const afterTableY = doc.lastAutoTable.finalY + 20;
-    doc.setDrawColor(border.r, border.g, border.b);
-    doc.roundedRect(pageWidth - 240, afterTableY, 200, 60, 6, 6);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor('#666666');
-    doc.text('Total Amount', pageWidth - 230, afterTableY + 22);
-    doc.setTextColor(primaryHex);
-    doc.setFontSize(16);
-    doc.text(
-      `Rs. ${Number(selected.totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
-      pageWidth - 230,
-      afterTableY + 45
-    );
+      // Tests list
+      let ty = detailsY + 64;
+      doc.setFont('helvetica', 'bold'); doc.setTextColor('#111827'); doc.setFontSize(11);
+      doc.text('Tests included:', left + 14, ty); ty += 14;
+
+      doc.setFont('helvetica', 'normal'); doc.setTextColor('#374151'); doc.setFontSize(10);
+      if (testsCount) {
+        for (const t of it.tests) {
+          const wrapped = doc.splitTextToSize(`• ${t}`, pageW - left - 200);
+          if (ty + wrapped.length * 12 > pageH - bottomPad) {
+            doc.addPage();
+            ty = 50;
+          }
+          doc.text(wrapped, left + 20, ty);
+          ty += wrapped.length * 12;
+        }
+      } else {
+        const fallback = `• Includes ${String(it.testsCount || 0)} tests (detailed list not captured at booking time)`;
+        doc.text(fallback, left + 20, ty);
+        ty += 12;
+      }
+
+      detailsY = Math.max(ty + 14, detailsY + estimated + 14);
+    }
 
     // Footer
-    const footerY = doc.internal.pageSize.getHeight() - 30;
-    doc.setDrawColor(border.r, border.g, border.b);
-    doc.line(40, footerY - 12, pageWidth - 40, footerY - 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor('#666666');
-    doc.text(`Generated on ${new Date().toLocaleString()}`, 40, footerY);
-    doc.text('My Health Packages', pageWidth - 40, footerY, { align: 'right' });
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      const pW = doc.internal.pageSize.getWidth();
+      const l = 40, r = pW - 40;
+      const footerY = doc.internal.pageSize.getHeight() - 28;
+      drawDivider(doc, l, footerY - 10, r);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor('#6B7280');
+      doc.text(`Page ${i} of ${pageCount}`, l, footerY);
+      doc.text('My Health Packages', r, footerY, { align: 'right' });
+    }
 
+    // Save
     doc.save(`booking_${selected._id}.pdf`);
   };
 
@@ -403,7 +561,7 @@ export default function MyBookings() {
                   <Stack direction="row" spacing={1} alignItems="center">
                     <PaymentIcon color="action" fontSize="small" />
                     <Typography fontWeight={600}>
-                      Rs. {Number(b.totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      {currency(b.totalAmount || 0)}
                     </Typography>
                   </Stack>
                 </Stack>
@@ -528,7 +686,7 @@ export default function MyBookings() {
                         × {it.quantity}
                       </Typography>
                       <Typography fontWeight={600}>
-                        Rs. {Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        {currency(it.unitPrice)}
                       </Typography>
                     </ListItem>
                   ))}
@@ -542,7 +700,7 @@ export default function MyBookings() {
                   Total Amount
                 </Typography>
                 <Typography variant="h6" fontWeight={700} color="primary">
-                  Rs. {Number(selected.totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  {currency(selected.totalAmount || 0)}
                 </Typography>
               </Stack>
             </Stack>
