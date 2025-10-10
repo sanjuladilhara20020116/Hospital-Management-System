@@ -1,0 +1,758 @@
+/* ==================== LifeNext Brand Variables ==================== */
+:root {
+  --ln-primary: #1976D2;
+  --ln-primary-light: #42A5F5;
+  --ln-primary-dark: #1565C0;
+  --ln-accent: #2196F3;
+  --ln-success: #4CAF50;
+  --ln-warning: #FF9800;
+  --ln-error: #F44336;
+  --ln-info: #2196F3;
+  --ln-bg: #F5F9FF;
+  --ln-card: #FFFFFF;
+  --ln-text: #1A237E;
+  --ln-text-secondary: #546E7A;
+  --ln-border: #BBDEFB;
+  --ln-shadow: 0 8px 32px rgba(33, 150, 243, 0.1);
+  --ln-shadow-lg: 0 16px 48px rgba(33, 150, 243, 0.15);
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  --ln-bg: #0A1929;
+  --ln-card: #132F4C;
+  --ln-text: #E3F2FD;
+  --ln-text-secondary: #90CAF9;
+  --ln-border: #1E4976;
+  --ln-shadow: 0 8px 32px rgba(33, 150, 243, 0.2);
+  --ln-shadow-lg: 0 16px 48px rgba(33, 150, 243, 0.3);
+}
+
+/* ==================== Global Styles ==================== */
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--ln-bg);
+  color: var(--ln-text);
+  line-height: 1.6;
+}
+
+.bmi-container {
+  padding: 32px 0 48px;
+  background: linear-gradient(135deg, #E3F2FD 0%, #F3E5F5 50%, #E8F5E8 100%);
+  min-height: 100vh;
+  position: relative;
+}
+
+.bmi-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(33, 150, 243, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(25, 118, 210, 0.05) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+/* ==================== Animations ==================== */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* ==================== Header ==================== */
+.bmi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 40px;
+  padding: 40px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  box-shadow: var(--ln-shadow-lg);
+  background: linear-gradient(135deg, var(--ln-primary) 0%, var(--ln-primary-dark) 100%);
+  animation: slideUp 0.6s ease-out;
+}
+
+.bmi-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, transparent 40%, rgba(255, 255, 255, 0.1) 50%, transparent 60%);
+  background-size: 200% 200%;
+  animation: float 6s ease-in-out infinite;
+}
+
+.header-content {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.header-icon {
+  font-size: 56px !important;
+  opacity: 0.9;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+  animation: float 3s ease-in-out infinite;
+}
+
+.bmi-title {
+  font-weight: 800 !important;
+  margin: 0 0 12px !important;
+  color: white;
+  font-size: 2.75rem !important;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.bmi-subtitle {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.brand-chip {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: 2px solid rgba(255, 255, 255, 0.3) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  border-radius: 20px !important;
+  backdrop-filter: blur(12px);
+  padding: 12px 24px !important;
+  position: relative;
+  z-index: 1;
+  transition: var(--transition);
+}
+
+.brand-chip:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(-2px);
+}
+
+/* ==================== Cards ==================== */
+.bmi-card {
+  border-radius: 20px;
+  border: 1px solid var(--ln-border);
+  background: var(--ln-card);
+  transition: var(--transition);
+  box-shadow: var(--ln-shadow);
+  position: relative;
+  overflow: hidden;
+  animation: slideUp 0.6s ease-out;
+  animation-fill-mode: both;
+}
+
+.bmi-card:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.bmi-card:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.bmi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--ln-primary) 0%, var(--ln-primary-light) 100%);
+  opacity: 0.8;
+}
+
+.bmi-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--ln-shadow-lg);
+}
+
+.card-header {
+  padding-bottom: 20px !important;
+  border-bottom: 1px solid var(--ln-border);
+}
+
+.card-header .MuiCardHeader-title {
+  font-weight: 700 !important;
+  color: var(--ln-text) !important;
+  font-size: 1.4rem !important;
+  letter-spacing: -0.2px;
+}
+
+/* ==================== Inputs ==================== */
+.input-label {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  color: var(--ln-text) !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  margin-bottom: 12px;
+}
+
+.input-icon {
+  font-size: 24px !important;
+  color: var(--ln-primary);
+}
+
+.bmi-input .MuiOutlinedInput-root {
+  border-radius: 16px;
+  transition: var(--transition);
+  font-weight: 500;
+  background: rgba(33, 150, 243, 0.02);
+}
+
+.bmi-input .MuiOutlinedInput-root:hover {
+  background: rgba(33, 150, 243, 0.04);
+  border-color: var(--ln-primary-light);
+}
+
+.bmi-input .MuiOutlinedInput-root.Mui-focused {
+  background: rgba(33, 150, 243, 0.06);
+  border-color: var(--ln-primary);
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.bmi-input input {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--ln-text);
+  padding: 16px 20px;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.bmi-slider {
+  flex: 1;
+  height: 8px !important;
+}
+
+.bmi-slider .MuiSlider-thumb {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, var(--ln-primary) 0%, var(--ln-primary-light) 100%);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+  border: 3px solid white;
+  transition: var(--transition);
+}
+
+.bmi-slider .MuiSlider-thumb:hover {
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 6px 20px rgba(33, 150, 243, 0.6);
+}
+
+.bmi-slider .MuiSlider-track {
+  background: linear-gradient(90deg, var(--ln-primary-light) 0%, var(--ln-primary) 100%);
+  border: none;
+  height: 8px;
+}
+
+.bmi-slider .MuiSlider-rail {
+  background: var(--ln-border);
+  opacity: 1;
+  height: 8px;
+}
+
+.slider-input {
+  width: 120px;
+}
+
+.slider-input input {
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+/* ==================== BMI Gauge ==================== */
+.bmi-gauge-container {
+  text-align: center;
+  padding: 24px 0;
+}
+
+.bmi-gauge-value {
+  margin-bottom: 32px;
+}
+
+.bmi-number {
+  font-weight: 900 !important;
+  margin-bottom: 16px !important;
+  background: linear-gradient(135deg, var(--ln-primary-light) 0%, var(--ln-primary) 50%, var(--ln-primary-dark) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: 4.5rem !important;
+  line-height: 1;
+  animation: pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 4px 12px rgba(33, 150, 243, 0.3));
+}
+
+.bmi-category-chip {
+  font-weight: 700 !important;
+  border-radius: 20px !important;
+  padding: 12px 24px !important;
+  font-size: 1rem !important;
+  text-transform: none;
+  letter-spacing: 0.3px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: var(--transition);
+  margin-bottom: 12px;
+}
+
+.bmi-category-chip:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
+}
+
+.category-description {
+  color: var(--ln-text-secondary);
+  font-style: italic;
+  margin-top: 8px;
+  font-size: 0.95rem;
+}
+
+.bmi-gauge-bar {
+  position: relative;
+  margin: 48px 0 96px;
+}
+
+.bmi-gauge-track {
+  position: relative;
+  height: 16px;
+  background: var(--ln-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.bmi-progress {
+  height: 100%;
+  border-radius: 10px;
+}
+
+.bmi-gauge-marker {
+  position: absolute;
+  top: -18px;
+  transform: translateX(-50%);
+  z-index: 10;
+  transition: left 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.marker-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: white;
+  border: 4px solid var(--ln-primary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  margin: 0 auto 8px;
+  animation: float 2s ease-in-out infinite;
+}
+
+.marker-line {
+  width: 4px;
+  height: 36px;
+  border-radius: 2px;
+  background: var(--ln-primary);
+  margin: 0 auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.bmi-gauge-segments {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  right: 0;
+}
+
+.bmi-segment {
+  position: absolute;
+  text-align: center;
+  padding: 0 12px;
+}
+
+.segment-color {
+  height: 10px;
+  border-radius: 5px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: var(--transition);
+}
+
+.bmi-segment:hover .segment-color {
+  transform: scaleY(1.3);
+}
+
+.segment-label {
+  font-weight: 700 !important;
+  color: var(--ln-text);
+  display: block;
+  font-size: 0.85rem !important;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.segment-range {
+  color: var(--ln-text-secondary);
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ==================== Range Card ==================== */
+.range-card {
+  padding: 28px;
+  border-left: 6px solid var(--ln-primary);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #E3F2FD 0%, #F3E5F5 100%);
+  position: relative;
+  overflow: hidden;
+  margin-top: 28px;
+  box-shadow: 0 4px 20px rgba(33, 150, 243, 0.15);
+  transition: var(--transition);
+}
+
+.range-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 8px 32px rgba(33, 150, 243, 0.25);
+}
+
+.range-title {
+  color: var(--ln-primary) !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.range-value {
+  color: var(--ln-text) !important;
+  font-weight: 800 !important;
+  font-size: 1.8rem !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* ==================== Buttons ==================== */
+.action-buttons,
+.results-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+
+.action-buttons .MuiButton-root,
+.results-actions .MuiButton-root {
+  border-radius: 16px;
+  text-transform: none;
+  font-weight: 600;
+  padding: 14px 28px;
+  font-size: 1rem;
+  transition: var(--transition);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.action-buttons .MuiButton-root:hover,
+.results-actions .MuiButton-root:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+}
+
+.results-actions .MuiButton-contained {
+  background: linear-gradient(135deg, var(--ln-primary) 0%, var(--ln-primary-dark) 100%) !important;
+  color: white !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.results-actions .MuiButton-contained::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.results-actions .MuiButton-contained:hover::before {
+  transform: translateX(100%);
+}
+
+.results-actions .MuiButton-outlined {
+  border: 2px solid var(--ln-primary) !important;
+  color: var(--ln-primary) !important;
+  background: rgba(33, 150, 243, 0.04);
+}
+
+/* ==================== Category Grid ==================== */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* ==================== Info Paper ==================== */
+.info-paper {
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--ln-card);
+  border: 1px solid var(--ln-border);
+  transition: var(--transition);
+}
+
+.info-paper:hover {
+  box-shadow: var(--ln-shadow);
+  transform: translateY(-2px);
+}
+
+/* ==================== Disclaimer ==================== */
+.disclaimer {
+  display: block;
+  margin-top: 24px;
+  text-align: center;
+  opacity: 0.8;
+  font-style: normal;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  padding: 16px;
+  background: rgba(33, 150, 243, 0.05);
+  border-radius: 12px;
+  border-left: 4px solid var(--ln-primary);
+}
+
+/* ==================== Dialog Styles ==================== */
+.MuiDialog-paper {
+  border-radius: 20px !important;
+  box-shadow: var(--ln-shadow-lg) !important;
+}
+
+.MuiDialogTitle-root {
+  background: linear-gradient(135deg, var(--ln-primary) 0%, var(--ln-primary-dark) 100%);
+  color: white !important;
+}
+
+/* ==================== Responsive Design ==================== */
+@media (max-width: 768px) {
+  .bmi-container {
+    padding: 20px 0 32px;
+  }
+
+  .bmi-header {
+    flex-direction: column;
+    gap: 20px;
+    text-align: center;
+    padding: 32px 24px;
+    margin-bottom: 32px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .header-icon {
+    font-size: 48px !important;
+  }
+
+  .bmi-title {
+    font-size: 2.25rem !important;
+  }
+
+  .bmi-subtitle {
+    font-size: 1.1rem;
+  }
+
+  .bmi-number {
+    font-size: 3.75rem !important;
+  }
+
+  .slider-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .slider-input {
+    width: 100%;
+  }
+
+  .action-buttons,
+  .results-actions {
+    flex-direction: column;
+  }
+
+  .action-buttons .MuiButton-root,
+  .results-actions .MuiButton-root {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bmi-gauge-marker {
+    top: -16px;
+  }
+
+  .marker-dot {
+    width: 28px;
+    height: 28px;
+    border-width: 3px;
+  }
+
+  .marker-line {
+    height: 32px;
+  }
+
+  .category-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .bmi-number {
+    font-size: 3.25rem !important;
+  }
+
+  .range-value {
+    font-size: 1.5rem !important;
+  }
+
+  .segment-label {
+    font-size: 0.75rem !important;
+  }
+
+  .segment-range {
+    font-size: 0.7rem;
+  }
+
+  .bmi-header {
+    padding: 24px 20px;
+  }
+
+  .header-icon {
+    font-size: 42px !important;
+  }
+}
+
+/* ==================== Toggle Button Group ==================== */
+.MuiToggleButtonGroup-root {
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  background: rgba(33, 150, 243, 0.05);
+}
+
+.MuiToggleButton-root {
+  font-weight: 600 !important;
+  text-transform: none !important;
+  transition: var(--transition) !important;
+  padding: 8px 20px;
+}
+
+.MuiToggleButton-root.Mui-selected {
+  background: linear-gradient(135deg, var(--ln-primary) 0%, var(--ln-primary-dark) 100%) !important;
+  color: white !important;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+
+.MuiToggleButton-root:hover {
+  background: rgba(33, 150, 243, 0.1) !important;
+}
+
+/* ==================== Accessibility ==================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus styles */
+.MuiButton-root:focus-visible,
+.MuiTextField-root input:focus-visible,
+.MuiSlider-thumb:focus-visible {
+  outline: 3px solid var(--ln-primary);
+  outline-offset: 2px;
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+  :root {
+    --ln-border: #000000;
+    --ln-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .bmi-card {
+    border: 2px solid var(--ln-border);
+  }
+}
+
+/* ==================== Print Styles ==================== */
+@media print {
+  .bmi-container {
+    background: #fff !important;
+    padding: 0;
+  }
+
+  .bmi-card {
+    box-shadow: none !important;
+    border: 2px solid #000 !important;
+    break-inside: avoid;
+  }
+
+  .bmi-header,
+  .action-buttons,
+  .results-actions {
+    display: none !important;
+  }
+
+  .bmi-gauge-marker {
+    animation: none !important;
+  }
+
+  .marker-dot {
+    animation: none !important;
+  }
+
+  .bmi-number {
+    animation: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
