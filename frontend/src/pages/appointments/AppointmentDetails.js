@@ -49,7 +49,7 @@ export default function AppointmentDetails() {
           variant="outlined"
           color="primary"
           sx={{ fontWeight: 600, borderRadius: 2, px: 4, fontSize: 15, boxShadow: 2 }}//this code is appo.comfirm.gotohome page button
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/dashboard')}
         >
           Check Your Appointments
         </Button>

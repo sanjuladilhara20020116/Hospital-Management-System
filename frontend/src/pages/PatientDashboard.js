@@ -743,6 +743,7 @@ export default function PatientDashboard({ userId }) {
                   >
                     Edit Profile
                   </Button>
+
                   <Button 
                     variant="outlined" 
                     color="error" 
@@ -773,6 +774,16 @@ export default function PatientDashboard({ userId }) {
                     My Lab Reports
                   </Button>
                 </Box>
+
+                                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => navigate('/appointments')}
+                    startIcon={<CalendarMonthIcon />}
+                    sx={{ borderRadius: 2, px: 3 }}
+                  >
+                    Book Appointments
+                  </Button>
 
                 {/* RIGHT SIDE ACTION (friend's Health Packages) */}
                 <Button
