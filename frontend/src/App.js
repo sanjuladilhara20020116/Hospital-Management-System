@@ -56,6 +56,12 @@ import PatientVaccinations from "./pages/PatientVaccinations";
 import VaccinationDetail from "./pages/VaccinationDetail";
 import DoctorVaccinationSearch from "./pages/DoctorVaccinationSearch";
 
+// BMI (public)
+import BMICalculator from "./pages/BMICalculator";
+// ✅ NEW: About Us and Contact pages
+import AboutUs from "./pages/AboutUs";
+import Contact from "./pages/Contact";
+
 /** -------- Small helpers (no UI) -------- */
 function getCurrentUser() {
   try {
@@ -105,6 +111,13 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Registration />} />
+        
+        {/* ✅ NEW: About Us and Contact pages (public routes) */}
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/contact" element={<Contact />} />
+
+        {/* ✅ Public wellness tool */}
+        <Route path="/bmi" element={<BMICalculator />} />
 
         {/* Appointment flow (public entry + checkout + success + details) */}
         <Route path="/appointments" element={<AppointmentSearchPage />} />

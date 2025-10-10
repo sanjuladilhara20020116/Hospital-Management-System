@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/MyBookings.js
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Container, Typography, Button, Card, CardContent, Chip, Divider,
   Grid, Stack, List, ListItem, ListItemText, Dialog, DialogTitle,
   DialogContent, DialogActions, IconButton, CircularProgress, useTheme,
-  Alert
+  Alert, TextField, InputAdornment
 } from '@mui/material';
 import {
   Event as EventIcon,
@@ -15,13 +16,14 @@ import {
   Close as CloseIcon,
   CalendarToday as CalendarIcon,
   Info as InfoIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const API_BASE = 'http://localhost:5000';
-const USER_ID = 'demo-user-1'; // <<< must match Cart & HealthcarePackages
+const USER_ID = 'demo-user-1';
 
 // Put your logo in /public/logo.png (or .jpg/.webp). Update path if needed.
 const LOGO_URL = '/Blue and White Simple Medical Health Logo.png';
@@ -33,12 +35,32 @@ export default function MyBookings() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // ----- filters (non-destructive) -----
+  const [qBookingId, setQBookingId] = useState('');
+  const [fromDate, setFromDate] = useState('');
+
+  const filteredList = useMemo(() => {
+    const idQ = qBookingId.trim().toLowerCase();
+    const fromTS = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+
+    return (list || []).filter(b => {
+      const id = (b?._id || '').toLowerCase();
+      const idTail = id.slice(-8);
+      const idOk = !idQ || id.includes(idQ) || idTail.includes(idQ);
+
+      const when = new Date(b.appointmentDate).getTime();
+      const dateOk = !fromTS || when >= fromTS;
+
+      return idOk && dateOk;
+    });
+  }, [list, qBookingId, fromDate]);
+
   const load = async () => {
     try {
       setLoading(true);
       setStatus('Loading your bookings…');
       const res = await fetch(`${API_BASE}/api/bookings/mine`, {
-        headers: { 'x-user-id': USER_ID } // <<< IMPORTANT
+        headers: { 'x-user-id': USER_ID }
       });
 
       let data;
@@ -70,13 +92,14 @@ export default function MyBookings() {
     }
   };
 
-  // --- helpers for PDF/logo ---
-  const hexToRgb = (hex) => {
-    const s = hex.replace('#', '');
+  // ---------- shared helpers ----------
+  const toRGB = (hex) => {
+    const s = (hex || '').replace('#', '');
     const v = s.length === 3 ? s.split('').map(c => c + c).join('') : s;
-    const n = parseInt(v, 16);
+    const n = parseInt(v || '000000', 16);
     return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
   };
+  const currency = (n) => `Rs. ${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
   const blobToDataURL = (blob) =>
     new Promise((resolve, reject) => {
@@ -152,103 +175,204 @@ export default function MyBookings() {
     }
   };
 
-  // --- Styled PDF generation with logo in header ---
+  // ---------- data enrichment helpers ----------
+  const fetchPackagesMap = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/packages`, { cache: 'no-store' });
+      const arr = await res.json().catch(() => []);
+      if (!res.ok || !Array.isArray(arr)) return new Map();
+      return new Map(arr.map(p => [p.name, p]));
+    } catch {
+      return new Map();
+    }
+  };
+
+  const safeImageDataURL = async (url) => {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      const mime = (blob.type || '').toLowerCase();
+      if (mime.includes('png') || mime.includes('jpeg') || mime.includes('jpg') || mime.includes('webp')) {
+        return await blobToDataURL(blob);
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const png = await imageToPngDataURL(objectUrl);
+        return png;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    } catch {
+      return null;
+    }
+  };
+
+  // ---------- drawing helpers ----------
+  const drawDivider = (doc, x1, y, x2, hex = '#E5E7EB') => {
+    const { r, g, b } = toRGB(hex);
+    doc.setDrawColor(r, g, b);
+    doc.setLineWidth(1);
+    doc.line(x1, y, x2, y);
+  };
+
+  const drawPill = (doc, { x, y, h = 26, text = '', padX = 12, fill = '#0ea5e9', color = '#fff', radius = 12, size = 12, weight = 'bold' }) => {
+    const w = doc.getTextWidth(text) + padX * 2;
+    const { r, g, b } = toRGB(fill);
+    doc.setFillColor(r, g, b);
+    doc.roundedRect(x, y, w, h, radius, radius, 'F');
+    doc.setTextColor(color);
+    doc.setFont('helvetica', weight);
+    doc.setFontSize(size);
+    doc.text(String(text), x + w / 2, y + h / 2 + 3.5, { align: 'center' });
+    return w;
+  };
+
+  // ---------- PDF generation ----------
   const downloadPDF = async () => {
     if (!selected) return;
 
-    // colors from theme
     const primaryHex = theme.palette.primary.main;
-    const textHex = '#222222';
-    const mutedHex = '#666666';
-    const borderHex = '#DDDFE3';
+    const primaryDark = theme.palette.primary.dark || theme.palette.primary.main; // single declaration
+    const borderHex = '#E5E7EB';
+    const textHex = '#111827';
+    const mutedHex = '#6B7280';
 
-    const primary = hexToRgb(primaryHex);
-    const border = hexToRgb(borderHex);
+    const pkgsByName = await fetchPackagesMap();
+    const enrichedItems = (selected.items || []).map(it => {
+      const pkg = pkgsByName.get(it.packageName) || {};
+      return {
+        ...it,
+        tests: Array.isArray(pkg.tests) ? pkg.tests : [],
+        photoUrl: pkg.photo ? `${API_BASE}${pkg.photo}` : null
+      };
+    });
 
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setProperties({
+      title: `Booking ${selected._id}`,
+      subject: 'Healthcare Package Booking',
+      author: 'LifeNext',
+      creator: 'LifeNext Web App',
+    });
+
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const left = 40;
+    const right = pageW - 40;
 
     // Header band
-    doc.setFillColor(primary.r, primary.g, primary.b);
-    doc.rect(0, 0, pageWidth, 90, 'F');
+    const prim = toRGB(primaryHex);
+    doc.setFillColor(prim.r, prim.g, prim.b);
+    doc.rect(0, 0, pageW, 96, 'F');
 
-    // Try to load & add logo (safe handling)
+    // ---- Circular logo badge (like the sample image) ----
     try {
       const logo = await loadLogo(LOGO_URL);
       if (logo?.dataURL && logo?.format) {
-        // Fit within 130x50 box at (40,20)
-        doc.addImage(logo.dataURL, logo.format, 40, 20, 130, 65);
+        // Badge center and radii
+        const cx = left + 70;          // horizontal position of the badge center
+        const cy = 48;                 // vertical position of the badge center (within 96px header)
+        const R  = 44;                 // outer radius of white disc
+        const innerRing = R - 6;       // inner ring radius
+        const logoSize  = 64;          // logo square size
+
+        // Outer white disc
+        doc.setFillColor(255, 255, 255);
+        doc.circle(cx, cy, R, 'F');
+
+        // Outer bright ring
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(3);
+        doc.circle(cx, cy, R, 'S');
+
+        // Soft secondary ring (very light gray/blue)
+        doc.setDrawColor(235, 240, 248); // subtle ring color
+        doc.setLineWidth(1);
+        doc.circle(cx, cy, innerRing, 'S');
+
+        // Place the logo centered inside the disc
+        doc.addImage(
+          logo.dataURL,
+          logo.format,
+          cx - logoSize / 2,
+          cy - logoSize / 2,
+          logoSize,
+          logoSize
+        );
       }
-    } catch (err) {
-      console.warn('Logo addImage failed — skipping logo.', err);
-      // continue silently
+    } catch {
+      // no-op: missing/failed logo should not break export
     }
 
-    // Title + ID (right)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
+    // Title + ID
     doc.setTextColor('#ffffff');
-    doc.text('Booking Details', pageWidth - 40, 42, { align: 'right' });
-    doc.setFontSize(11);
-    doc.text(`ID: ${selected._id}`, pageWidth - 40, 62, { align: 'right' });
-
-    // Info box
-    let y = 120;
-    doc.setDrawColor(border.r, border.g, border.b);
-    doc.setLineWidth(1);
-    doc.roundedRect(40, y - 10, pageWidth - 80, 110, 6, 6);
-
-    doc.setTextColor(textHex);
-    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('Summary', 54, y + 5);
-
+    doc.setFontSize(22);
+    doc.text('Booking', right, 40, { align: 'right' });
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(mutedHex);
+    doc.setFontSize(11);
+    doc.text(`ID: ${selected._id}`, right, 60, { align: 'right' });
+
+    // Summary box
+    let y = 120;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(left, y - 10, pageW - 80, 150, 8, 8, 'F');
+    drawDivider(doc, left, y + 58, right, '#E5E7EB');
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(textHex);
+    doc.text('Summary', left + 12, y + 6);
+
+    const payCard = selected.payment?.card || selected.card || {};
+    const brand = payCard.brand ? String(payCard.brand).toUpperCase() : null;
+    const last4 = payCard.last4 ? String(payCard.last4) : null;
+    const exp = (payCard.expMonth && payCard.expYear)
+      ? `${String(payCard.expMonth).padStart(2, '0')}/${String(payCard.expYear).slice(-2)}`
+      : null;
+    const maskedCard = (brand && last4) ? `${brand} •••• ${last4}${exp ? `  (exp ${exp})` : ''}` : '—';
+
+    const colA = left + 12;
+    const colB = left + Math.floor((pageW - 80) / 2) + 12;
+    const lineGap = 18;
+    let rowA = y + 28, rowB = y + 28;
+
+    const printKV = (k, v, x, yy) => {
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(mutedHex);
+      doc.setFontSize(10); doc.text(k, x, yy);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(textHex);
+      doc.setFontSize(11); doc.text(String(v), x + 130, yy);
+    };
 
     const dateStr = new Date(selected.appointmentDate).toLocaleDateString();
     const timeStr = new Date(selected.appointmentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const method = selected.payment?.method === 'ONLINE' ? 'Online Payment' : 'Pay at Center';
+    const statusUpper = (selected.status || 'Pending').toUpperCase();
 
-    const lines = [
-      ['Status:', selected.status || 'Pending'],
+    [
+      ['Status:', statusUpper],
       ['Appointment:', `${dateStr} ${timeStr}`],
       ['Payment Method:', method],
+      ['Payment (masked):', maskedCard],
       ['Patient Name:', selected.patientName || '—'],
       ['Patient Email:', selected.patientEmail || '—'],
-    ];
-
-    // 2-column layout inside box
-    let leftX = 54, rightX = pageWidth / 2 + 10;
-    let rowY = y + 28;
-    const rowGap = 18;
-
-    lines.forEach((pair, i) => {
-      const [label, value] = pair;
-      const useRight = i >= Math.ceil(lines.length / 2);
-      const x = useRight ? rightX : leftX;
-      if (useRight && i === Math.ceil(lines.length / 2)) rowY = y + 28;
-
-      doc.setTextColor(mutedHex);
-      doc.setFont('helvetica', 'bold');
-      doc.text(label, x, rowY);
-
-      doc.setTextColor(textHex);
-      doc.setFont('helvetica', 'normal');
-      doc.text(String(value), x + 110, rowY);
-
-      rowY += rowGap;
+    ].forEach((pair, i) => {
+      const [k, v] = pair;
+      if (i < 3) { printKV(k, v, colA, rowA); rowA += lineGap; }
+      else { printKV(k, v, colB, rowB); rowB += lineGap; }
     });
 
-    // Items table
-    const startY = y + 130;
+    // Items table (green header)
+    const tableStartY = y + 160;
+    const HEADER_GREEN = [22, 163, 74];  // #16A34A
+    const BORDER_GRAY  = [229, 231, 235];
+
     autoTable(doc, {
-      startY,
-      margin: { left: 40, right: 40 },
+      startY: tableStartY,
+      margin: { left, right: 40 },
       head: [['Package', 'Tests', 'Qty', 'Unit (Rs.)', 'Subtotal (Rs.)']],
-      body: (selected.items || []).map(it => ([
+      body: enrichedItems.map(it => ([
         it.packageName,
-        String(it.testsCount || 0),
+        String(it.tests?.length || it.testsCount || 0),
         String(it.quantity),
         Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 }),
         Number(it.unitPrice * it.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })
@@ -257,57 +381,131 @@ export default function MyBookings() {
         font: 'helvetica',
         fontSize: 11,
         cellPadding: 8,
-        lineColor: borderHex,
+        lineColor: BORDER_GRAY,
         lineWidth: 0.6,
-        textColor: '#1f2937'
+        textColor: '#111827'
       },
       headStyles: {
-        fillColor: primary,
-        textColor: '#ffffff',
+        fillColor: HEADER_GREEN,
+        textColor: [255, 255, 255],
         fontStyle: 'bold',
-        halign: 'left'
+        fontSize: 11,
+        halign: 'left',
+        valign: 'middle',
+        lineColor: [255, 255, 255],
+        lineWidth: 1
       },
-      alternateRowStyles: { fillColor: '#f8fafc' },
+      alternateRowStyles: { fillColor: '#F9FAFB' },
       columnStyles: {
-        1: { halign: 'center' },
+        1: { halign: 'center', cellWidth: 80 },
         2: { halign: 'center', cellWidth: 60 },
-        3: { halign: 'right', cellWidth: 110 },
-        4: { halign: 'right', cellWidth: 130 }
-      }
+        3: { halign: 'right',  cellWidth: 110 },
+        4: { halign: 'right',  cellWidth: 130 }
+      },
+      tableLineColor: BORDER_GRAY,
+      tableLineWidth: 0.6
     });
 
     // Total box
-    const afterTableY = doc.lastAutoTable.finalY + 20;
-    doc.setDrawColor(border.r, border.g, border.b);
-    doc.roundedRect(pageWidth - 240, afterTableY, 200, 60, 6, 6);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor('#666666');
-    doc.text('Total Amount', pageWidth - 230, afterTableY + 22);
-    doc.setTextColor(primaryHex);
-    doc.setFontSize(16);
-    doc.text(
-      `Rs. ${Number(selected.totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
-      pageWidth - 230,
-      afterTableY + 45
-    );
+    const totalsY = doc.lastAutoTable.finalY + 18;
+    const totalsH = 70;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(pageW - 260, totalsY, 220, totalsH, 10, 10, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor('#6B7280');
+    doc.text('Total Amount', pageW - 245, totalsY + 24);
+    drawPill(doc, {
+      x: pageW - 245, y: totalsY + 34,
+      text: currency(selected.totalAmount || 0),
+      fill: primaryDark,
+      color: '#fff'
+    });
 
-    // Footer
-    const footerY = doc.internal.pageSize.getHeight() - 30;
-    doc.setDrawColor(border.r, border.g, border.b);
-    doc.line(40, footerY - 12, pageWidth - 40, footerY - 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor('#666666');
-    doc.text(`Generated on ${new Date().toLocaleString()}`, 40, footerY);
-    doc.text('My Health Packages', pageWidth - 40, footerY, { align: 'right' });
+    // Package details after total
+    let detailsY = totalsY + totalsH + 30;
+    const bottomPad = 60;
+    if (detailsY > pageH - bottomPad) {
+      doc.addPage();
+      detailsY = 50;
+    }
+
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(textHex); doc.setFontSize(14);
+    doc.text('Package Details', 40, detailsY);
+    detailsY += 10;
+    drawDivider(doc, 40, detailsY + 8, pageW - 40, borderHex);
+    detailsY += 20;
+
+    for (const it of enrichedItems) {
+      const testsCount = (it.tests?.length || 0);
+      const estimated = Math.max(96, testsCount * 12 + 46);
+      if (detailsY + estimated > pageH - bottomPad) { doc.addPage(); detailsY = 50; }
+
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(40, detailsY, pageW - 80, estimated, 10, 10, 'F');
+
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(textHex); doc.setFontSize(12);
+      doc.text(it.packageName, 54, detailsY + 24);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(mutedHex); doc.setFontSize(10);
+      doc.text(`Qty: ${it.quantity}`, 54, detailsY + 42);
+      doc.text(`Unit: ${currency(it.unitPrice)}    •    Subtotal: ${currency(it.unitPrice * it.quantity)}`, 130, detailsY + 42);
+
+      const thumbW = 120, thumbH = 78;
+      const thumbX = pageW - 40 - thumbW - 12, thumbY = detailsY + 14;
+      if (it.photoUrl) {
+        try {
+          const dataUrl = await safeImageDataURL(it.photoUrl);
+          if (dataUrl) {
+            doc.setDrawColor(230, 230, 230);
+            doc.roundedRect(thumbX - 6, thumbY - 6, thumbW + 12, thumbH + 12, 8, 8);
+            doc.addImage(dataUrl, 'PNG', thumbX, thumbY, thumbW, thumbH);
+          }
+        } catch {}
+      }
+
+      let ty = detailsY + 64;
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(textHex); doc.setFontSize(11);
+      doc.text('Tests included:', 54, ty); ty += 14;
+
+      doc.setFont('helvetica', 'normal'); doc.setTextColor('#374151'); doc.setFontSize(10);
+      if (testsCount) {
+        for (const t of it.tests) {
+          const wrapped = doc.splitTextToSize(`• ${t}`, pageW - 40 - 200);
+          if (ty + wrapped.length * 12 > pageH - bottomPad) {
+            doc.addPage();
+            ty = 50;
+          }
+          doc.text(wrapped, 60, ty);
+          ty += wrapped.length * 12;
+        }
+      } else {
+        const fallback = `• Includes ${String(it.testsCount || 0)} tests (detailed list not captured at booking time)`;
+        doc.text(fallback, 60, ty);
+        ty += 12;
+      }
+
+      detailsY = Math.max(ty + 14, detailsY + estimated + 14);
+    }
+
+    // Footer with page numbers
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      const pW = doc.internal.pageSize.getWidth();
+      const l = 40, r = pW - 40;
+      const footerY = doc.internal.pageSize.getHeight() - 28;
+      drawDivider(doc, l, footerY - 10, r);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor('#6B7280');
+      doc.text(`Page ${i} of ${pageCount}`, l, footerY);
+      doc.text('My Health Packages', r, footerY, { align: 'right' });
+    }
 
     doc.save(`booking_${selected._id}.pdf`);
   };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h4" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <HospitalIcon fontSize="large" color="primary" />
           My Health Packages
@@ -323,6 +521,64 @@ export default function MyBookings() {
           {loading ? 'Refreshing...' : 'Refresh'}
         </Button>
       </Stack>
+
+      {/* Filters */}
+      <Card elevation={0} sx={{ mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Search by Booking ID"
+                value={qBookingId}
+                onChange={(e) => setQBookingId(e.target.value)}
+                fullWidth
+                placeholder="Type full ID or last 8 characters"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon color="action" />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                label="From Date"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarIcon color="action" />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Stack direction="row" spacing={1}>
+                <Chip
+                  label={`${filteredList.length} result${filteredList.length === 1 ? '' : 's'}`}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontWeight: 700 }}
+                />
+                <Button
+                  onClick={() => { setQBookingId(''); setFromDate(''); }}
+                  variant="text"
+                  sx={{ textTransform: 'none', fontWeight: 700 }}
+                >
+                  Clear filters
+                </Button>
+              </Stack>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {status && (
         <Box sx={{ mb: 3 }}>
@@ -358,7 +614,7 @@ export default function MyBookings() {
       )}
 
       <Grid container spacing={3}>
-        {list.map(b => (
+        {filteredList.map(b => (
           <Grid item xs={12} sm={6} md={4} key={b._id}>
             <Card elevation={1} sx={{
               height: '100%',
@@ -403,7 +659,7 @@ export default function MyBookings() {
                   <Stack direction="row" spacing={1} alignItems="center">
                     <PaymentIcon color="action" fontSize="small" />
                     <Typography fontWeight={600}>
-                      Rs. {Number(b.totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      {currency(b.totalAmount || 0)}
                     </Typography>
                   </Stack>
                 </Stack>
@@ -448,7 +704,7 @@ export default function MyBookings() {
           </IconButton>
         </DialogTitle>
 
-        <DialogContent sx={{ py: 3 }}>
+      <DialogContent sx={{ py: 3 }}>
           {selected && (
             <Stack spacing={3}>
               <Grid container spacing={2}>
@@ -528,7 +784,7 @@ export default function MyBookings() {
                         × {it.quantity}
                       </Typography>
                       <Typography fontWeight={600}>
-                        Rs. {Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        {currency(it.unitPrice)}
                       </Typography>
                     </ListItem>
                   ))}
@@ -542,7 +798,7 @@ export default function MyBookings() {
                   Total Amount
                 </Typography>
                 <Typography variant="h6" fontWeight={700} color="primary">
-                  Rs. {Number(selected.totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  {currency(selected.totalAmount || 0)}
                 </Typography>
               </Stack>
             </Stack>
