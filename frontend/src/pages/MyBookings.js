@@ -233,7 +233,7 @@ export default function MyBookings() {
     if (!selected) return;
 
     const primaryHex = theme.palette.primary.main;
-    const primaryDark = theme.palette.primary.dark || theme.palette.primary.main; // keep only this declaration
+    const primaryDark = theme.palette.primary.dark || theme.palette.primary.main; // single declaration
     const borderHex = '#E5E7EB';
     const textHex = '#111827';
     const mutedHex = '#6B7280';
@@ -261,19 +261,51 @@ export default function MyBookings() {
     const left = 40;
     const right = pageW - 40;
 
+    // Header band
     const prim = toRGB(primaryHex);
     doc.setFillColor(prim.r, prim.g, prim.b);
     doc.rect(0, 0, pageW, 96, 'F');
 
+    // ---- Circular logo badge (like the sample image) ----
     try {
       const logo = await loadLogo(LOGO_URL);
       if (logo?.dataURL && logo?.format) {
-        const LOGO_H = 65;
-        const LOGO_W = 130;
-        doc.addImage(logo.dataURL, logo.format, left, 18, LOGO_W, LOGO_H);
-      }
-    } catch {}
+        // Badge center and radii
+        const cx = left + 70;          // horizontal position of the badge center
+        const cy = 48;                 // vertical position of the badge center (within 96px header)
+        const R  = 44;                 // outer radius of white disc
+        const innerRing = R - 6;       // inner ring radius
+        const logoSize  = 64;          // logo square size
 
+        // Outer white disc
+        doc.setFillColor(255, 255, 255);
+        doc.circle(cx, cy, R, 'F');
+
+        // Outer bright ring
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(3);
+        doc.circle(cx, cy, R, 'S');
+
+        // Soft secondary ring (very light gray/blue)
+        doc.setDrawColor(235, 240, 248); // subtle ring color
+        doc.setLineWidth(1);
+        doc.circle(cx, cy, innerRing, 'S');
+
+        // Place the logo centered inside the disc
+        doc.addImage(
+          logo.dataURL,
+          logo.format,
+          cx - logoSize / 2,
+          cy - logoSize / 2,
+          logoSize,
+          logoSize
+        );
+      }
+    } catch {
+      // no-op: missing/failed logo should not break export
+    }
+
+    // Title + ID
     doc.setTextColor('#ffffff');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
@@ -672,7 +704,7 @@ export default function MyBookings() {
           </IconButton>
         </DialogTitle>
 
-        <DialogContent sx={{ py: 3 }}>
+      <DialogContent sx={{ py: 3 }}>
           {selected && (
             <Stack spacing={3}>
               <Grid container spacing={2}>
