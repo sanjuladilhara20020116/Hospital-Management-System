@@ -56,6 +56,8 @@ import PatientVaccinations from "./pages/PatientVaccinations";
 import VaccinationDetail from "./pages/VaccinationDetail";
 import DoctorVaccinationSearch from "./pages/DoctorVaccinationSearch";
 
+// BMI (public)
+import BMICalculator from "./pages/BMICalculator";
 // ✅ NEW: About Us and Contact pages
 import AboutUs from "./pages/AboutUs";
 import Contact from "./pages/Contact";
@@ -113,6 +115,9 @@ function App() {
         {/* ✅ NEW: About Us and Contact pages (public routes) */}
         <Route path="/about" element={<AboutUs />} />
         <Route path="/contact" element={<Contact />} />
+
+        {/* ✅ Public wellness tool */}
+        <Route path="/bmi" element={<BMICalculator />} />
 
         {/* Appointment flow (public entry + checkout + success + details) */}
         <Route path="/appointments" element={<AppointmentSearchPage />} />
