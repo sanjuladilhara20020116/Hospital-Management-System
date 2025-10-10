@@ -34,6 +34,8 @@ import axios from 'axios';
 import ChatPopup from './ChatPopup';
 import { useNavigate } from 'react-router-dom';
 import { IconButton } from '@mui/material';
+import VaccinesIcon from '@mui/icons-material/Vaccines';
+
 
 export default function PatientDashboard({ userId }) {
   const theme = useTheme();
@@ -773,6 +775,16 @@ export default function PatientDashboard({ userId }) {
                     My Lab Reports
                   </Button>
 
+                  {/* Patient Vaccinations (safe link) */}
+                 <Button                    
+                  size="small"
+                  variant="outlined"
+                  onClick={() => navigate('/vaccinations/mine')}
+                  startIcon={<VaccinesIcon />}
+                  sx={{ borderRadius: 2, px: 2 }}
+                 >
+                   My Vaccinations
+                 </Button>
                   {/* ✅ NEW: Medical Records (patient read-only page) */}
                   <Button
                     size="small"
