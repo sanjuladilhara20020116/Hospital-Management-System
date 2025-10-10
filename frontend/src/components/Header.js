@@ -20,20 +20,14 @@ const Header = () => {
           </div>
         </div>
       </div>
-      <nav className="main-nav">
+      <div className="brand-bar">
         <div className="container">
           <Link to="/" className="logo">
             <img src={logo} alt="Medicore Hospital Logo" className="logo-image" />
-            <span className="logo-text"></span>
+            <span className="logo-text">Medicore</span>
           </Link>
-          <div className="nav-links">
-            <Link to="/">Home</Link>
-            <Link to="/about">About Us</Link>
-            <Link to="/services">Services</Link>
-            <Link to="/contact">Contact</Link>
-          </div>
         </div>
-      </nav>
+      </div>
     </header>
   );
 };
