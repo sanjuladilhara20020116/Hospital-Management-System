@@ -1,4 +1,3 @@
-// Homepage.js
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom'; // ⬅️ add useNavigate
 import { motion } from 'framer-motion';
@@ -7,7 +6,6 @@ import './Homepage.css';
 
 // Import components
 import Header from '../components/Header';
-import NavigationBar from '../components/NavigationBar'; // New import
 import Footer from '../components/Footer';
 import ServiceCard from '../components/ServiceCard';
 import DoctorCard from '../components/DoctorCard';
@@ -87,7 +85,7 @@ const Homepage = () => {
     return (
       <div className="loading-screen">
         <div className="spinner"></div>
-        <p>Loading Medicore Hospital...</p>
+        <p>Loading st. Joshep Hospital...</p>
       </div>
     );
   }
@@ -96,9 +94,6 @@ const Homepage = () => {
     <div className="homepage">
       {/* Header */}
       <Header />
-
-      {/* Navigation Bar */}
-      <NavigationBar />
 
       {/* Hero Section */}
       <section className="hero-section">
