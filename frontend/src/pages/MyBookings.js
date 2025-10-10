@@ -1,10 +1,10 @@
 // src/pages/MyBookings.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box, Container, Typography, Button, Card, CardContent, Chip, Divider,
   Grid, Stack, List, ListItem, ListItemText, Dialog, DialogTitle,
   DialogContent, DialogActions, IconButton, CircularProgress, useTheme,
-  Alert
+  Alert, TextField, InputAdornment
 } from '@mui/material';
 import {
   Event as EventIcon,
@@ -16,13 +16,14 @@ import {
   Close as CloseIcon,
   CalendarToday as CalendarIcon,
   Info as InfoIcon,
-  Download as DownloadIcon
+  Download as DownloadIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const API_BASE = 'http://localhost:5000';
-const USER_ID = 'demo-user-1'; // <<< must match Cart & HealthcarePackages
+const USER_ID = 'demo-user-1';
 
 // Put your logo in /public/logo.png (or .jpg/.webp). Update path if needed.
 const LOGO_URL = '/Blue and White Simple Medical Health Logo.png';
@@ -34,12 +35,32 @@ export default function MyBookings() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // ----- filters (non-destructive) -----
+  const [qBookingId, setQBookingId] = useState('');
+  const [fromDate, setFromDate] = useState('');
+
+  const filteredList = useMemo(() => {
+    const idQ = qBookingId.trim().toLowerCase();
+    const fromTS = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+
+    return (list || []).filter(b => {
+      const id = (b?._id || '').toLowerCase();
+      const idTail = id.slice(-8);
+      const idOk = !idQ || id.includes(idQ) || idTail.includes(idQ);
+
+      const when = new Date(b.appointmentDate).getTime();
+      const dateOk = !fromTS || when >= fromTS;
+
+      return idOk && dateOk;
+    });
+  }, [list, qBookingId, fromDate]);
+
   const load = async () => {
     try {
       setLoading(true);
       setStatus('Loading your bookings…');
       const res = await fetch(`${API_BASE}/api/bookings/mine`, {
-        headers: { 'x-user-id': USER_ID } // <<< IMPORTANT
+        headers: { 'x-user-id': USER_ID }
       });
 
       let data;
@@ -71,7 +92,7 @@ export default function MyBookings() {
     }
   };
 
-  // ----------------- shared helpers -----------------
+  // ---------- shared helpers ----------
   const toRGB = (hex) => {
     const s = (hex || '').replace('#', '');
     const v = s.length === 3 ? s.split('').map(c => c + c).join('') : s;
@@ -207,18 +228,16 @@ export default function MyBookings() {
     return w;
   };
 
-  // ---------- PDF generation (refined; no status ribbons) ----------
+  // ---------- PDF generation ----------
   const downloadPDF = async () => {
     if (!selected) return;
 
-    // palette
     const primaryHex = theme.palette.primary.main;
-    const primaryDark = theme.palette.primary.dark || theme.palette.primary.main;
+    const primaryDark = theme.palette.primary.dark || theme.palette.primary.main; // keep only this declaration
     const borderHex = '#E5E7EB';
     const textHex = '#111827';
     const mutedHex = '#6B7280';
 
-    // hydrate items
     const pkgsByName = await fetchPackagesMap();
     const enrichedItems = (selected.items || []).map(it => {
       const pkg = pkgsByName.get(it.packageName) || {};
@@ -242,20 +261,19 @@ export default function MyBookings() {
     const left = 40;
     const right = pageW - 40;
 
-    // Header band
     const prim = toRGB(primaryHex);
     doc.setFillColor(prim.r, prim.g, prim.b);
     doc.rect(0, 0, pageW, 96, 'F');
 
-    // Logo
     try {
       const logo = await loadLogo(LOGO_URL);
       if (logo?.dataURL && logo?.format) {
-        doc.addImage(logo.dataURL, logo.format, left, 18, 140, 60);
+        const LOGO_H = 65;
+        const LOGO_W = 130;
+        doc.addImage(logo.dataURL, logo.format, left, 18, LOGO_W, LOGO_H);
       }
-    } catch { /* ignore */ }
+    } catch {}
 
-    // Title / ID
     doc.setTextColor('#ffffff');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
@@ -264,17 +282,15 @@ export default function MyBookings() {
     doc.setFontSize(11);
     doc.text(`ID: ${selected._id}`, right, 60, { align: 'right' });
 
-    // Summary Card
+    // Summary box
     let y = 120;
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(left, y - 10, pageW - 80, 150, 8, 8, 'F');
-    drawDivider(doc, left, y + 58, right, borderHex);
+    drawDivider(doc, left, y + 58, right, '#E5E7EB');
 
-    // Section title
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(textHex);
     doc.text('Summary', left + 12, y + 6);
 
-    // Payment masked meta
     const payCard = selected.payment?.card || selected.card || {};
     const brand = payCard.brand ? String(payCard.brand).toUpperCase() : null;
     const last4 = payCard.last4 ? String(payCard.last4) : null;
@@ -313,54 +329,52 @@ export default function MyBookings() {
       else { printKV(k, v, colB, rowB); rowB += lineGap; }
     });
 
-    // --- ITEMS TABLE (green header visible) ---
-const tableStartY = y + 160;
+    // Items table (green header)
+    const tableStartY = y + 160;
+    const HEADER_GREEN = [22, 163, 74];  // #16A34A
+    const BORDER_GRAY  = [229, 231, 235];
 
-// Use RGB arrays (required by some jspdf-autotable versions)
-const HEADER_GREEN = [22, 163, 74];   // #16A34A
-const BORDER_GRAY  = [229, 231, 235]; // #E5E7EB
+    autoTable(doc, {
+      startY: tableStartY,
+      margin: { left, right: 40 },
+      head: [['Package', 'Tests', 'Qty', 'Unit (Rs.)', 'Subtotal (Rs.)']],
+      body: enrichedItems.map(it => ([
+        it.packageName,
+        String(it.tests?.length || it.testsCount || 0),
+        String(it.quantity),
+        Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 }),
+        Number(it.unitPrice * it.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+      ])),
+      styles: {
+        font: 'helvetica',
+        fontSize: 11,
+        cellPadding: 8,
+        lineColor: BORDER_GRAY,
+        lineWidth: 0.6,
+        textColor: '#111827'
+      },
+      headStyles: {
+        fillColor: HEADER_GREEN,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 11,
+        halign: 'left',
+        valign: 'middle',
+        lineColor: [255, 255, 255],
+        lineWidth: 1
+      },
+      alternateRowStyles: { fillColor: '#F9FAFB' },
+      columnStyles: {
+        1: { halign: 'center', cellWidth: 80 },
+        2: { halign: 'center', cellWidth: 60 },
+        3: { halign: 'right',  cellWidth: 110 },
+        4: { halign: 'right',  cellWidth: 130 }
+      },
+      tableLineColor: BORDER_GRAY,
+      tableLineWidth: 0.6
+    });
 
-autoTable(doc, {
-  startY: tableStartY,
-  margin: { left, right: 40 },
-  head: [['Package', 'Tests', 'Qty', 'Unit (Rs.)', 'Subtotal (Rs.)']],
-  body: enrichedItems.map(it => ([
-    it.packageName,
-    String(it.tests?.length || it.testsCount || 0),
-    String(it.quantity),
-    Number(it.unitPrice).toLocaleString('en-IN', { maximumFractionDigits: 2 }),
-    Number(it.unitPrice * it.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })
-  ])),
-  styles: {
-    font: 'helvetica',
-    fontSize: 11,
-    cellPadding: 8,
-    lineColor: BORDER_GRAY,
-    lineWidth: 0.6,
-    textColor: '#111827'
-  },
-  headStyles: {
-    fillColor: HEADER_GREEN,     // ✅ array, not object
-    textColor: [255, 255, 255],  // white text
-    fontStyle: 'bold',
-    fontSize: 11,
-    halign: 'left',
-    valign: 'middle',
-    lineColor: [255, 255, 255],  // white vertical dividers like your mock
-    lineWidth: 1
-  },
-  alternateRowStyles: { fillColor: '#F9FAFB' },
-  columnStyles: {
-    1: { halign: 'center', cellWidth: 80 },
-    2: { halign: 'center', cellWidth: 60 },
-    3: { halign: 'right',  cellWidth: 110 },
-    4: { halign: 'right',  cellWidth: 130 }
-  },
-  tableLineColor: BORDER_GRAY,
-  tableLineWidth: 0.6
-});
-
-    // Totals card (right)
+    // Total box
     const totalsY = doc.lastAutoTable.finalY + 18;
     const totalsH = 70;
     doc.setFillColor(255, 255, 255);
@@ -370,10 +384,11 @@ autoTable(doc, {
     drawPill(doc, {
       x: pageW - 245, y: totalsY + 34,
       text: currency(selected.totalAmount || 0),
-      fill: primaryDark, color: '#fff'
+      fill: primaryDark,
+      color: '#fff'
     });
 
-    // ---------- Package Details BELOW total amount ----------
+    // Package details after total
     let detailsY = totalsY + totalsH + 30;
     const bottomPad = 60;
     if (detailsY > pageH - bottomPad) {
@@ -381,33 +396,28 @@ autoTable(doc, {
       detailsY = 50;
     }
 
-    // Heading
-    doc.setFont('helvetica', 'bold'); doc.setTextColor('#111827'); doc.setFontSize(14);
-    doc.text('Package Details', left, detailsY);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(textHex); doc.setFontSize(14);
+    doc.text('Package Details', 40, detailsY);
     detailsY += 10;
-    drawDivider(doc, left, detailsY + 8, right, borderHex);
+    drawDivider(doc, 40, detailsY + 8, pageW - 40, borderHex);
     detailsY += 20;
 
-    // Cards
     for (const it of enrichedItems) {
       const testsCount = (it.tests?.length || 0);
       const estimated = Math.max(96, testsCount * 12 + 46);
       if (detailsY + estimated > pageH - bottomPad) { doc.addPage(); detailsY = 50; }
 
-      // Card
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(left, detailsY, pageW - 80, estimated, 10, 10, 'F');
+      doc.roundedRect(40, detailsY, pageW - 80, estimated, 10, 10, 'F');
 
-      // Name/qty/price
-      doc.setFont('helvetica', 'bold'); doc.setTextColor('#111827'); doc.setFontSize(12);
-      doc.text(it.packageName, left + 14, detailsY + 24);
-      doc.setFont('helvetica', 'normal'); doc.setTextColor('#6B7280'); doc.setFontSize(10);
-      doc.text(`Qty: ${it.quantity}`, left + 14, detailsY + 42);
-      doc.text(`Unit: ${currency(it.unitPrice)}    •    Subtotal: ${currency(it.unitPrice * it.quantity)}`, left + 90, detailsY + 42);
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(textHex); doc.setFontSize(12);
+      doc.text(it.packageName, 54, detailsY + 24);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(mutedHex); doc.setFontSize(10);
+      doc.text(`Qty: ${it.quantity}`, 54, detailsY + 42);
+      doc.text(`Unit: ${currency(it.unitPrice)}    •    Subtotal: ${currency(it.unitPrice * it.quantity)}`, 130, detailsY + 42);
 
-      // Thumbnail (optional)
       const thumbW = 120, thumbH = 78;
-      const thumbX = right - thumbW - 12, thumbY = detailsY + 14;
+      const thumbX = pageW - 40 - thumbW - 12, thumbY = detailsY + 14;
       if (it.photoUrl) {
         try {
           const dataUrl = await safeImageDataURL(it.photoUrl);
@@ -419,32 +429,31 @@ autoTable(doc, {
         } catch {}
       }
 
-      // Tests list
       let ty = detailsY + 64;
-      doc.setFont('helvetica', 'bold'); doc.setTextColor('#111827'); doc.setFontSize(11);
-      doc.text('Tests included:', left + 14, ty); ty += 14;
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(textHex); doc.setFontSize(11);
+      doc.text('Tests included:', 54, ty); ty += 14;
 
       doc.setFont('helvetica', 'normal'); doc.setTextColor('#374151'); doc.setFontSize(10);
       if (testsCount) {
         for (const t of it.tests) {
-          const wrapped = doc.splitTextToSize(`• ${t}`, pageW - left - 200);
+          const wrapped = doc.splitTextToSize(`• ${t}`, pageW - 40 - 200);
           if (ty + wrapped.length * 12 > pageH - bottomPad) {
             doc.addPage();
             ty = 50;
           }
-          doc.text(wrapped, left + 20, ty);
+          doc.text(wrapped, 60, ty);
           ty += wrapped.length * 12;
         }
       } else {
         const fallback = `• Includes ${String(it.testsCount || 0)} tests (detailed list not captured at booking time)`;
-        doc.text(fallback, left + 20, ty);
+        doc.text(fallback, 60, ty);
         ty += 12;
       }
 
       detailsY = Math.max(ty + 14, detailsY + estimated + 14);
     }
 
-    // Footer
+    // Footer with page numbers
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -459,13 +468,12 @@ autoTable(doc, {
       doc.text('My Health Packages', r, footerY, { align: 'right' });
     }
 
-    // Save
     doc.save(`booking_${selected._id}.pdf`);
   };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h4" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <HospitalIcon fontSize="large" color="primary" />
           My Health Packages
@@ -481,6 +489,64 @@ autoTable(doc, {
           {loading ? 'Refreshing...' : 'Refresh'}
         </Button>
       </Stack>
+
+      {/* Filters */}
+      <Card elevation={0} sx={{ mb: 3, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="Search by Booking ID"
+                value={qBookingId}
+                onChange={(e) => setQBookingId(e.target.value)}
+                fullWidth
+                placeholder="Type full ID or last 8 characters"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon color="action" />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <TextField
+                label="From Date"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarIcon color="action" />
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <Stack direction="row" spacing={1}>
+                <Chip
+                  label={`${filteredList.length} result${filteredList.length === 1 ? '' : 's'}`}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontWeight: 700 }}
+                />
+                <Button
+                  onClick={() => { setQBookingId(''); setFromDate(''); }}
+                  variant="text"
+                  sx={{ textTransform: 'none', fontWeight: 700 }}
+                >
+                  Clear filters
+                </Button>
+              </Stack>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {status && (
         <Box sx={{ mb: 3 }}>
@@ -516,7 +582,7 @@ autoTable(doc, {
       )}
 
       <Grid container spacing={3}>
-        {list.map(b => (
+        {filteredList.map(b => (
           <Grid item xs={12} sm={6} md={4} key={b._id}>
             <Card elevation={1} sx={{
               height: '100%',
