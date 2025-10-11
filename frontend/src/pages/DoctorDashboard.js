@@ -101,8 +101,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
   const [deleteApptsOpen, setDeleteApptsOpen] = useState(false);
   const [deletingAppointments, setDeletingAppointments] = useState(false);
 
-  // ---- NEW: delete confirmation dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // ---- delete confirmation in-flight flag
   const [deleting, setDeleting] = useState(false);
 
   // ---- effects: load profile
@@ -241,9 +240,9 @@ export default function DoctorDashboard({ userId: propUserId }) {
   const handleAvailabilityChange = (e) => {
     const { name, value } = e.target;
     // Prevent selecting past dates for availability
-    if (name === 'date') {
+    if (name === "date") {
       if (value && value < todayStr) {
-        showAlert('error', 'Please pick today or a future date for availability');
+        showAlert("error", "Please pick today or a future date for availability");
         return;
       }
     }
@@ -287,26 +286,35 @@ export default function DoctorDashboard({ userId: propUserId }) {
   // Delete appointments service for a specific date (called from UI)
   const deleteAppointmentsForDate = async (date) => {
     if (!userId || !date) {
-      showAlert('warning', 'Doctor ID or date missing');
+      showAlert("warning", "Doctor ID or date missing");
       return;
     }
     try {
       setDeletingAppointments(true);
       const params = new URLSearchParams({ date });
       const res = await axios.delete(
-        `${API_BASE}/appointments/doctors/${encodeURIComponent(userId)}/delete-by-date?${params.toString()}`,
-        { headers: { 'X-Role': 'Doctor', 'X-User-Id': String(userId) } }
+        `${API_BASE}/appointments/doctors/${encodeURIComponent(
+          userId
+        )}/delete-by-date?${params.toString()}`,
+        { headers: { "X-Role": "Doctor", "X-User-Id": String(userId) } }
       );
-      showAlert('success', res.data?.message || 'Appointments deleted');
+      showAlert("success", res.data?.message || "Appointments deleted");
       // close dialog
       setDeleteApptsOpen(false);
       // refresh appointments list for the date
       setLoadingAppointments(true);
       const p = new URLSearchParams({ doctorId: userId, date });
-      const r2 = await axios.get(`${API_BASE}/appointments/getUserAppointments?${p.toString()}`);
-      setAppointments(Array.isArray(r2.data?.appointments) ? r2.data.appointments : []);
+      const r2 = await axios.get(
+        `${API_BASE}/appointments/getUserAppointments?${p.toString()}`
+      );
+      setAppointments(
+        Array.isArray(r2.data?.appointments) ? r2.data.appointments : []
+      );
     } catch (err) {
-      showAlert('error', err?.response?.data?.message || 'Failed to delete appointments');
+      showAlert(
+        "error",
+        err?.response?.data?.message || "Failed to delete appointments"
+      );
     } finally {
       setDeletingAppointments(false);
       setLoadingAppointments(false);
@@ -443,7 +451,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
               <Button
                 variant="outlined"
                 color="error"
-                onClick={() => setDeleteDialogOpen(true)}  // <-- FIX: now defined
+                onClick={() => setDeleteDialogOpen(true)} // uses the single state
                 sx={{ textTransform: "none", fontWeight: 700 }}
               >
                 Delete
@@ -604,8 +612,8 @@ export default function DoctorDashboard({ userId: propUserId }) {
 
       {/* Confirm Delete */}
       <Dialog
-        open={deleteDialogOpen}                       // <-- FIX: controlled by state
-        onClose={() => setDeleteDialogOpen(false)}    // <-- FIX: close handler
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
         <DialogTitle sx={{ fontWeight: 800 }}>Confirm Delete</DialogTitle>
@@ -658,7 +666,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
             onClick={() => deleteAppointmentsForDate(selectedDate)}
             disabled={deletingAppointments}
           >
-            {deletingAppointments ? 'Deleting...' : 'Delete'}
+            {deletingAppointments ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -781,7 +789,15 @@ export default function DoctorDashboard({ userId: propUserId }) {
         >
           Current Appointments
         </Typography>
-        <Box sx={{ display: "flex", justifyContent: "center", mb: 3, gap: 2, alignItems: 'center' }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            mb: 3,
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
           <TextField
             type="date"
             label="Select Date"
@@ -791,7 +807,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
             onChange={(e) => {
               const val = e.target.value;
               if (val && val < todayStr) {
-                showAlert('error', 'Please pick today or a future date');
+                showAlert("error", "Please pick today or a future date");
                 return;
               }
               setSelectedDate(val);
@@ -803,7 +819,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
             variant="outlined"
             onClick={() => setDeleteApptsOpen(true)}
             disabled={!selectedDate || appointments.length === 0}
-            sx={{ textTransform: 'none' }}
+            sx={{ textTransform: "none" }}
           >
             Delete Appointments for Date
           </Button>
@@ -938,7 +954,9 @@ export default function DoctorDashboard({ userId: propUserId }) {
                           📝 {appt.reason}
                         </Typography>
                       )}
-                      <Typography sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}>
+                      <Typography
+                        sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}
+                      >
                         Ref:{" "}
                         <span style={{ color: "#010101ff", fontWeight: 700 }}>
                           {appt.referenceNo}
