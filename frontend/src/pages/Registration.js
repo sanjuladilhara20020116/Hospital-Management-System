@@ -7,6 +7,7 @@ import {
 import { PersonAddAlt1 } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import './Registration.css'; // ← NEW: CSS-only styling
 
 const specialties = [
   "MBBS", "Cardiologist", "Endocrinologist", "Nephrologist", "Gastroenterologist",
@@ -57,7 +58,6 @@ export default function Registration() {
     const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[@#$%^&+=!]).{8,}$/;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    // Common validations
     if (!formData.email || !emailRegex.test(formData.email)) newErrors.email = 'Valid email required';
     if (!formData.firstName || !nameRegex.test(formData.firstName)) newErrors.firstName = 'Only letters allowed';
     if (!formData.lastName || !nameRegex.test(formData.lastName) || formData.lastName === formData.firstName)
@@ -72,7 +72,6 @@ export default function Registration() {
     if (!passwordRegex.test(formData.password)) newErrors.password = 'Min 8 chars, 1 uppercase, 1 number, 1 special char';
     if (formData.confirmPassword !== formData.password) newErrors.confirmPassword = 'Passwords do not match';
 
-    // Role-specific
     if (role === 'Doctor') {
       if (!formData.slmcRegistrationNumber || !/^\d{5}$/.test(formData.slmcRegistrationNumber))
         newErrors.slmcRegistrationNumber = 'Must be 5 digits';
@@ -81,8 +80,6 @@ export default function Registration() {
 
     if (role === 'Pharmacist' && !formData.pharmacistId)
       newErrors.pharmacistId = 'Pharmacist ID required';
-
-    // LabAdmin currently has no extra required fields
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -111,100 +108,161 @@ export default function Registration() {
   };
 
   return (
-    <Grid container justifyContent="center" alignItems="center" sx={{ minHeight: '100vh', backgroundColor: '#f4f7fb' }}>
-      <Grid item xs={11} md={6} component={Paper} elevation={4} sx={{ p: 4, borderRadius: 3 }}>
-        <Box display="flex" flexDirection="column" alignItems="center" mb={3}>
-          <Avatar sx={{ bgcolor: 'primary.main', mb: 1 }}><PersonAddAlt1 /></Avatar>
-          <Typography variant="h5" fontWeight={600}>Register New Account</Typography>
+    <Grid container justifyContent="center" alignItems="center" className="reg-bg">
+      <Grid item xs={11} md={9} lg={8} component={Paper} elevation={4} className="reg-card">
+        {/* Header */}
+        <Box className="reg-header">
+          <Avatar className="reg-header__avatar"><PersonAddAlt1 /></Avatar>
+          <Typography className="reg-header__title">Register your information</Typography>
         </Box>
 
-        <FormControl fullWidth sx={{ mb: 3 }}>
-          <InputLabel id="role-label">Select Account Type</InputLabel>
-          <Select labelId="role-label" value={role} label="Select Account Type" onChange={handleRoleChange}>
-            <MenuItem value="Patient">Patient</MenuItem>
-            <MenuItem value="Doctor">Doctor</MenuItem>
-            <MenuItem value="Pharmacist">Pharmacist</MenuItem>
-            <MenuItem value="HospitalManager">Hospital Manager</MenuItem>
-            <MenuItem value="LabAdmin">Lab Admin</MenuItem> {/* ✅ Added */}
-          </Select>
-        </FormControl>
+        {/* Account type */}
+        <div className="reg-section">
+          <div className="reg-subtitle">Select Account Type</div>
 
-        {role && (
-          <Box component="form" onSubmit={handleSubmit} noValidate>
+          {/* Keep original <Select> to preserve logic; styled to be invisible but accessible */}
+          <FormControl fullWidth className="reg-role-select">
+            <InputLabel id="role-label">Select Account Type</InputLabel>
+            <Select labelId="role-label" value={role} label="Select Account Type" onChange={handleRoleChange}>
+              <MenuItem value="Patient">Patient</MenuItem>
+              <MenuItem value="Doctor">Doctor</MenuItem>
+              <MenuItem value="Pharmacist">Pharmacist</MenuItem>
+              <MenuItem value="HospitalManager">Hospital Manager</MenuItem>
+              <MenuItem value="LabAdmin">Lab Admin</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Visual tiles mapped to the same handler for 1:1 behavior */}
+          <div className="role-tiles">
             {[
-              ['email', 'Email', 'email'],
-              ['firstName', 'First Name'],
-              ['lastName', 'Last Name'],
-              ['nicNumber', 'NIC Number'],
-              ['address', 'Address'],
-              ['contactNumber', 'Contact Number'],
-              ['password', 'Password', 'password'],
-              ['confirmPassword', 'Confirm Password', 'password'],
-            ].map(([name, label, type = 'text']) => (
-              <TextField key={name} fullWidth required label={label} name={name}
-                value={formData[name]} onChange={handleChange}
-                type={type} error={!!errors[name]} helperText={errors[name]} sx={{ mb: 2 }} />
+              { v: 'Patient', label: 'Patient', icon: '👤' },
+              { v: 'Doctor', label: 'Doctor', icon: '➕' },
+              { v: 'Pharmacist', label: 'Pharmacist', icon: '💊' },
+              { v: 'HospitalManager', label: 'Hospital Manager', icon: '🏥' },
+              { v: 'LabAdmin', label: 'LabAdmin', icon: '⚗️' },
+            ].map(t => (
+              <button
+                key={t.v}
+                type="button"
+                className={`role-tiles__item ${role === t.v ? 'is-active' : ''}`}
+                onClick={() => handleRoleChange({ target: { value: t.v } })}
+              >
+                <span className="role-tiles__icon" aria-hidden>{t.icon}</span>
+                <span className="role-tiles__text">{t.label}</span>
+              </button>
             ))}
+          </div>
+        </div>
 
-            <FormControl fullWidth required sx={{ mb: 2 }} error={!!errors.gender}>
-              <InputLabel>Gender</InputLabel>
-              <Select name="gender" value={formData.gender} onChange={handleChange} label="Gender">
-                <MenuItem value="Male">Male</MenuItem>
-                <MenuItem value="Female">Female</MenuItem>
-                <MenuItem value="Other">Other</MenuItem>
-              </Select>
-              <Typography color="error" fontSize={12}>{errors.gender}</Typography>
-            </FormControl>
+        {/* Form */}
+        {role && (
+          <Box component="form" onSubmit={handleSubmit} noValidate className="reg-form">
+            <div className="reg-subtitle">Personal Information</div>
 
-            <TextField fullWidth required label="Age" name="age" type="number"
-              value={formData.age} onChange={handleChange}
-              error={!!errors.age} helperText={errors.age} sx={{ mb: 2 }} />
+            {/* Two-column grid aligned to the design */}
+            <div className="reg-grid">
+              {/* LEFT column */}
+              <div className="col">
+                <TextField fullWidth required label="First Name *" name="firstName"
+                  value={formData.firstName} onChange={handleChange}
+                  error={!!errors.firstName} helperText={errors.firstName} className="fld" />
 
-            <TextField fullWidth required type="date" label="Date of Birth"
-              name="dateOfBirth" InputLabelProps={{ shrink: true }}
-              value={formData.dateOfBirth} onChange={handleChange}
-              error={!!errors.dateOfBirth} helperText={errors.dateOfBirth} sx={{ mb: 2 }} />
+                <TextField fullWidth required label="Nic number*" name="nicNumber"
+                  value={formData.nicNumber} onChange={handleChange}
+                  error={!!errors.nicNumber} helperText={errors.nicNumber} className="fld" />
 
-            <Button variant="outlined" component="label" fullWidth sx={{ mb: 2 }}>
-              Upload Photo
-              <input hidden accept="image/*" type="file" name="photo" onChange={handleChange} />
-            </Button>
-            {formData.photo && (
-              <Typography variant="body2" sx={{ mb: 2 }}>{formData.photo.name}</Typography>
-            )}
+                <TextField fullWidth required label="Email address*" name="email" type="email"
+                  value={formData.email} onChange={handleChange}
+                  error={!!errors.email} helperText={errors.email} className="fld" />
 
+                <TextField fullWidth required label="Age*" name="age" type="number"
+                  value={formData.age} onChange={handleChange}
+                  error={!!errors.age} helperText={errors.age} className="fld" />
+
+                <TextField fullWidth required label="Password*" name="password" type="password"
+                  value={formData.password} onChange={handleChange}
+                  error={!!errors.password} helperText={errors.password} className="fld" />
+
+                <TextField fullWidth required label="Confirm Password*" name="confirmPassword" type="password"
+                  value={formData.confirmPassword} onChange={handleChange}
+                  error={!!errors.confirmPassword} helperText={errors.confirmPassword} className="fld" />
+              </div>
+
+              {/* RIGHT column */}
+              <div className="col">
+                <TextField fullWidth required label="Last Name*" name="lastName"
+                  value={formData.lastName} onChange={handleChange}
+                  error={!!errors.lastName} helperText={errors.lastName} className="fld" />
+
+                {/* Address with fixed top margin alignment (no big gap) */}
+                <TextField fullWidth required label="Address*" name="address" multiline minRows={3}
+                  value={formData.address} onChange={handleChange}
+                  error={!!errors.address} helperText={errors.address} className="fld fld--address" />
+
+                <TextField fullWidth required type="date" label="Date of birth" name="dateOfBirth"
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.dateOfBirth} onChange={handleChange}
+                  error={!!errors.dateOfBirth} helperText={errors.dateOfBirth} className="fld" />
+
+                <FormControl fullWidth required error={!!errors.gender} className="fld">
+                  <InputLabel>Gender</InputLabel>
+                  <Select name="gender" value={formData.gender} onChange={handleChange} label="Gender">
+                    <MenuItem value="Male">Male</MenuItem>
+                    <MenuItem value="Female">Female</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                  <Typography className="err" component="div">{errors.gender}</Typography>
+                </FormControl>
+
+                <TextField fullWidth required label="Contact Number" name="contactNumber"
+                  value={formData.contactNumber} onChange={handleChange}
+                  error={!!errors.contactNumber} helperText={errors.contactNumber} className="fld" />
+
+                <div className="upload-row fld">
+                  <Button variant="outlined" component="label" className="upload-btn">
+                    Upload Photo
+                    <input hidden accept="image/*" type="file" name="photo" onChange={handleChange} />
+                  </Button>
+                  {formData.photo && (
+                    <span className="upload-name">{formData.photo.name}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Role-specific rows (unchanged logic) */}
             {role === 'Doctor' && (
-              <>
+              <div className="role-extra">
                 <TextField fullWidth required label="SLMC Registration Number"
                   name="slmcRegistrationNumber" value={formData.slmcRegistrationNumber}
                   onChange={handleChange} error={!!errors.slmcRegistrationNumber}
-                  helperText={errors.slmcRegistrationNumber} sx={{ mb: 2 }} />
+                  helperText={errors.slmcRegistrationNumber} className="fld role-fld" />
 
-                <FormControl fullWidth required sx={{ mb: 2 }} error={!!errors.specialty}>
+                <FormControl fullWidth required error={!!errors.specialty} className="fld role-fld">
                   <InputLabel>Specialty</InputLabel>
                   <Select name="specialty" value={formData.specialty} onChange={handleChange} label="Specialty">
                     {specialties.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                   </Select>
-                  <Typography color="error" fontSize={12}>{errors.specialty}</Typography>
+                  <Typography className="err" component="div">{errors.specialty}</Typography>
                 </FormControl>
-              </>
+              </div>
             )}
 
             {role === 'Pharmacist' && (
               <TextField fullWidth required label="Pharmacist ID"
                 name="pharmacistId" value={formData.pharmacistId}
                 onChange={handleChange} error={!!errors.pharmacistId}
-                helperText={errors.pharmacistId} sx={{ mb: 2 }} />
+                helperText={errors.pharmacistId} className="fld role-fld" />
             )}
 
-            {/* LabAdmin: no extra fields right now */}
+            {/* CTA row exactly like mock */}
+            <Button type="submit" variant="contained" color="primary" className="submit-btn">
+              Submit
+            </Button>
 
-            <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 1 }}>
-              Register
-            </Button>
-            <Button fullWidth sx={{ mt: 1 }} onClick={() => navigate('/')}>
+            <button type="button" className="back-link" onClick={() => navigate('/')}>
               Back to Login
-            </Button>
+            </button>
           </Box>
         )}
 

@@ -95,9 +95,13 @@ export default function DoctorDashboard({ userId: propUserId }) {
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [appointments, setAppointments] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
-
-  // ---- NEW: delete confirmation dialog state
+  // profile delete dialog (existing header Delete button uses this)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // delete appointments for selected date dialog
+  const [deleteApptsOpen, setDeleteApptsOpen] = useState(false);
+  const [deletingAppointments, setDeletingAppointments] = useState(false);
+
+  // ---- delete confirmation in-flight flag
   const [deleting, setDeleting] = useState(false);
 
   // ---- effects: load profile
@@ -235,6 +239,13 @@ export default function DoctorDashboard({ userId: propUserId }) {
   // ---- availability
   const handleAvailabilityChange = (e) => {
     const { name, value } = e.target;
+    // Prevent selecting past dates for availability
+    if (name === "date") {
+      if (value && value < todayStr) {
+        showAlert("error", "Please pick today or a future date for availability");
+        return;
+      }
+    }
     setAvailabilityForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -269,6 +280,44 @@ export default function DoctorDashboard({ userId: propUserId }) {
       showAlert("error", msg);
     } finally {
       setSavingAvailability(false);
+    }
+  };
+
+  // Delete appointments service for a specific date (called from UI)
+  const deleteAppointmentsForDate = async (date) => {
+    if (!userId || !date) {
+      showAlert("warning", "Doctor ID or date missing");
+      return;
+    }
+    try {
+      setDeletingAppointments(true);
+      const params = new URLSearchParams({ date });
+      const res = await axios.delete(
+        `${API_BASE}/appointments/doctors/${encodeURIComponent(
+          userId
+        )}/delete-by-date?${params.toString()}`,
+        { headers: { "X-Role": "Doctor", "X-User-Id": String(userId) } }
+      );
+      showAlert("success", res.data?.message || "Appointments deleted");
+      // close dialog
+      setDeleteApptsOpen(false);
+      // refresh appointments list for the date
+      setLoadingAppointments(true);
+      const p = new URLSearchParams({ doctorId: userId, date });
+      const r2 = await axios.get(
+        `${API_BASE}/appointments/getUserAppointments?${p.toString()}`
+      );
+      setAppointments(
+        Array.isArray(r2.data?.appointments) ? r2.data.appointments : []
+      );
+    } catch (err) {
+      showAlert(
+        "error",
+        err?.response?.data?.message || "Failed to delete appointments"
+      );
+    } finally {
+      setDeletingAppointments(false);
+      setLoadingAppointments(false);
     }
   };
 
@@ -402,7 +451,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
               <Button
                 variant="outlined"
                 color="error"
-                onClick={() => setDeleteDialogOpen(true)}  // <-- FIX: now defined
+                onClick={() => setDeleteDialogOpen(true)} // uses the single state
                 sx={{ textTransform: "none", fontWeight: 700 }}
               >
                 Delete
@@ -563,8 +612,8 @@ export default function DoctorDashboard({ userId: propUserId }) {
 
       {/* Confirm Delete */}
       <Dialog
-        open={deleteDialogOpen}                       // <-- FIX: controlled by state
-        onClose={() => setDeleteDialogOpen(false)}    // <-- FIX: close handler
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
         <DialogTitle sx={{ fontWeight: 800 }}>Confirm Delete</DialogTitle>
@@ -591,6 +640,37 @@ export default function DoctorDashboard({ userId: propUserId }) {
         </DialogActions>
       </Dialog>
 
+      {/* Delete Appointments for Selected Date */}
+      <Dialog
+        open={deleteApptsOpen}
+        onClose={() => setDeleteApptsOpen(false)}
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>Delete Appointments</DialogTitle>
+        <DialogContent sx={{ color: "text.secondary" }}>
+          Are you sure you want to delete all appointments for <b>{selectedDate}</b>?
+          This will remove <b>{appointments.length}</b> appointment(s) and cannot be undone.
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            sx={{ textTransform: "none", fontWeight: 700 }}
+            onClick={() => setDeleteApptsOpen(false)}
+            disabled={deletingAppointments}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            sx={{ textTransform: "none", fontWeight: 700 }}
+            onClick={() => deleteAppointmentsForDate(selectedDate)}
+            disabled={deletingAppointments}
+          >
+            {deletingAppointments ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Set Availability / My Appointments */}
       <Dialog
         open={availOpen}
@@ -609,6 +689,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
                 name="date"
                 fullWidth
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: todayStr }}
                 value={availabilityForm.date}
                 onChange={handleAvailabilityChange}
               />
@@ -708,15 +789,40 @@ export default function DoctorDashboard({ userId: propUserId }) {
         >
           Current Appointments
         </Typography>
-        <Box sx={{ display: "flex", justifyContent: "center", mb: 3 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            mb: 3,
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
           <TextField
             type="date"
             label="Select Date"
             InputLabelProps={{ shrink: true }}
+            inputProps={{ min: todayStr }}
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val && val < todayStr) {
+                showAlert("error", "Please pick today or a future date");
+                return;
+              }
+              setSelectedDate(val);
+            }}
             sx={{ minWidth: 260, background: "#f8fafc", borderRadius: 2 }}
           />
+          <Button
+            color="error"
+            variant="outlined"
+            onClick={() => setDeleteApptsOpen(true)}
+            disabled={!selectedDate || appointments.length === 0}
+            sx={{ textTransform: "none" }}
+          >
+            Delete Appointments for Date
+          </Button>
         </Box>
         {loadingAppointments ? (
           <Typography color="info.main" sx={{ fontWeight: 600, letterSpacing: 1 }}>
@@ -848,7 +954,9 @@ export default function DoctorDashboard({ userId: propUserId }) {
                           📝 {appt.reason}
                         </Typography>
                       )}
-                      <Typography sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}>
+                      <Typography
+                        sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}
+                      >
                         Ref:{" "}
                         <span style={{ color: "#010101ff", fontWeight: 700 }}>
                           {appt.referenceNo}
