@@ -25,6 +25,8 @@ const SPECIALS = [
 export default function AppointmentSearchPage() {
   const navigate = useNavigate();
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   const [q, setQ] = useState({ doctor: "", specialization: "Any", date: "" });
   const [alert, setAlert] = useState({ open: false, severity: "info", message: "" });
   const [loading, setLoading] = useState(false);
@@ -116,8 +118,17 @@ export default function AppointmentSearchPage() {
                 label="Any Date"
                 fullWidth
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: todayStr }}
                 value={q.date}
-                onChange={(e) => setQ(s => ({ ...s, date: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // prevent selecting past dates
+                  if (v && v < todayStr) {
+                    show('error', 'Please pick today or a future date');
+                    return;
+                  }
+                  setQ(s => ({ ...s, date: v }));
+                }}
               />
             </Grid>
           </Grid>
@@ -230,7 +241,7 @@ export default function AppointmentSearchPage() {
           setExpanded(e => ({ ...e, [dialog.doctorId]: false }));
 
           // ✅ Redirect to Checkout with appointment data for payment step
-          navigate("/appointments/checkout", {
+          navigate("/appointments/details", {
             state: { appointment: appt }
           });
         }}
