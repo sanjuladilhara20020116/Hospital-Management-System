@@ -68,12 +68,13 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
     }
   };
 
+  // initial fetch
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
-  // live search on chief complaint
+  // 🔹 Debounced live search on chief complaint (q) — matches DiagnosisList behavior
   useEffect(() => {
     if (!patientId) return;
     const id = setTimeout(() => {
@@ -112,26 +113,18 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
     setTimeout(load, 0);
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ p: 3, textAlign: "center" }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   const nothingFound = !loading && items.length === 0;
 
   return (
     <Box>
-      {/* Filter bar */}
+      {/* Filter bar (kept mounted during loading) */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1.5}
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, alignItems: "flex-end" }}
       >
         <TextField
-          label="Chief complaint (live)"
+          label="Chief complaint"
           name="q"
           value={filters.q}
           onChange={onFilterChange}
@@ -162,13 +155,14 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
           InputLabelProps={{ shrink: true }}
           sx={{ minWidth: 160 }}
         />
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} alignItems="center">
           <Button variant="contained" onClick={load}>
             Search
           </Button>
           <Button variant="text" onClick={clearFilters}>
             Clear
           </Button>
+          {loading && <CircularProgress size={20} sx={{ ml: 0.5 }} />}
         </Stack>
       </Stack>
 
@@ -190,7 +184,7 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
         </Alert>
       )}
 
-      <Stack spacing={2}>
+      <Stack spacing={2} sx={{ opacity: loading ? 0.7 : 1, transition: "opacity .2s" }}>
         {items.map((it) => (
           <Card key={it._id} variant="outlined" sx={{ borderRadius: 2 }}>
             <CardContent sx={{ pb: 1 }}>
@@ -225,7 +219,7 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
                 View
               </Button>
 
-              {/* ✅ Download PDF is available to both doctors and patients */}
+              {/* Download visible to everyone */}
               <Button
                 size="small"
                 startIcon={<PictureAsPdfIcon />}
