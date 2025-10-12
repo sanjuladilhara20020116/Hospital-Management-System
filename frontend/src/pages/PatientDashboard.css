@@ -1,16 +1,19 @@
 /* --------------------  Patient Dashboard – Visual System  -------------------- */
 :root {
-  --pd-blue: #2563eb;          /* header + Lab reports */
+  --pd-blue: #2563eb;          /* header + primary */
   --pd-blue-600: #1e40af;
-  --pd-yellow: #f59e0b;        /* medical reports */
+  --pd-yellow: #f59e0b;        /* (legacy accent, optional) */
   --pd-green: #22c55e;         /* health packages */
-  --pd-red: #ef4444;           /* book appointment */
+  --pd-red: #ef4444;           /* destructive / cancel */
   --pd-surface: #ffffff;
   --pd-subtle: #f5f7fb;
   --pd-border: #e6eaf2;
   --pd-text-strong: #111827;
   --pd-text: #374151;
   --pd-text-soft: #6b7280;
+
+  /* Small, consistent page gutters for the MAIN CARD */
+  --pd-page-gutter-x: clamp(12px, 2.5vw, 24px);
 }
 
 /* Constrain + breathing room */
@@ -19,13 +22,36 @@
   padding-bottom: 32px;
 }
 
+/* Optional: full-bleed container helper (no side gutters) */
+.pd-full-bleed {
+  width: 100%;
+  margin: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Primary “page card” wrapper */
+.pd-card {
+  margin-left: var(--pd-page-gutter-x);
+  margin-right: var(--pd-page-gutter-x);
+  border-radius: 16px !important;
+  overflow: hidden;                 /* clip hero gradient nicely */
+  box-shadow: 0 10px 28px rgba(17,24,39,.08) !important;
+}
+
+/* Edge mode (optional): remove card curvature/shadow when embedding full-bleed */
+.pd-card-edge {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
 /* --------------------  Hero  -------------------- */
 .pd-hero {
   position: relative;
   background: var(--pd-blue) !important;
   color: #fff !important;
   padding: 28px 28px !important;
-  border-top-left-radius: 16px !important;
+  border-top-left-radius: 16px !important;   /* keep curvature consistent with .pd-card */
   border-top-right-radius: 16px !important;
   overflow: hidden;
 }
@@ -35,9 +61,10 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(1200px 300px at -10% -30%, rgba(255,255,255,0.18), transparent 60%),
-              radial-gradient(900px 260px at 120% -40%, rgba(255,255,255,0.14), transparent 60%);
-  pointer-events: none;
+  background:
+    radial-gradient(1200px 300px at -10% -30%, rgba(255,255,255,0.18), transparent 60%),
+    radial-gradient(900px 260px at 120% -40%, rgba(255,255,255,0.14), transparent 60%);
+  pointer-events: none; /* safety: decorative layer never blocks clicks */
 }
 
 .pd-avatar {
@@ -62,6 +89,8 @@
 .pd-info-wrap {
   padding: 22px 24px;
   background: var(--pd-surface);
+  padding-left: clamp(16px, 3vw, 32px);
+  padding-right: clamp(16px, 3vw, 32px);
 }
 
 .pd-info-grid {
@@ -69,11 +98,8 @@
   grid-template-columns: repeat(2, minmax(260px, 1fr));
   gap: 14px;
 }
-
 @media (min-width: 980px) {
-  .pd-info-grid {
-    grid-template-columns: repeat(3, minmax(260px, 1fr));
-  }
+  .pd-info-grid { grid-template-columns: repeat(3, minmax(260px, 1fr)); }
 }
 
 .pd-info-card {
@@ -83,7 +109,10 @@
   border: 1px solid var(--pd-border) !important;
   transition: transform .16s ease, box-shadow .16s ease;
 }
-.pd-info-card:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(16,24,40,.06); }
+.pd-info-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(16,24,40,.06);
+}
 
 .pd-info-label {
   display: flex;
@@ -96,23 +125,59 @@
 
 .pd-info-value { color: var(--pd-text); }
 
-/* --------------------  Actions row  -------------------- */
+/* ---------- CTA row under info cards ---------- */
+.pd-cta-row {
+  display:flex;
+  justify-content:flex-end;
+  gap:12px;
+  margin-top:10px;
+}
+.pd-btn-outline {
+  border-radius:12px !important;
+  padding:8px 14px !important;
+  font-weight:700 !important;
+  box-shadow:none !important;
+}
+.pd-btn-blue {
+  color:#2563eb !important;
+  border:2px solid #2563eb !important;
+  background:#ffffff !important;
+}
+.pd-btn-blue:hover { background:#f0f5ff !important; }
+.pd-btn-red {
+  color:#ef4444 !important;
+  border:2px solid #ef4444 !important;
+  background:#ffffff !important;
+}
+.pd-btn-red:hover { background:#fff1f1 !important; }
+.pd-btn-gray {
+  color:#374151 !important;
+  border:2px solid #e5e7eb !important;
+  background:#ffffff !important;
+}
+.pd-btn-gray:hover { background:#f9fafb !important; }
+
+/* --------------------  Actions (NEW DESIGN)  -------------------- */
 .pd-actions-wrap {
   padding: 8px 24px 0 24px;
+  margin-top: 4px;
+  padding-left: clamp(16px, 3vw, 32px);
+  padding-right: clamp(16px, 3vw, 32px);
 }
 
 .pd-section-title {
   font-weight: 800 !important;
   margin: 18px 0 12px !important;
-  color: var(--pd-text-strong);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .pd-actions {
   display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
 }
-
 @media (min-width: 980px) {
   .pd-actions { grid-template-columns: repeat(4, 1fr); }
 }
@@ -120,45 +185,56 @@
 .pd-action-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 18px 16px;
-  border-radius: 18px;
-  border: none;
-  outline: none;
-  color: #fff;
-  cursor: pointer;
-  width: 100%;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: var(--pd-text-strong);
   text-align: left;
-  box-shadow: 0 8px 24px rgba(17, 24, 39, .12);
-  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.05);
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
 }
-.pd-action-card:hover { transform: translateY(-2px); filter: brightness(1.02); }
+.pd-action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.35);
+}
 
 .pd-action-icon {
-  width: 54px;
-  height: 54px;
-  border-radius: 14px;
   display: grid;
   place-items: center;
-  background: rgba(255,255,255,.15);
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  flex: 0 0 44px;
 }
 
 .pd-action-title {
   font-weight: 800;
-  font-size: 18px;
-  line-height: 1.15;
+  line-height: 1.1;
 }
-.pd-action-sub { opacity: .92; font-size: 13px; margin-top: 2px; }
+.pd-action-sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
 
-/* Brand color variants */
-.pd-action--lab { background: var(--pd-blue); }
-.pd-action--med { background: var(--pd-yellow); }
-.pd-action--pkg { background: var(--pd-green); }
-.pd-action--apt { background: var(--pd-red); }
+/* Optional: slightly different tints by card type (subtle white cards) */
+.pd-action--lab { background: linear-gradient(180deg, rgba(37,99,235,0.04), rgba(37,99,235,0.02)); }
+.pd-action--med { background: linear-gradient(180deg, rgba(245,158,11,0.06), rgba(245,158,11,0.02)); }
+.pd-action--vac { background: linear-gradient(180deg, rgba(37,99,235,0.06), rgba(37,99,235,0.02)); border-color: rgba(37,99,235,0.25); }
+.pd-action--pkg { background: linear-gradient(180deg, rgba(34,197,94,0.06), rgba(34,197,94,0.02)); }
+.pd-action--apt { background: linear-gradient(180deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02)); }
 
 /* --------------------  Appointments  -------------------- */
 .pd-appointments {
   padding: 6px 24px 24px 24px;
+  padding-left: clamp(16px, 3vw, 32px);
+  padding-right: clamp(16px, 3vw, 32px);
 }
 
 .pd-search {
@@ -168,7 +244,6 @@
   gap: 12px;
   margin: 10px 0 14px 0;
 }
-
 .pd-search .MuiOutlinedInput-root {
   height: 44px;
   border-radius: 14px;
@@ -182,7 +257,7 @@
   padding-left: 4px;
 }
 
-/* Appointment row look */
+/* Appointment row look (Paper variant="outlined") */
 .pd-appt-row.MuiPaper-outlined {
   border-radius: 14px;
   padding: 14px !important;
@@ -200,95 +275,93 @@
   font-weight: 800 !important;
 }
 
-/* ---------- CTA row under info cards ---------- */
-.pd-cta-row{
+
+/* Core tokens */
+:root{
+  --pd-blue:#2563eb; --pd-yellow:#f59e0b; --pd-green:#22c55e; --pd-red:#ef4444; --pd-sky:#06b6d4;
+}
+
+/* Solid action tiles (like your screenshot) */
+.pd-actions-tiles{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:22px;
+  margin:10px 0 8px 0;
+}
+
+.pd-tile{
+  position:relative;
   display:flex;
-  justify-content:flex-end;
-  gap:12px;
-  margin-top:10px;
+  align-items:center;
+  gap:14px;
+  padding:18px 18px;
+  border:none;
+  border-radius:18px;
+  color:#fff;
+  cursor:pointer;
+  box-shadow:0 10px 22px rgba(0,0,0,.12);
+  transition:transform .16s ease, box-shadow .16s ease, filter .16s ease;
+  text-align:left;
+}
+.pd-tile:hover{ transform:translateY(-2px); filter:brightness(1.02); box-shadow:0 14px 30px rgba(0,0,0,.16); }
+
+.pd-tile-icon{
+  width:48px; height:48px; border-radius:12px; display:grid; place-items:center;
+  background:rgba(255,255,255,.18);
+}
+.pd-tile-text{ font-weight:800; font-size:18px; line-height:1.1; }
+
+/* Variants aligned to screenshot colors */
+.pd-tile--blue   { background:var(--pd-blue); }
+.pd-tile--yellow { background:var(--pd-yellow); }
+.pd-tile--green  { background:var(--pd-green); }
+.pd-tile--red    { background:var(--pd-red); }
+.pd-tile--sky    { background:var(--pd-sky); }  /* NEW: Vaccination */
+
+/* ====== Action tiles: taller footprint & larger icon/text ====== */
+:root{
+  /* Tunables for card height & spacing */
+  --pd-tile-min-h: 116px;   /* target height */
+  --pd-tile-pad-y: 22px;
+  --pd-tile-pad-x: 28px;
+  --pd-tile-radius: 26px;
+  --pd-tile-icon: 58px;     /* icon container size */
+  --pd-tile-fs: 20px;       /* label font-size */
 }
 
-.pd-btn-outline{
-  border-radius:12px !important;
-  padding:8px 14px !important;
-  font-weight:700 !important;
-  box-shadow:none !important;
+/* Make each tile taller, with bigger touch target */
+.pd-tile{
+  min-height: var(--pd-tile-min-h);
+  padding: var(--pd-tile-pad-y) var(--pd-tile-pad-x);
+  border-radius: var(--pd-tile-radius);
 }
 
-.pd-btn-blue{
-  color:#2563eb !important;
-  border:2px solid #2563eb !important;
-  background:#ffffff !important;
-}
-.pd-btn-blue:hover{ background:#f0f5ff !important; }
-
-.pd-btn-red{
-  color:#ef4444 !important;
-  border:2px solid #ef4444 !important;
-  background:#ffffff !important;
-}
-.pd-btn-red:hover{ background:#fff1f1 !important; }
-
-.pd-btn-gray{
-  color:#374151 !important;
-  border:2px solid #e5e7eb !important;
-  background:#ffffff !important;
-}
-.pd-btn-gray:hover{ background:#f9fafb !important; }
-
-/* widen page footprint */
-.patient-dashboard{ padding-top:24px; padding-bottom:32px; }
-/* Full-bleed container: no side gutters */
-.pd-full-bleed {
-  width: 100%;
-  margin: 0 !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
+/* Scale the icon block to match the increased tile height */
+.pd-tile-icon{
+  width: var(--pd-tile-icon);
+  height: var(--pd-tile-icon);
+  border-radius: 14px; /* keeps the pill vibe */
 }
 
-/* Card should not look like a centered box */
-.pd-card-edge {
-  border-radius: 0 !important;
-  box-shadow: none !important;
+/* Slightly larger, still bold headline */
+.pd-tile-text{
+  font-size: var(--pd-tile-fs);
+  line-height: 1.15;
 }
 
-/* Ensure hero spans edge-to-edge */
-.pd-hero {
-  border-top-left-radius: 0 !important;
-  border-top-right-radius: 0 !important;
+/* Optional: give the row a bit more breathing room */
+.pd-actions-tiles{
+  gap: 26px;
 }
 
-/* Keep comfortable in-content padding without outer gutters */
-.pd-info-wrap,
-.pd-actions-wrap,
-.pd-appointments {
-  padding-left: clamp(16px, 3vw, 32px);
-  padding-right: clamp(16px, 3vw, 32px);
-}
-
-/* Safety: decorative layers never block clicks */
-.pd-hero::after { pointer-events: none; }
-/* Small, consistent page gutters for the MAIN CARD */
-:root { --pd-page-gutter-x: clamp(12px, 2.5vw, 24px); }
-
-.pd-card {
-  margin-left: var(--pd-page-gutter-x);
-  margin-right: var(--pd-page-gutter-x);
-  border-radius: 16px !important;
-  overflow: hidden;                 /* clip hero gradient nicely */
-  box-shadow: 0 10px 28px rgba(17,24,39,.08) !important;
-}
-
-/* Ensure the hero respects the card curvature */
-.pd-hero {
-  border-top-left-radius: 16px !important;   /* or 'inherit' */
-  border-top-right-radius: 16px !important;  /* or 'inherit' */
-}
-
-/* (Optional) keep the interior sections padded as you like */
-.pd-info-wrap,
-.pd-actions-wrap,
-.pd-appointments {
-  padding-left: clamp(16px, 3vw, 32px);
-  padding-right: clamp(16px, 3vw, 32px);
+/* Responsive downshift so mobile stays tidy */
+@media (max-width: 600px){
+  :root{
+    --pd-tile-min-h: 96px;
+    --pd-tile-pad-y: 18px;
+    --pd-tile-pad-x: 20px;
+    --pd-tile-radius: 20px;
+    --pd-tile-icon: 48px;
+    --pd-tile-fs: 18px;
+  }
 }
