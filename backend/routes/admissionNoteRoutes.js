@@ -1,10 +1,16 @@
-// routes/admissionNoteRoutes.js
 const express = require("express");
 const router = express.Router();
 const AdmissionNote = require("../models/AdmissionNote");
-const { startDoc, addField, finishDoc, line } = require("../utils/pdf");
 
-// Create
+const {
+  startDoc,
+  finishDoc,
+  subsection,
+  fieldPair,
+  fieldFull,
+} = require("../utils/pdf");
+
+/* ------------------------------ Create ------------------------------ */
 router.post("/", async (req, res) => {
   try {
     const item = await AdmissionNote.create(req.body);
@@ -14,28 +20,24 @@ router.post("/", async (req, res) => {
   }
 });
 
-// List by patient (supports optional filters) — most-recent first
-// GET /api/admission-notes/patient/:patientUserId?q=&doctor=&dateFrom=&dateTo=
+/* -------- List by patient (filters) — most-recent first -------- */
 router.get("/patient/:patientUserId", async (req, res) => {
   try {
     const { q, doctor, dateFrom, dateTo } = req.query;
     const where = { patientUserId: req.params.patientUserId };
 
     if (q) where.preliminaryDiagnosis = { $regex: q, $options: "i" };
-
     if (doctor) {
       const rx = { $regex: doctor, $options: "i" };
       where.$or = [{ doctorName: rx }, { doctorUserId: rx }];
     }
-
     if (dateFrom || dateTo) {
       where.visitDateTime = {};
       if (dateFrom) where.visitDateTime.$gte = new Date(`${dateFrom}T00:00:00Z`);
       if (dateTo)   where.visitDateTime.$lte  = new Date(`${dateTo}T23:59:59Z`);
     }
 
-    const items = await AdmissionNote
-      .find(where)
+    const items = await AdmissionNote.find(where)
       .sort({ visitDateTime: -1, createdAt: -1 })
       .lean();
 
@@ -45,8 +47,7 @@ router.get("/patient/:patientUserId", async (req, res) => {
   }
 });
 
-// (Place more-specific route before /:id)
-// Download PDF
+/* ---------------------------- Download PDF -------------------------- */
 router.get("/:id/pdf", async (req, res) => {
   try {
     const item = await AdmissionNote.findById(req.params.id).lean();
@@ -55,25 +56,27 @@ router.get("/:id/pdf", async (req, res) => {
     const filename = `AdmissionNote_${item.admissionNoteId || item._id}.pdf`;
     const doc = startDoc(res, filename, "Admission Note");
 
-    // Meta
-    addField(doc, "AdmissionNote ID", item.admissionNoteId || item._id);
-    addField(doc, "Date & Time", new Date(item.visitDateTime).toLocaleString());
-    addField(doc, "Patient", `${item.patientName || ""} (${item.patientUserId || ""})`);
-    addField(doc, "Age", item.age);
-    addField(doc, "Doctor", `${item.doctorName || ""} (${item.doctorUserId || ""})`);
+    // Admission info
+    subsection(doc, "Admission Information");
+    fieldPair(
+      doc,
+      "AdmissionNote ID", item.admissionNoteId || item._id,
+      "Date & Time", new Date(item.visitDateTime).toLocaleString()
+    );
+    fieldPair(
+      doc,
+      "Patient", `${item.patientName || ""} (${item.patientUserId || ""})`,
+      "Age", item.age ?? "—"
+    );
+    fieldFull(doc, "Doctor", `${item.doctorName || ""} (${item.doctorUserId || ""})`);
 
-    line(doc);
-
-    // Clinical (spelling corrected in labels)
-    addField(doc, "Chief complaint", item.chiefComplaint);
-    addField(doc, "Preliminary Diagnosis", item.preliminaryDiagnosis);
-    addField(doc, "Recommended ward/unit", item.recommendedUnit);
-    addField(doc, "Present symptoms", item.presentSymptoms);
-    addField(doc, "Examination Findings", item.examinationFindings);
-    addField(doc, "Existing conditions", item.existingConditions);
-    addField(doc, "Immediate Managements", item.immediateManagements);
-    addField(doc, "Emergency Medical care", item.emergencyCare);
-    addField(doc, "Doctor Notes", item.doctorNotes);
+    // Clinical details
+    subsection(doc, "Clinical Details");
+    fieldPair(doc, "Chief complaint", item.chiefComplaint, "Preliminary Diagnosis", item.preliminaryDiagnosis);
+    fieldPair(doc, "Recommended ward/unit", item.recommendedUnit, "Present symptoms", item.presentSymptoms);
+    fieldPair(doc, "Examination Findings", item.examinationFindings, "Existing conditions", item.existingConditions);
+    fieldPair(doc, "Immediate Managements", item.immediateManagements, "Emergency Medical care", item.emergencyCare);
+    fieldFull(doc, "Doctor Notes", item.doctorNotes);
 
     finishDoc(doc);
   } catch (e) {
@@ -81,7 +84,7 @@ router.get("/:id/pdf", async (req, res) => {
   }
 });
 
-// Read by _id
+/* --------------------------- Read / Update / Delete ----------------- */
 router.get("/:id", async (req, res) => {
   try {
     const item = await AdmissionNote.findById(req.params.id);
@@ -92,13 +95,10 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Update
 router.put("/:id", async (req, res) => {
   try {
     const item = await AdmissionNote.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
+      req.params.id, req.body, { new: true, runValidators: true }
     );
     if (!item) return res.status(404).json({ message: "Admission note not found" });
     return res.json({ item });
@@ -107,7 +107,6 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Delete
 router.delete("/:id", async (req, res) => {
   try {
     const out = await AdmissionNote.findByIdAndDelete(req.params.id);

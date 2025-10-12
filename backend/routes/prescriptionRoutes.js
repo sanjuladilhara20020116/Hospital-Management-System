@@ -1,10 +1,16 @@
-// routes/prescriptionRoutes.js
 const express = require("express");
 const router = express.Router();
 const Prescription = require("../models/Prescription");
-const { startDoc, addField, finishDoc, line } = require("../utils/pdf");
 
-// Create
+const {
+  startDoc,
+  finishDoc,
+  subsection,
+  fieldPair,
+  fieldFull,
+} = require("../utils/pdf");
+
+/* ------------------------------ Create ------------------------------ */
 router.post("/", async (req, res) => {
   try {
     const item = await Prescription.create(req.body);
@@ -14,29 +20,24 @@ router.post("/", async (req, res) => {
   }
 });
 
-// List by patient (supports optional filters) — most-recent first
-// GET /api/prescriptions/patient/:patientUserId?q=&doctor=&dateFrom=&dateTo=
+/* -------- List by patient (filters) — most-recent first -------- */
 router.get("/patient/:patientUserId", async (req, res) => {
   try {
     const { q, doctor, dateFrom, dateTo } = req.query;
     const where = { patientUserId: req.params.patientUserId };
 
     if (q) where.chiefComplaint = { $regex: q, $options: "i" };
-
     if (doctor) {
       const rx = { $regex: doctor, $options: "i" };
-      // match either doctorName or doctorUserId
       where.$or = [{ doctorName: rx }, { doctorUserId: rx }];
     }
-
     if (dateFrom || dateTo) {
       where.visitDateTime = {};
       if (dateFrom) where.visitDateTime.$gte = new Date(`${dateFrom}T00:00:00Z`);
       if (dateTo)   where.visitDateTime.$lte = new Date(`${dateTo}T23:59:59Z`);
     }
 
-    const items = await Prescription
-      .find(where)
+    const items = await Prescription.find(where)
       .sort({ visitDateTime: -1, createdAt: -1 })
       .lean();
 
@@ -46,8 +47,7 @@ router.get("/patient/:patientUserId", async (req, res) => {
   }
 });
 
-// (Optionally place this before /:id for specificity)
-// Download PDF
+/* ---------------------------- Download PDF -------------------------- */
 router.get("/:id/pdf", async (req, res) => {
   try {
     const item = await Prescription.findById(req.params.id).lean();
@@ -56,21 +56,26 @@ router.get("/:id/pdf", async (req, res) => {
     const filename = `Prescription_${item.prescriptionId || item._id}.pdf`;
     const doc = startDoc(res, filename, "Prescription");
 
-    // Meta
-    addField(doc, "Prescription ID", item.prescriptionId || item._id);
-    addField(doc, "Date & Time", new Date(item.visitDateTime).toLocaleString());
-    addField(doc, "Patient", `${item.patientName || ""} (${item.patientUserId || ""})`);
-    addField(doc, "Age", item.age);
-    addField(doc, "Doctor", `${item.doctorName || ""} (${item.doctorUserId || ""})`);
+    // Prescription info
+    subsection(doc, "Prescription Information");
+    fieldPair(
+      doc,
+      "Prescription ID", item.prescriptionId || item._id,
+      "Date & Time", new Date(item.visitDateTime).toLocaleString()
+    );
+    fieldPair(
+      doc,
+      "Patient", `${item.patientName || ""} (${item.patientUserId || ""})`,
+      "Age", item.age ?? "—"
+    );
+    fieldFull(doc, "Doctor", `${item.doctorName || ""} (${item.doctorUserId || ""})`);
 
-    line(doc);
-
-    // Clinical
-    addField(doc, "Chief complaint", item.chiefComplaint);
-    addField(doc, "Medicine Name and dosage", item.medicines);
-    addField(doc, "Instructions", item.instructions);
-    addField(doc, "Duration", item.duration);
-    addField(doc, "Requested lab reports", item.requestedLabReports);
+    // Medication details
+    subsection(doc, "Medication Details");
+    fieldFull(doc, "Chief complaint", item.chiefComplaint);
+    fieldFull(doc, "Medicine Name and dosage", item.medicines);
+    fieldPair(doc, "Instructions", item.instructions, "Duration", item.duration);
+    fieldFull(doc, "Requested lab reports", item.requestedLabReports);
 
     finishDoc(doc);
   } catch (e) {
@@ -78,7 +83,7 @@ router.get("/:id/pdf", async (req, res) => {
   }
 });
 
-// Read by _id
+/* --------------------------- Read / Update / Delete ----------------- */
 router.get("/:id", async (req, res) => {
   try {
     const item = await Prescription.findById(req.params.id);
@@ -89,13 +94,10 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Update
 router.put("/:id", async (req, res) => {
   try {
     const item = await Prescription.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
+      req.params.id, req.body, { new: true, runValidators: true }
     );
     if (!item) return res.status(404).json({ message: "Prescription not found" });
     return res.json({ item });
@@ -104,7 +106,6 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Delete
 router.delete("/:id", async (req, res) => {
   try {
     const out = await Prescription.findByIdAndDelete(req.params.id);
