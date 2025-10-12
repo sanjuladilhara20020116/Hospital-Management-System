@@ -79,6 +79,13 @@ export default function Navbar({ showUtility = false }) {
       <div className="nav-row">
         <div className="container nav-inner">
           <ul id="primary-menu" className={`menu ${open ? "open" : ""}`}>
+            {/* ✅ NEW: Home */}
+            <li>
+              <Link className={isActive("/") ? "active" : ""} to="/">
+                Home
+              </Link>
+            </li>
+
             <li>
               <Link className={isActive("/about") ? "active" : ""} to="/about">
                 About Us 

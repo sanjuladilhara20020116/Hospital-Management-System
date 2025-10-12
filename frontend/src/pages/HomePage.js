@@ -7,8 +7,6 @@ import './Homepage.css';
 
 // Components
 import Header from '../components/Header';
-import Navbar from '../components/Navbar';   // ⬅️ NEW import
-import Footer from '../components/Footer';
 import ServiceCard from '../components/ServiceCard';
 import DoctorCard from '../components/DoctorCard';
 import Testimonial from '../components/Testimonial';
@@ -94,13 +92,9 @@ const Homepage = () => {
 
   return (
     <div className="homepage">
-      {/* Keep original Header (top bar only now) */}
+      {/* Keep original Header (top bar only) */}
       <Header />
 
-      {/* ⬇️ New, isolated navigation bar (Homepage-only) */}
-      <Navbar />
-
-      {/* Rest of Homepage remains unchanged */}
       {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-content">
@@ -206,9 +200,7 @@ const Homepage = () => {
       {showModal && (
         <AppointmentModal doctors={doctors} onClose={() => setShowModal(false)} />
       )}
-
-      {/* Footer */}
-      <Footer />
+      {/* ⬆️ Footer removed here because Layout already renders a global Footer */}
     </div>
   );
 };
