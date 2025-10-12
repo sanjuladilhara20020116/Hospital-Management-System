@@ -574,9 +574,13 @@ export default function DoctorDashboard({ userId: propUserId }) {
 
 
         {/* Patient quick view */}
-        <Box sx={{ mt: 3, px: "var(--dd-gutter-x)" }}>
-          <ViewPatientCard />
-        </Box>
+        {/* Patient quick view (hidden in edit mode) */}
+{!editMode && (
+  <Box sx={{ mt: 3, px: "var(--dd-gutter-x)" }}>
+    <ViewPatientCard />
+  </Box>
+)}
+
 
         {/* Doctor Appointments by Date */}
         <Box sx={{ mt: 6, px: "var(--dd-gutter-x)" }}>
