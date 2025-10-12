@@ -1,90 +1,128 @@
-/* ===== Scoped palette (brand blue) ===== */
+/* =======================
+   src/components/Navbar.css
+   Scoped, safe-mode styles
+   ======================= */
+
+/* ---- Design tokens ---- */
 .site-nav {
-  --brand:#0d6efd;            /* BLUE for logo text + active underline */
-  --ink:#0f172a;
-  --muted:#334155;
-  --line:#eef0f3;
-  --chev:#334155;
-  --grad-a:#c76939;
-  --grad-b:#139e99;
+  --brand: #0d6efd;         /* BLUE: logo text + active underline */
+  --ink: #0f172a;           /* Primary text */
+  --muted: #334155;         /* Secondary text */
+  --line: #eef0f3;          /* Hairline borders */
+  --chev: #334155;          /* Chevron icon color */
+  --grad-a: #c76939;        /* Utility bar gradient A (optional strip) */
+  --grad-b: #139e99;        /* Utility bar gradient B (optional strip) */
   font-family: inherit;
 }
 
 /* A11y helper */
-.site-nav .sr-only{
-  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
-  clip:rect(0,0,1px,1px);white-space:nowrap;border:0
+.site-nav .sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 1px, 1px); white-space: nowrap; border: 0;
 }
 
 /* Container */
-.site-nav .container{max-width:1180px;margin:0 auto;padding:0 16px}
+.site-nav .container {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
 
-/* ===== Utility bar (unchanged) ===== */
-.site-nav .utility-bar{
+/* ===========================
+   Utility bar (optional)
+   =========================== */
+.site-nav .utility-bar {
   background: linear-gradient(90deg, var(--grad-a), var(--grad-b));
-  color:#fff;font-size:.92rem;
+  color: #fff;
+  font-size: .92rem;
 }
-.site-nav .utility-inner{display:flex;align-items:center;justify-content:space-between;min-height:44px}
-.site-nav .u-left{display:flex;gap:22px;flex-wrap:wrap}
-.site-nav .u-item{display:inline-flex;align-items:center;gap:8px;opacity:.95}
-.site-nav .u-right{display:flex;gap:18px}
-.site-nav .u-icon{color:#fff;opacity:.9}
-.site-nav .u-icon:hover{opacity:1}
+.site-nav .utility-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 44px;
+}
+.site-nav .u-left { display: flex; gap: 22px; flex-wrap: wrap; }
+.site-nav .u-item { display: inline-flex; align-items: center; gap: 8px; opacity: .95; }
+.site-nav .u-right { display: flex; gap: 18px; }
+.site-nav .u-icon { color: #fff; opacity: .9; }
+.site-nav .u-icon:hover { opacity: 1; }
 
-/* ===== Brand row: centered + large logo ===== */
-.site-nav .brand-row{background:#fff}
-.site-nav .brand-inner{
-  position:relative;                      /* so toggle can be absolutely placed */
-  display:flex;align-items:center;justify-content:center;
-  min-height:96px;                         /* taller header to showcase brand */
-  border-bottom:1px solid var(--line);
+/* ===========================
+   Brand row (CENTERED brand)
+   =========================== */
+.site-nav .brand-row { background: #fff; }
+.site-nav .brand-inner {
+  position: relative;                           /* anchor for absolute toggle */
+  display: flex; align-items: center; justify-content: center;
+  min-height: 96px;                             /* taller for bigger logo */
+  border-bottom: 1px solid var(--line);
 }
-.site-nav .brand{
-  display:inline-flex;align-items:center;gap:14px;
-  text-decoration:none;margin:0 auto;     /* ensure centering */
+.site-nav .brand {
+  display: inline-flex; align-items: center; gap: 14px;
+  text-decoration: none; margin: 0 auto;        /* keep centered */
 }
-.site-nav .brand img{
-  height:130px;                             /* larger logo icon */
-  width:auto;display:block;
+.site-nav .brand img {
+  height: 180px;                                  /* large logo icon */
+  width: auto; display: block;
 }
-.site-nav .brand-text{
-  font-weight:900;font-size:2rem;          /* larger name */
-  color:var(--brand);                      /* BLUE text per requirement */
-  letter-spacing:.2px;
+.site-nav .brand-text {
+  font-weight: 900; font-size: 2rem;            /* large wordmark */
+  color: var(--brand);                           /* BLUE */
+  letter-spacing: .2px;
 }
 
-/* Mobile toggle positioned to the far right, independent of brand centering */
-.site-nav .nav-toggle{
-  display:none;background:transparent;border:0;cursor:pointer;padding:10px;
-  position:absolute;right:16px;top:50%;transform:translateY(-50%);
+/* Mobile toggle: floats right, brand remains centered */
+.site-nav .nav-toggle {
+  display: none; background: transparent; border: 0; cursor: pointer; padding: 10px;
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
 }
-.site-nav .hamburger{display:inline-block;width:24px;height:2px;background:var(--ink);position:relative}
-.site-nav .hamburger::before,.site-nav .hamburger::after{
-  content:"";position:absolute;left:0;width:24px;height:2px;background:var(--ink)
+.site-nav .hamburger {
+  display: inline-block; width: 24px; height: 2px; background: var(--ink); position: relative;
 }
-.site-nav .hamburger::before{top:-7px}.site-nav .hamburger::after{top:7px}
+.site-nav .hamburger::before,
+.site-nav .hamburger::after {
+  content: ""; position: absolute; left: 0; width: 24px; height: 2px; background: var(--ink);
+}
+.site-nav .hamburger::before { top: -7px; }
+.site-nav .hamburger::after  { top:  7px; }
 
-/* ===== Nav row ===== */
-.site-nav .nav-row{background:#fff}
-.site-nav .nav-inner{display:flex;align-items:center;gap:24px;min-height:64px}
-.site-nav .menu{display:flex;align-items:center;gap:28px;list-style:none;margin:0;padding:0}
-.site-nav .menu li a{
-  text-decoration:none;color:var(--muted);font-weight:600;
-  padding:10px 2px;border-bottom:2px solid transparent;display:inline-flex;gap:6px;align-items:center;
+/* ===========================
+   Nav row (RIGHT-aligned menu)
+   =========================== */
+.site-nav .nav-row { background: #fff; }
+.site-nav .nav-inner {
+  display: flex; align-items: center; gap: 24px;
+  min-height: 64px;
+  justify-content: flex-end;                     /* ✅ Right-align the nav on desktop */
 }
-.site-nav .menu li a:hover{color:var(--ink)}
-.site-nav .menu li a.active{border-bottom-color:var(--brand);color:var(--ink)}
-.site-nav .menu .chev{color:var(--chev);font-size:18px}
+.site-nav .menu {
+  display: flex; align-items: center; gap: 48px; /* ⬆️ Increased spacing between buttons */
+  list-style: none; margin: 0; padding: 0;
+}
+.site-nav .menu li a {
+  text-decoration: none; color: var(--muted); font-weight: 600;
+  padding: 10px 2px; border-bottom: 2px solid transparent;
+  display: inline-flex; gap: 6px; align-items: center;
+  transition: color .15s ease, border-color .15s ease;
+}
+.site-nav .menu li a:hover      { color: var(--ink); }
+.site-nav .menu li a.active     { border-bottom-color: var(--brand); color: var(--ink); }
+.site-nav .menu .chev           { color: var(--chev); font-size: 18px; }
 
-/* ===== Responsive ===== */
-@media (max-width: 992px){
-  .site-nav .nav-toggle{display:inline-block}
-  .site-nav .menu{
-    display:none;flex-direction:column;align-items:flex-start;gap:10px;background:#fff;
-    border-top:1px solid var(--line);padding:12px 2px;width:100%
+/* ===========================
+   Responsive
+   =========================== */
+@media (max-width: 992px) {
+  .site-nav .nav-toggle { display: inline-block; }
+  .site-nav .menu {
+    display: none; flex-direction: column; align-items: flex-start; gap: 10px;
+    background: #fff; border-top: 1px solid var(--line);
+    padding: 12px 2px; width: 100%;
   }
-  .site-nav .menu.open{display:flex}
-  .site-nav .nav-inner{flex-wrap:wrap}
-  .site-nav .brand img{height:56px}        /* scale logo on small screens */
-  .site-nav .brand-text{font-size:1.6rem}
+  .site-nav .menu.open { display: flex; }
+  .site-nav .nav-inner {
+    flex-wrap: wrap;
+    justify-content: flex-start;                 /* usability: left-align on mobile */
+  }
+  .site-nav .brand img { height: 56px; }         /* scale logo on small screens */
+  .site-nav .brand-text { font-size: 1.6rem; }
 }
