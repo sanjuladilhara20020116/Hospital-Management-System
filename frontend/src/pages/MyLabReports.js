@@ -67,7 +67,7 @@ function TabLabel({ icon, text, count, active }) {
       <Typography sx={{ fontWeight: 700 }}>{text}</Typography>
       <Box sx={{
         px:1, borderRadius: 999, fontSize:12, fontWeight:700,
-        color:'#fff', bgcolor: active ? '#7445B2' : '#7C89F6', minWidth:20, textAlign:'center'
+        color:'#fff', bgcolor: active ? '#2563eb' : '#2563eb', minWidth:20, textAlign:'center'
       }}>{count}</Box>
     </Stack>
   );
@@ -104,7 +104,7 @@ function ReportTable({ rows, onDownload, onView, maxHeight = 520 }) {
               const canView = !!(r._id || r.referenceNo);
               return (
                 <TableRow key={r.referenceNo || r._id} hover
-                  sx={{ '&:hover': { bgcolor: 'rgba(118,75,162,0.02)' }, '& td': { py: 2.25 } }}>
+                  sx={{ '&:hover': { bgcolor: 'rgba(37,99,235,0.02)' }, '& td': { py: 2.25 } }}>
                   <TableCell sx={{ fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace', bgcolor:'#F8FAFC', borderRadius:2, fontWeight:700 }}>
                     {r.referenceNo || r._id}
                   </TableCell>
@@ -128,9 +128,9 @@ function ReportTable({ rows, onDownload, onView, maxHeight = 520 }) {
                       sx={{
                         px: 2, py: 1, borderRadius: 2, fontWeight: 700,
                         textTransform: 'none',
-                        bgcolor: canView ? 'rgba(102,126,234,.12)' : 'rgba(148,163,184,.15)',
-                        color: canView ? '#667eea' : 'rgba(100,116,139,.7)',
-                        '&:hover': canView ? { bgcolor:'rgba(102,126,234,.2)', transform:'translateY(-1px)' } : undefined
+                        bgcolor: canView ? 'rgba(37,99,235,.12)' : 'rgba(148,163,184,.15)',
+                        color: canView ? '#2563eb' : 'rgba(100,116,139,.7)',
+                        '&:hover': canView ? { bgcolor:'rgba(37,99,235,.2)', transform:'translateY(-1px)' } : undefined
                       }}
                     >
                       👁 View
@@ -145,9 +145,9 @@ function ReportTable({ rows, onDownload, onView, maxHeight = 520 }) {
                       sx={{
                         px: 2, py: 1, borderRadius: 2, fontWeight: 700,
                         color:'#fff',
-                        background: 'linear-gradient(135deg,#667eea,#764ba2)',
+                        background: 'linear-gradient(135deg,#2563eb,#2563eb)',
                         textTransform: 'none',
-                        '&:hover': { boxShadow:'0 6px 20px rgba(118,75,162,.35)', transform:'translateY(-1px)' }
+                        '&:hover': { boxShadow:'0 6px 20px rgba(37,99,235,.35)', transform:'translateY(-1px)' }
                       }}
                     >
                       ↓ Download
@@ -218,14 +218,12 @@ export default function MyLabReports() {
 
   // 👉 NEW: inline PDF view
   const handleView = (r) => {
-  const base = 'http://localhost:5000';
-  const url = r._id
-    ? `${base}/api/reports/${encodeURIComponent(r._id)}/view`
-    : `${base}/api/reports/by-ref/${encodeURIComponent(r.referenceNo)}/view`;
-  window.open(url, '_blank', 'noopener,noreferrer');
-};
-
-
+    const base = 'http://localhost:5000';
+    const url = r._id
+      ? `${base}/api/reports/${encodeURIComponent(r._id)}/view`
+      : `${base}/api/reports/by-ref/${encodeURIComponent(r.referenceNo)}/view`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   // derive new vs read for your table tabs
   const newReports = rows.filter(r => (typeof r.isNew === 'boolean') ? r.isNew : !!r.hasReport);
@@ -257,41 +255,61 @@ export default function MyLabReports() {
     }}>
       <Container maxWidth="xl">
         {/* Header card */}
-        <Paper sx={{
-          p: 3, mb: 3, borderRadius: 3,
-          bgcolor: 'rgba(255,255,255,.95)', border: '1px solid rgba(255,255,255,.25)',
-          boxShadow: '0 20px 40px rgba(0,0,0,.1)', backdropFilter: 'blur(20px)'
-        }}>
-          <Button
-            startIcon={<ArrowBackIosNew />}
-            onClick={() => navigate('/dashboard')}
-            sx={{
-              mb: 2, borderRadius: 2, fontWeight: 700, color:'#667eea',
-              background:'rgba(102,126,234,.12)', textTransform:'none',
-              '&:hover': { background:'rgba(102,126,234,.2)', transform:'translateX(-2px)' }
-            }}
-          >
-            Back to Dashboard
-          </Button>
+        {/* Header card */}
+<Paper
+  sx={{
+    p: 3,
+    mb: 3,
+    borderRadius: 3,
+    bgcolor: '#2563eb',            // 🔵 card background → blue
+    color: '#fff',                 // 🔤 default text → white
+    border: '1px solid rgba(255,255,255,.25)',
+    boxShadow: '0 20px 40px rgba(0,0,0,.2)',
+    backdropFilter: 'blur(0)'      // optional: remove glass blur on solid color
+  }}
+>
+  <Button
+    startIcon={<ArrowBackIosNew />}
+    onClick={() => navigate('/dashboard')}
+    sx={{
+      mb: 2,
+      borderRadius: 2,
+      fontWeight: 700,
+      color: '#fff',                       // 🔤 white text on blue card
+      background: 'rgba(255,255,255,.12)', // subtle white tint
+      textTransform: 'none',
+      '&:hover': { background: 'rgba(255,255,255,.2)', transform: 'translateX(-2px)' }
+    }}
+  >
+    Back to Dashboard
+  </Button>
 
-          <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
-            <Typography sx={{
-              fontSize: { xs: 28, sm: 36 }, fontWeight: 800,
-              background: 'linear-gradient(135deg,#667eea,#764ba2)',
-              WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent'
-            }}>
-              My Lab Reports
-            </Typography>
-            <Chip
-              label={loading ? 'Loading…' : `${rows.length} total`}
-              sx={{
-                px: 1.5, py: 1, color:'#fff',
-                background: 'linear-gradient(135deg,#667eea,#764ba2)',
-                fontWeight: 700, borderRadius: 999
-              }}
-            />
-          </Stack>
-        </Paper>
+  <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
+    <Typography
+      sx={{
+        fontSize: { xs: 28, sm: 36 },
+        fontWeight: 800,
+        color: '#fff' // ✅ white heading (remove gradient text)
+      }}
+    >
+      My Lab Reports
+    </Typography>
+
+    <Chip
+      label={loading ? 'Loading…' : `${rows.length} total`}
+      sx={{
+        px: 1.5,
+        py: 1,
+        color: '#fff',                          // ✅ white text
+        bgcolor: 'rgba(255,255,255,.12)',       // subtle contrast on blue
+        border: '1px solid rgba(255,255,255,.35)',
+        fontWeight: 700,
+        borderRadius: 999
+      }}
+    />
+  </Stack>
+</Paper>
+
 
         {/* Filters card */}
         <Paper sx={{
@@ -304,7 +322,7 @@ export default function MyLabReports() {
             sx={{
               fontWeight: 800,
               mb: 2,
-              background: 'linear-gradient(135deg,#667eea,#764ba2)',
+              background: 'linear-gradient(135deg,#2563eb,#2563eb)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent'
             }}
@@ -351,8 +369,8 @@ export default function MyLabReports() {
             <Button onClick={fetchReports} disabled={loading}
               sx={{
                 px: 2.8, py: 1.1, borderRadius: 2, fontWeight:700, color:'#fff',
-                background: 'linear-gradient(135deg,#667eea,#764ba2)', textTransform:'none',
-                '&:hover': { boxShadow:'0 8px 24px rgba(102,126,234,.35)', transform:'translateY(-1px)' }
+                background: 'linear-gradient(135deg,#2563eb,#2563eb)', textTransform:'none',
+                '&:hover': { boxShadow:'0 8px 24px rgba(37,99,235,.35)', transform:'translateY(-1px)' }
               }}>
               ✓ Apply
             </Button>
@@ -373,7 +391,7 @@ export default function MyLabReports() {
               px: 1, borderBottom: '1px solid #E2E8F0',
               '& .MuiTab-root': {
                 textTransform:'none', py: 2, fontWeight:700, color:'#718096',
-                '&.Mui-selected': { color:'#667eea', background:'rgba(102,126,234,.06)' }
+                '&.Mui-selected': { color:'#2563eb', background:'rgba(37,99,235,.06)' }
               },
               '& .MuiTabs-indicator': { display:'none' }
             }}
@@ -434,11 +452,11 @@ export default function MyLabReports() {
           onClick={fetchReports}
           sx={{
             position:'fixed', right: 28, bottom: 28,
-            bgcolor: 'linear-gradient(135deg,#667eea,#764ba2)',
-            backgroundImage: 'linear-gradient(135deg,#667eea,#764ba2)',
+            bgcolor: 'linear-gradient(135deg,#2563eb,#2563eb)',
+            backgroundImage: 'linear-gradient(135deg,#2563eb,#2563eb)',
             color:'#fff',
-            boxShadow:'0 10px 30px rgba(102,126,234,.45)',
-            '&:hover': { transform:'scale(1.06)', boxShadow:'0 16px 40px rgba(102,126,234,.6)' }
+            boxShadow:'0 10px 30px rgba(37,99,235,.45)',
+            '&:hover': { transform:'scale(1.06)', boxShadow:'0 16px 40px rgba(37,99,235,.6)' }
           }}
         >
           <AutorenewRounded />

@@ -1,10 +1,11 @@
+// PatientDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, CardActions, Button,
-  TextField, Avatar, Snackbar, Alert, Dialog, DialogTitle, 
+  TextField, Avatar, Snackbar, Alert, Dialog, DialogTitle,
   DialogContent, DialogActions, Fab, Grid, Paper,
   InputAdornment, useTheme, Badge, Container, CircularProgress,
-  Chip, Divider, Stack
+  Chip, Divider, Stack, IconButton
 } from '@mui/material';
 import {
   Chat as ChatIcon,
@@ -24,20 +25,23 @@ import {
   CheckCircle as CheckCircleIcon,
   LocalHospital as LocalHospitalIcon,
   CalendarMonth as CalendarMonthIcon,
-  AccessTime as AccessTimeIcon,
-  AssignmentInd as AssignmentIndIcon,
   CreditCard as CreditCardIcon,
-  Description as DescriptionIcon
+  Description as DescriptionIcon,
+  FilterList as FilterIcon
 } from '@mui/icons-material';
 import ScienceOutlined from '@mui/icons-material/ScienceOutlined';
 import axios from 'axios';
 import ChatPopup from './ChatPopup';
 import { useNavigate } from 'react-router-dom';
-import { IconButton } from '@mui/material';
+
+/* Attach stylesheet with the pd-* classes */
+import './PatientDashboard.css';
 
 export default function PatientDashboard({ userId }) {
   const theme = useTheme();
   const navigate = useNavigate();
+
+  // ---------------- state (unchanged) ----------------
   const [profile, setProfile] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
@@ -47,36 +51,31 @@ export default function PatientDashboard({ userId }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
 
-  //appointment details crud eke frontend  tika 
-  // ✅ NEW: appointments list state (safe)
   const [appointments, setAppointments] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
-  // Search/filter state
   const [searchDate, setSearchDate] = useState('');
 
-  // NEW: Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editAppointment, setEditAppointment] = useState(null);
-  const [editSlotDuration, setEditSlotDuration] = useState(0); // in minutes
+  const [editSlotDuration, setEditSlotDuration] = useState(0);
 
-    // NEW: Delete appointment state
   const [deleteApptDialogOpen, setDeleteApptDialogOpen] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState(null);
 
-    // NEW: Appointment details popup state
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
 
-  // NEW: Handler to open details dialog
+  // ---------------- helpers (unchanged) ----------------
+  const showAlert = (severity, message) => setAlert({ open: true, severity, message });
+
   const handleShowAppointmentDetails = (appointment) => {
     setSelectedAppointment(appointment);
     setDetailsDialogOpen(true);
   };
 
-  // NEW: Delete appointment method // connected
   const handleDeleteAppointment = async (appointmentId) => {
-    try {//frontend connect backend axios 
-      await axios.delete(`http://localhost:5000/api/appointments/${appointmentId}/delete`);//delete method call
+    try {
+      await axios.delete(`http://localhost:5000/api/appointments/${appointmentId}/delete`);
       showAlert('success', 'Appointment deleted');
       setDeleteApptDialogOpen(false);
       setAppointmentToDelete(null);
@@ -87,83 +86,52 @@ export default function PatientDashboard({ userId }) {
     }
   };
 
-  useEffect(() => {//read some data 
+  useEffect(() => {
     async function fetchProfile() {
       try {
-        const res = await axios.get(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);//data linked
+        const res = await axios.get(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);
         setProfile(res.data);
         setFormData(res.data);
-        if (res.data.photo) {
-          setImagePreview(`http://localhost:5000/uploads/${res.data.photo}`);
-        }
-      } catch (err) {
+        if (res.data.photo) setImagePreview(`http://localhost:5000/uploads/${res.data.photo}`);
+      } catch {
         showAlert('error', 'Failed to load profile');
       }
     }
     fetchProfile();
   }, [userId]);
 
-  // ✅ NEW: fetch patient appointments (safe – won’t crash if endpoint missing)
   const fetchAppointments = async () => {
     try {
       setLoadingAppointments(true);
-      // Use the correct backend API for patient appointments
-      const res = await axios.get(
-        `http://localhost:5000/api/appointments/patients`,        //appointment details loading backend connected part eka me
-        { params: { patientId: userId } }
-      );
+      const res = await axios.get(`http://localhost:5000/api/appointments/patients`, { params: { patientId: userId } });
       setAppointments(Array.isArray(res.data?.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []));
-    } catch (e) {
-      // Silent fallback; don’t break dashboard if route isn’t available yet
-      // Optionally show: showAlert('info', 'Appointments not available yet.');
     } finally {
-      setLoadingAppointments(false);   // appointment dann kalin his da balana eka
+      setLoadingAppointments(false);
     }
   };
 
-  useEffect(() => {
-    fetchAppointments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  const showAlert = (severity, message) => {
-    setAlert({ open: true, severity, message });
-  };
+  useEffect(() => { fetchAppointments(); /* eslint-disable-next-line */ }, [userId]);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
-    if (files && files.length > 0) {
+    if (files?.length) {
       setFormData(prev => ({ ...prev, [name]: files[0] }));
       setImagePreview(URL.createObjectURL(files[0]));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    } else setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
     try {
       const data = new FormData();
-      for (let key in formData) {
-        if (formData[key] !== undefined && formData[key] !== null) {
-          data.append(key, formData[key]);
-        }
-      }
-
-      await axios.put(
-        `http://localhost:5000/api/users/${encodeURIComponent(userId)}`,
-        data,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-
+      for (let key in formData) if (formData[key] !== undefined && formData[key] !== null) data.append(key, formData[key]);
+      await axios.put(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
       showAlert('success', 'Profile updated successfully');
       setEditMode(false);
-
       const res = await axios.get(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);
       setProfile(res.data);
       setFormData(res.data);
       if (res.data.photo) setImagePreview(`http://localhost:5000/uploads/${res.data.photo}`);
-    } catch (err) {
-      console.error(err);
+    } catch {
       showAlert('error', 'Failed to update profile');
     }
   };
@@ -172,47 +140,22 @@ export default function PatientDashboard({ userId }) {
     try {
       await axios.delete(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);
       showAlert('success', 'Profile deleted. Logging out...');
-      setTimeout(() => {
-        localStorage.removeItem('user');
-        window.location.href = '/';
-      }, 2000);
-    } catch (err) {
-      showAlert('error', 'Failed to delete profile');
-    }
+      setTimeout(() => { localStorage.removeItem('user'); window.location.href = '/'; }, 2000);
+    } catch { showAlert('error', 'Failed to delete profile'); }
   };
 
-  // ✅ NEW: cancel handler (SAFE MODE; uses your specified endpoint)
-  const handleCancelAppointment = async (appointmentId) => {
-    try {
-      await axios.post(`http://localhost:5000/api/appointments/${appointmentId}/cancel`);     //cancel appointment
-      showAlert('success', 'Appointment cancelled');
-      fetchAppointments(); // refresh list
-    } catch (e) {
-      const msg = e?.response?.data?.message || 'Failed to cancel appointment';
-      showAlert('error', msg);
-    }
-  };
-
-  // Fetch slot duration for the doctor when editing
-  const handleEditAppointment = async (appointment) => {                  //edit oopintment 
+  const handleEditAppointment = async (appointment) => {
     setEditAppointment(appointment);
     setEditDialogOpen(true);
     try {
-      const res = await axios.get(
-        'http://localhost:5000/api/appointments/doctors/slots',
-        { params: { doctorId: appointment.doctorId, date: appointment.date } }
-      );
-      // Use durationMinutes from backend
+      const res = await axios.get('http://localhost:5000/api/appointments/doctors/slots', { params: { doctorId: appointment.doctorId, date: appointment.date } });
       setEditSlotDuration(res.data?.durationMinutes || 0);
-    } catch (e) {
-      setEditSlotDuration(0);
-    }
+    } catch { setEditSlotDuration(0); }
   };
 
-  // When start time changes, update end time automatically
   const handleEditStartTimeChange = (newStartTime) => {
     let endTime = '';
-    if (editSlotDuration && /^\d{2}:\d{2}$/.test(newStartTime)) {            //automatically change time slot to the user 
+    if (editSlotDuration && /^\d{2}:\d{2}$/.test(newStartTime)) {
       const [h, m] = newStartTime.split(':').map(Number);
       const startMin = h * 60 + m;
       const endMin = startMin + editSlotDuration;
@@ -222,70 +165,53 @@ export default function PatientDashboard({ userId }) {
     }
     setEditAppointment(prev => ({ ...prev, startTime: newStartTime, endTime }));
   };
-   // save edit Appointment rescheduled details  
+
   const handleSaveEditAppointment = async () => {
     try {
-      await axios.patch(
-        `http://localhost:5000/api/appointments/${editAppointment._id}/edit`,
-        { startTime: editAppointment.startTime }
-      );                            
+      await axios.patch(`http://localhost:5000/api/appointments/${editAppointment._id}/edit`, { startTime: editAppointment.startTime });
       showAlert('success', 'Appointment rescheduled');
       setEditDialogOpen(false);
       fetchAppointments();
-    } catch (e) {
-      showAlert('error', 'Failed to reschedule appointment');
-    }
+    } catch { showAlert('error', 'Failed to reschedule appointment'); }
   };
 
-  if (!profile) return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-      <CircularProgress />
-    </Box>
-  );
+  if (!profile) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
-  // Filter appointments by searchDate
-  const filteredAppointments = searchDate
-    ? appointments.filter(a => a.date === searchDate)
-    : appointments;
+  const filteredAppointments = searchDate ? appointments.filter(a => a.date === searchDate) : appointments;
 
   return (
     <>
-      <Container maxWidth="md" sx={{ py: 4 }}>
-        <Card elevation={3} sx={{ borderRadius: 3 }}>
+      <Container maxWidth={false} disableGutters className="patient-dashboard pd-full-bleed">
+  <Card elevation={3} className="pd-card">
+
           <CardContent sx={{ p: 0 }}>
-            {/* Profile Header */}
-            <Paper elevation={0} sx={{ 
-              backgroundColor: theme.palette.primary.main,
-              color: theme.palette.primary.contrastText,
-              p: 3,
-              borderTopLeftRadius: 3,
-              borderTopRightRadius: 3
-            }}>
+            {/* ---------------- Hero ---------------- */}
+            <Paper elevation={0} className="pd-hero">
               <Grid container spacing={3} alignItems="center">
                 <Grid item>
-                  <Avatar 
-                    src={imagePreview} 
-                    sx={{ 
-                      width: 100, 
-                      height: 100,
-                      border: `3px solid ${theme.palette.background.paper}`
-                    }} 
-                  />
+                  <Avatar src={imagePreview} className="pd-avatar" />
                 </Grid>
                 <Grid item xs>
-                  <Typography variant="h4" fontWeight={700}>
+                  <Typography variant="h4" className="pd-name">
                     {profile.firstName} {profile.lastName}
                   </Typography>
-                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                  <Typography variant="body1" className="pd-id">
                     Patient ID: {profile.userId}
                   </Typography>
                 </Grid>
               </Grid>
             </Paper>
 
-            {/* Profile Content */}
-            <Box sx={{ p: 3 }}>
+            {/* ---------------- Info ---------------- */}
+            <Box className="pd-info-wrap">
               {editMode ? (
+                // 🔁 original edit form (unchanged logic)
                 <Grid container spacing={3}>
                   <Grid item xs={12} md={6}>
                     <TextField
@@ -439,205 +365,381 @@ export default function PatientDashboard({ userId }) {
                   </Grid>
                 </Grid>
               ) : (
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.grey[50] }}>
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                        <EmailIcon color="primary" sx={{ mr: 1 }} /> Email
-                      </Typography>
-                      <Typography>{profile.email}</Typography>
+                <>
+                  <div className="pd-info-grid">
+                    <Paper elevation={0} className="pd-info-card">
+                      <div className="pd-info-label"><EmailIcon color="primary" /> Email</div>
+                      <div className="pd-info-value">{profile.email}</div>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.grey[50] }}>
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                        <NicIcon color="primary" sx={{ mr: 1 }} /> NIC Number
-                      </Typography>
-                      <Typography>{profile.nicNumber || 'Not provided'}</Typography>
+
+                    <Paper elevation={0} className="pd-info-card">
+                      <div className="pd-info-label"><NicIcon color="primary" /> NIC Number</div>
+                      <div className="pd-info-value">{profile.nicNumber || 'Not provided'}</div>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.grey[50] }}>
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                        <GenderIcon color="primary" sx={{ mr: 1 }} /> Gender
-                      </Typography>
-                      <Typography>{profile.gender || 'Not provided'}</Typography>
+
+                    <Paper elevation={0} className="pd-info-card">
+                      <div className="pd-info-label"><GenderIcon color="primary" /> Gender</div>
+                      <div className="pd-info-value">{profile.gender || 'Not provided'}</div>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.grey[50] }}>
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                        <CakeIcon color="primary" sx={{ mr: 1 }} /> Age
-                      </Typography>
-                      <Typography>{profile.age || 'Not provided'}</Typography>
+
+                    <Paper elevation={0} className="pd-info-card">
+                      <div className="pd-info-label"><CakeIcon color="primary" /> Age</div>
+                      <div className="pd-info-value">{profile.age || 'Not provided'}</div>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.grey[50] }}>
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                        <PhoneIcon color="primary" sx={{ mr: 1 }} /> Contact Number
-                      </Typography>
-                      <Typography>{profile.contactNumber || 'Not provided'}</Typography>
+
+                    <Paper elevation={0} className="pd-info-card">
+                      <div className="pd-info-label"><PhoneIcon color="primary" /> Contact Number</div>
+                      <div className="pd-info-value">{profile.contactNumber || 'Not provided'}</div>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.grey[50] }}>
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                        <CakeIcon color="primary" sx={{ mr: 1 }} /> Date of Birth
-                      </Typography>
-                      <Typography>{profile.dateOfBirth?.substring(0, 10) || 'Not provided'}</Typography>
+
+                    <Paper elevation={0} className="pd-info-card">
+                      <div className="pd-info-label"><CakeIcon color="primary" /> Date of Birth</div>
+                      <div className="pd-info-value">{profile.dateOfBirth?.substring(0, 10) || 'Not provided'}</div>
                     </Paper>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: theme.palette.grey[50] }}>
-                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                        <HomeIcon color="primary" sx={{ mr: 1 }} /> Address
-                      </Typography>
-                      <Typography>{profile.address || 'Not provided'}</Typography>
+
+                    <Paper elevation={0} className="pd-info-card" style={{ gridColumn: '1 / -1' }}>
+                      <div className="pd-info-label"><HomeIcon color="primary" /> Address</div>
+                      <div className="pd-info-value">{profile.address || 'Not provided'}</div>
                     </Paper>
-                  </Grid>
-                </Grid>
+                  </div>
+
+                  {/* CTA row under the info tiles */}
+                  <div className="pd-cta-row">
+                    <Button
+                      type="button"
+                      className="pd-btn-outline pd-btn-blue"
+                      onClick={() => setEditMode(true)}
+                      startIcon={<EditIcon />}
+                    >
+                      Edit Profile
+                    </Button>
+
+                    <Button
+                      type="button"
+                      className="pd-btn-outline pd-btn-red"
+                      onClick={() => setDeleteDialogOpen(true)}
+                      startIcon={<DeleteIcon />}
+                    >
+                      Delete Account
+                    </Button>
+
+                    <Button
+                      type="button"
+                      className="pd-btn-outline pd-btn-gray"
+                      onClick={() => { localStorage.removeItem('user'); navigate('/'); }}
+                    >
+                      Logout
+                    </Button>
+                  </div>
+                </>
               )}
             </Box>
 
-            {/* ✅ NEW: My Appointments (safe, collapsible feel via divider) */}
-            <Box sx={{ px: 3, pb: 3 }}>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
-                My Appointments
-              </Typography>
+            {/* ---------------- Actions ---------------- */}
+            {/* ---------------- Actions (view mode only) ---------------- */}
+{!editMode && (
+  <Box className="pd-actions-wrap">
+    <Typography variant="h6" className="pd-section-title">Actions</Typography>
 
-              {/* Search/filter by date */}
-              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
-                <TextField
-                  label="Search by Date"
-                  type="date"
-                  value={searchDate}
-                  onChange={e => setSearchDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  size="medium"
-                  sx={{ minWidth: 260, width: 320 }}
-                />
-                {searchDate && (
-                  <Button onClick={() => setSearchDate('')} variant="outlined" size="medium">Clear</Button>
-                )}
+    <div className="pd-actions">
+      <button
+        type="button"
+        className="pd-action-card pd-action--lab"
+        onClick={() => navigate('/my-reports')}
+        aria-label="Lab Reports"
+      >
+        <span className="pd-action-icon"><ScienceOutlined /></span>
+        <span>
+          <div className="pd-action-title">Lab Reports</div>
+          <div className="pd-action-sub">View your lab results</div>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="pd-action-card pd-action--med"
+        onClick={() => navigate('/patient/medical-records')}
+        aria-label="Medical Reports"
+      >
+        <span className="pd-action-icon"><DescriptionIcon /></span>
+        <span>
+          <div className="pd-action-title">Medical Reports</div>
+          <div className="pd-action-sub">Clinical summaries &amp; notes</div>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="pd-action-card pd-action--pkg"
+        onClick={() => navigate('/packages')}
+        aria-label="Health Packages"
+      >
+        <span className="pd-action-icon"><MedicalIcon /></span>
+        <span>
+          <div className="pd-action-title">Health Packages</div>
+          <div className="pd-action-sub">Curated wellness bundles</div>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="pd-action-card pd-action--apt"
+        onClick={() => navigate('/appointments')}
+        aria-label="Book Appointment"
+      >
+        <span className="pd-action-icon"><CalendarMonthIcon /></span>
+        <span>
+          <div className="pd-action-title">Book Appointment</div>
+          <div className="pd-action-sub">Schedule your next visit</div>
+        </span>
+      </button>
+    </div>
+  </Box>
+)}
+
+
+            {/* ---------------- Appointments ---------------- */}
+            {/* ---------------- Appointments (view mode only) ---------------- */}
+{!editMode && (
+  <Box className="pd-appointments">
+    <Divider sx={{ my: 1.5 }} />
+    <Typography variant="h6" className="pd-section-title">My Appointment</Typography>
+
+    <div className="pd-search">
+      <TextField
+        label="Search by Date"
+        type="date"
+        value={searchDate}
+        onChange={e => setSearchDate(e.target.value)}
+        InputLabelProps={{ shrink: true }}
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton size="small"><CalendarMonthIcon fontSize="small" /></IconButton>
+              <IconButton size="small"><FilterIcon fontSize="small" /></IconButton>
+            </InputAdornment>
+          )
+        }}
+      />
+      {searchDate && (
+        <Button type="button" onClick={() => setSearchDate('')} variant="outlined" size="medium">
+          Clear
+        </Button>
+      )}
+    </div>
+
+    {loadingAppointments ? (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+        <CircularProgress size={24} />
+      </Box>
+    ) : filteredAppointments.length === 0 ? (
+      <Typography className="pd-empty">
+        {appointments.length === 0 ? 'You have no appointments yet.' : 'No appointments found for this date.'}
+      </Typography>
+    ) : (
+      <Grid container spacing={1.5}>
+        {filteredAppointments.map((a) => (
+          <Grid item xs={12} key={a._id || a.referenceNo}>
+            <Paper
+              variant="outlined"
+              className="pd-appt-row"
+              sx={{
+                p: 2.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 2,
+                minWidth: 720,
+                maxWidth: 1000,
+                width: '100%',
+                mx: 'auto',
+                cursor: 'pointer'
+              }}
+              onClick={() => handleShowAppointmentDetails(a)}
+            >
+              <Box>
+                <Typography variant="body1" fontWeight={600}>Ref: {a.referenceNo}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {a.date} : {a.startTime}{a.endTime ? ` - ${a.endTime}` : ''} • Queue {a.queueNo ?? '-'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Doctor: {a.doctorName || a.doctorId}
+                </Typography>
               </Box>
 
-              {loadingAppointments ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                  <CircularProgress size={24} />
-                </Box>
-              ) : filteredAppointments.length === 0 ? (
-                <Typography color="text.secondary">
-                  {appointments.length === 0 ? 'You have no appointments yet.' : 'No appointments found for this date.'}
-                </Typography>
-              ) : (
-                <Grid container spacing={1.5}>
-                  {filteredAppointments.map((a) => (
-                    <Grid item xs={12} key={a._id || a.referenceNo}>
-                      <Paper
-                        variant="outlined"
-                        sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, minWidth: 720, maxWidth: 1000, width: '100%', mx: 'auto', cursor: 'pointer' }}
-                        onClick={() => handleShowAppointmentDetails(a)}
-                      >
-                        <Box>
-                          <Typography variant="body1" fontWeight={600}>
-                            Ref: {a.referenceNo}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {a.date} : {a.startTime}{a.endTime ? ` - ${a.endTime}` : ''} • Queue {a.queueNo ?? '-'}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Doctor: {a.doctorName || a.doctorId}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} onClick={e => e.stopPropagation()}>
-      {/* Appointment Details Popup Dialog - Single Column, Ordered Sections */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} onClick={e => e.stopPropagation()}>
+                <Chip
+                  size="small"
+                  label={a.status || 'Pending'}
+                  color={
+                    a.status === 'Confirmed' ? 'success' :
+                    a.status === 'Cancelled' ? 'default' : 'warning'
+                  }
+                />
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => handleEditAppointment(a)}
+                  disabled={a.status === 'Cancelled'}
+                >
+                  <EditIcon />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => { setAppointmentToDelete(a); setDeleteApptDialogOpen(true); }}
+                  disabled={a.status === 'Cancelled'}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+    )}
+  </Box>
+)}
+
+          </CardContent>
+
+          {/* ---------------- Bottom actions (original logic) ---------------- */}
+          {editMode && (
+  <CardActions sx={{ p: 3, pt: 0, gap: 1.5 }}>
+    <Button
+      variant="contained"
+      color="primary"
+      onClick={handleSave}
+      startIcon={<SaveIcon />}
+      sx={{ borderRadius: 2, px: 3 }}
+    >
+      Save Changes
+    </Button>
+    <Button
+      variant="outlined"
+      onClick={() => setEditMode(false)}
+      startIcon={<CancelIcon />}
+      sx={{ borderRadius: 2, px: 3 }}
+    >
+      Cancel
+    </Button>
+  </CardActions>
+)}
+
+        </Card>
+      </Container>
+
+      {/* ---------------- Global dialogs & notifications (unchanged logic) ---------------- */}
+
+      {/* Toast */}
+      <Snackbar
+        open={alert.open}
+        autoHideDuration={4000}
+        onClose={() => setAlert({ ...alert, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          severity={alert.severity}
+          variant="filled"
+          sx={{ width: '100%', borderRadius: 2 }}
+          iconMapping={{ success: <CheckCircleIcon fontSize="inherit" /> }}
+        >
+          {alert.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Account delete confirm */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+          Confirm Account Deletion
+        </DialogTitle>
+        <DialogContent sx={{ py: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Warning: This action is irreversible!
+          </Alert>
+          <Typography>
+            Are you sure you want to permanently delete your account? All your data will be removed from our systems.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} sx={{ borderRadius: 2, px: 3 }}>
+            Cancel
+          </Button>
+          <Button color="error" onClick={handleDelete} variant="contained" sx={{ borderRadius: 2, px: 3 }}>
+            Delete Permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Single details dialog (patient appointment details) */}
       <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="sm" fullWidth>
-        {selectedAppointment && ( 
+        {selectedAppointment && (
           <Box sx={{ background: 'linear-gradient(120deg, #fdfefeff 0%, #f5f7fa 100%)', borderRadius: 2 }}>
-            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, background: '#d6e7f9ff', color: '#000000ff', borderTopLeftRadius: 8, borderTopRightRadius: 8 }}>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, background: '#d6e7f9', color: '#000', borderTopLeftRadius: 8, borderTopRightRadius: 8 }}>
               <CheckCircleIcon sx={{ color: '#43a047', fontSize: 32, mr: 1 }} />
               Appointment Details
             </DialogTitle>
             <DialogContent dividers sx={{ p: 3 }}>
               <Stack alignItems="center" spacing={1} mb={2}>
                 <Chip label={`Reference No: ${selectedAppointment.referenceNo}`} color="primary" variant="filled" sx={{ fontWeight: 700, fontSize: 16 }} />
-                <Chip label={selectedAppointment.status} color={selectedAppointment.status === 'Cancelled' ? 'default' : selectedAppointment.status === 'Confirmed' ? 'success' : 'warning'} sx={{ fontWeight: 700, fontSize: 15 }} />
+                <Chip
+                  label={selectedAppointment.status}
+                  color={selectedAppointment.status === 'Cancelled' ? 'default' : selectedAppointment.status === 'Confirmed' ? 'success' : 'warning'}
+                  sx={{ fontWeight: 700, fontSize: 15 }}
+                />
               </Stack>
-              {/* Doctor Details */}
               <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#e3f0ff' }}>
-                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}><LocalHospitalIcon sx={{ mr: 1, mb: -0.5 }} />Doctor Details</Typography>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <LocalHospitalIcon sx={{ mr: 1, mb: -0.5 }} />
+                  Doctor Details
+                </Typography>
                 <Typography><b>Name:</b> {selectedAppointment.doctorName || selectedAppointment.doctorId}</Typography>
               </Box>
-              {/* Person Details */}
               <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#f5f7fa' }}>
-                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}><PersonIcon sx={{ mr: 1, mb: -0.5 }} />Patient Details</Typography>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <PersonIcon sx={{ mr: 1, mb: -0.5 }} />
+                  Patient Details
+                </Typography>
                 <Typography><b>Name:</b> {selectedAppointment.patientName}</Typography>
                 <Typography><b>Email:</b> {selectedAppointment.patientEmail || 'N/A'}</Typography>
                 <Typography><b>Phone:</b> {selectedAppointment.patientPhone}</Typography>
                 <Typography><b>NIC:</b> {selectedAppointment.patientNIC || 'N/A'}</Typography>
                 <Typography><b>Passport:</b> {selectedAppointment.patientPassport || 'N/A'}</Typography>
               </Box>
-              {/* Scheduled Date and Time */}
               <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#e3f0ff' }}>
-                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}><CalendarMonthIcon sx={{ mr: 1, mb: -0.5 }} />Scheduled Date & Time</Typography>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <CalendarMonthIcon sx={{ mr: 1, mb: -0.5 }} />
+                  Scheduled Date & Time
+                </Typography>
                 <Typography><b>Date:</b> {selectedAppointment.date}</Typography>
                 <Typography><b>Time:</b> {selectedAppointment.startTime} - {selectedAppointment.endTime}</Typography>
                 <Typography><b>Queue No:</b> {selectedAppointment.queueNo}</Typography>
                 <Typography><b>Reason:</b> {selectedAppointment.reason || 'N/A'}</Typography>
               </Box>
-              {/* Payment Details */}
               <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#f5f7fa' }}>
-                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}><CreditCardIcon sx={{ mr: 1, mb: -0.5 }} />Payment Details</Typography>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <CreditCardIcon sx={{ mr: 1, mb: -0.5 }} />
+                  Payment Details
+                </Typography>
                 <Typography><b>Payment Method:</b> {selectedAppointment.paymentMethod}</Typography>
                 <Typography><b>Total Paid:</b> <span style={{ color: '#388e3c', fontWeight: 600 }}>Rs. {selectedAppointment.priceLkr?.toLocaleString()}</span></Typography>
               </Box>
             </DialogContent>
             <DialogActions sx={{ background: '#f5f7fa', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}>
-              <Button onClick={() => setDetailsDialogOpen(false)} variant="contained" color="primary" sx={{ borderRadius: 2, px: 4, fontWeight: 600 }}>Close</Button>
+              <Button onClick={() => setDetailsDialogOpen(false)} variant="contained" color="primary" sx={{ borderRadius: 2, px: 4, fontWeight: 600 }}>
+                Close
+              </Button>
             </DialogActions>
           </Box>
         )}
       </Dialog>
-                          <Chip
-                            size="small"
-                            label={a.status || 'Pending'}
-                            color={
-                              a.status === 'Confirmed' ? 'success' :
-                              a.status === 'Cancelled' ? 'default' : 'warning'
-                            }
-                          />
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => handleEditAppointment(a)}
-                            disabled={a.status === 'Cancelled'}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => {
-                              setAppointmentToDelete(a);
-                              setDeleteApptDialogOpen(true);
-                            }}
-                            disabled={a.status === 'Cancelled'}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                          {/* <Button
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            startIcon={<CancelIcon />}
-                            disabled={a.status === 'Cancelled'}
-                            onClick={() => handleCancelAppointment(a._id)}
-                          >
-                            Cancel
-                          </Button> */}
-      {/* Delete Appointment Dialog */}
+
+      {/* Delete one appointment */}
       <Dialog open={deleteApptDialogOpen} onClose={() => setDeleteApptDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Delete Appointment</DialogTitle>
         <DialogContent>
@@ -655,221 +757,9 @@ export default function PatientDashboard({ userId }) {
           <Button color="error" variant="contained" onClick={() => handleDeleteAppointment(appointmentToDelete._id)}>Delete</Button>
         </DialogActions>
       </Dialog>
-      {/* Edit/Reschedule Appointment Dialog */}
+
+      {/* Reschedule one appointment */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Reschedule Appointment</DialogTitle>
-        <DialogContent>
-          {editAppointment && (
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12}>
-                <TextField
-                  label="Date"
-                  type="date"
-                  value={editAppointment.date || ''}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Start Time"
-                  type="time"
-                  value={editAppointment.startTime || ''}
-                  onChange={e => setEditAppointment({ ...editAppointment, startTime: e.target.value })}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="End Time"
-                  type="time"
-                  value={editAppointment.endTime || ''}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                  
-                />
-              </Grid>
-            </Grid>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSaveEditAppointment}>Save</Button>
-        </DialogActions>
-      </Dialog>
-                        </Box>
-                      </Paper>
-                    </Grid>
-                  ))}
-                </Grid>
-              )}
-            </Box>
-          </CardContent>
-
-          {/* MERGED ACTIONS */}
-          <CardActions sx={{ p: 3, pt: 0, justifyContent: 'space-between' }}>
-            {editMode ? (
-              <>
-                {/* Friend's Save / Cancel kept intact */}
-                <Button 
-                  variant="contained" 
-                  color="primary" 
-                  onClick={handleSave}
-                  startIcon={<SaveIcon />}
-                  sx={{ borderRadius: 2, px: 3 }}
-                >
-                  Save Changes
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  onClick={() => setEditMode(false)}
-                  startIcon={<CancelIcon />}
-                  sx={{ borderRadius: 2, px: 3 }}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <>
-                {/* LEFT SIDE ACTIONS (your layout) */}
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-                  <Button 
-                    variant="contained" 
-                    onClick={() => setEditMode(true)}
-                    startIcon={<EditIcon />}
-                    sx={{ borderRadius: 2, px: 3 }}
-                  >
-                    Edit Profile
-                  </Button>
-
-                  <Button 
-                    variant="outlined" 
-                    color="error" 
-                    onClick={() => setDeleteDialogOpen(true)}
-                    startIcon={<DeleteIcon />}
-                    sx={{ borderRadius: 2, px: 3 }}
-                  >
-                    Delete Account
-                  </Button>
-                  {/* Logout button (no new function added) */}
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    onClick={() => { localStorage.removeItem('user'); navigate('/'); }}
-                    sx={{ borderRadius: 2, px: 3 }}
-                  >
-                    Logout
-                  </Button>
-
-                  {/* NEW: My Lab Reports (existing) */}
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => navigate('/my-reports')}
-                    startIcon={<ScienceOutlined />}
-                    sx={{ borderRadius: 2, px: 2 }}
-                  >
-                    My Lab Reports
-                  </Button>
-
-                  {/* ✅ NEW: Medical Records (patient read-only page) */}
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => navigate('/patient/medical-records')}
-                    startIcon={<MedicalIcon />}
-                    sx={{ borderRadius: 2, px: 2 }}
-                  >
-                    Medical Records
-                  </Button>
-                </Box>
-
-                                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => navigate('/appointments')}
-                    startIcon={<CalendarMonthIcon />}
-                    sx={{ borderRadius: 2, px: 3 }}
-                  >
-                    Book Appointments
-                  </Button>
-
-                {/* RIGHT SIDE ACTION (friend's Health Packages) */}
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={() => navigate('/packages')}
-                  startIcon={<MedicalIcon />}
-                  sx={{ borderRadius: 2, px: 3 }}
-                >
-                  Health Packages
-                </Button>
-              </>
-            )}
-          </CardActions>
-        </Card>
-      </Container>
-
-      <Snackbar 
-        open={alert.open} 
-        autoHideDuration={4000} 
-        onClose={() => setAlert({ ...alert, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert 
-          severity={alert.severity} 
-          variant="filled" 
-          sx={{ width: '100%', borderRadius: 2 }}
-          iconMapping={{
-            success: <CheckCircleIcon fontSize="inherit" />
-          }}
-        >
-          {alert.message}
-        </Alert>
-      </Snackbar>
-
-      <Dialog 
-        open={deleteDialogOpen} 
-        onClose={() => setDeleteDialogOpen(false)}
-        PaperProps={{
-          sx: {
-            borderRadius: 3
-          }
-        }}
-      >
-        <DialogTitle sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
-          Confirm Account Deletion
-        </DialogTitle>
-        <DialogContent sx={{ py: 3 }}>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            Warning: This action is irreversible!
-          </Alert>
-          <Typography>
-            Are you sure you want to permanently delete your account? 
-            All your data will be removed from our systems.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: 2 }}>
-          <Button 
-            onClick={() => setDeleteDialogOpen(false)}
-            sx={{ borderRadius: 2, px: 3 }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            color="error" 
-            onClick={handleDelete}
-            variant="contained"
-            sx={{ borderRadius: 2, px: 3 }}
-          >
-            Delete Permanently
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Reschedule Appointment</DialogTitle>
         <DialogContent>
           {editAppointment && (
@@ -921,32 +811,17 @@ export default function PatientDashboard({ userId }) {
         </DialogActions>
       </Dialog>
 
-      <Badge 
-        color="error" 
-        variant="dot" 
-        invisible={!hasUnreadMessages}
-        overlap="circular"
-      >
-        <Fab 
-          color="primary" 
-          aria-label="chat" 
-          onClick={() => {
-            setChatOpen(prev => !prev);
-            setHasUnreadMessages(false);
-          }} 
-          sx={{ 
-            position: 'fixed', 
-            bottom: 32, 
-            right: 32, 
-            zIndex: 1000,
-            width: 56,
-            height: 56
-          }}
+      {/* Chat FAB */}
+      <Badge color="error" variant="dot" invisible={!hasUnreadMessages} overlap="circular">
+        <Fab
+          color="primary"
+          aria-label="chat"
+          onClick={() => { setChatOpen(prev => !prev); setHasUnreadMessages(false); }}
+          sx={{ position: 'fixed', bottom: 32, right: 32, zIndex: 1000, width: 56, height: 56 }}
         >
           <ChatIcon />
         </Fab>
       </Badge>
-
       {chatOpen && <ChatPopup onClose={() => setChatOpen(false)} setUnread={setHasUnreadMessages} />}
     </>
   );
