@@ -27,8 +27,8 @@ async function findPatient({ patientMongoId, patientUserId, patientEmail }) {
 }
 
 function getDoctorIdFromReq(req) {
-  // No-JWT: req.user is set by middleware/actor.js (actorFromHeader)
-  if (req.user && req.user.role === 'Doctor') {
+  // allow Doctor or Hospital Manager for privileged actions/listing
+  if (req.user && (req.user.role === 'Doctor' || req.user.role === 'HospitalManager')) {
     return req.user._id || req.user.id || null;
   }
   return null;
@@ -36,7 +36,7 @@ function getDoctorIdFromReq(req) {
 
 // ---------- controllers ----------
 
-// POST /api/vaccinations
+// POST /api/vaccinations  (Doctor only; Manager not allowed to create)
 exports.createVaccination = async (req, res) => {
   try {
     const {
@@ -164,7 +164,7 @@ exports.listMineForPatient = async (req, res) => {
   }
 };
 
-// GET /api/vaccinations/doctor  (Doctor)
+// GET /api/vaccinations/doctor  (Doctor or Hospital Manager)
 exports.listForDoctor = async (req, res) => {
   try {
     const doctorId = getDoctorIdFromReq(req);
@@ -194,7 +194,7 @@ exports.listForDoctor = async (req, res) => {
   }
 };
 
-// GET /api/vaccinations/:id  (owner or doctor)
+// GET /api/vaccinations/:id  (owner or Doctor/HospitalManager)
 exports.getOne = async (req, res) => {
   try {
     const rec = await VaccinationRecord.findById(req.params.id)
@@ -203,8 +203,8 @@ exports.getOne = async (req, res) => {
     if (!rec) return res.status(404).json({ message: 'Not found' });
 
     const isOwner = String(rec.patient._id) === String(req.user?._id || '');
-    const isDoctor = req.user?.role === 'Doctor';
-    if (!isOwner && !isDoctor) return res.status(403).json({ message: 'Forbidden' });
+    const isPrivileged = ['Doctor', 'HospitalManager'].includes(req.user?.role);
+    if (!isOwner && !isPrivileged) return res.status(403).json({ message: 'Forbidden' });
 
     return res.json(rec);
   } catch (err) {
@@ -213,15 +213,15 @@ exports.getOne = async (req, res) => {
   }
 };
 
-// GET /api/vaccinations/:id/pdf (owner or doctor)
+// GET /api/vaccinations/:id/pdf (owner or Doctor/HospitalManager)
 exports.downloadPdf = async (req, res) => {
   try {
     const rec = await VaccinationRecord.findById(req.params.id).populate('patient', '_id');
     if (!rec) return res.status(404).json({ message: 'Not found' });
 
     const isOwner = String(rec.patient._id) === String(req.user?._id || '');
-    const isDoctor = req.user?.role === 'Doctor';
-    if (!isOwner && !isDoctor) return res.status(403).json({ message: 'Forbidden' });
+    const isPrivileged = ['Doctor', 'HospitalManager'].includes(req.user?.role);
+    if (!isOwner && !isPrivileged) return res.status(403).json({ message: 'Forbidden' });
 
     if (!rec.certificatePdfFile) return res.status(404).json({ message: 'PDF not generated' });
 
@@ -235,7 +235,7 @@ exports.downloadPdf = async (req, res) => {
   }
 };
 
-// POST /api/vaccinations/:id/resend  (Doctor)
+// POST /api/vaccinations/:id/resend  (Doctor or Hospital Manager)
 exports.resendEmail = async (req, res) => {
   try {
     const doctorId = getDoctorIdFromReq(req);
@@ -277,7 +277,7 @@ exports.resendEmail = async (req, res) => {
   }
 };
 
-// PUT /api/vaccinations/:id  (Doctor)
+// PUT /api/vaccinations/:id  (Doctor or Hospital Manager)
 exports.updateRecord = async (req, res) => {
   try {
     const doctorId = getDoctorIdFromReq(req);
@@ -314,7 +314,7 @@ exports.updateRecord = async (req, res) => {
   }
 };
 
-// DELETE /api/vaccinations/:id  (Doctor)
+// DELETE /api/vaccinations/:id  (Doctor or Hospital Manager)
 exports.deleteRecord = async (req, res) => {
   try {
     const doctorId = getDoctorIdFromReq(req);

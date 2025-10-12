@@ -205,7 +205,7 @@ function App() {
         <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
         <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
 
-        {/* Vaccination routes (keep current hub as /vaccinations/home) */}
+        {/* Vaccination routes */}
         <Route
           path="/vaccinations/new"
           element={
@@ -214,14 +214,17 @@ function App() {
             </RoleRoute>
           }
         />
+
+        {/* 🔁 CHANGED: this list page is now for Hospital Managers */}
         <Route
           path="/vaccinations/doctor"
           element={
-            <RoleRoute allowedRoles={["Doctor"]}>
+            <RoleRoute allowedRoles={["HospitalManager"]}>
               <DoctorVaccinations />
             </RoleRoute>
           }
         />
+
         <Route
           path="/vaccinations/mine"
           element={
@@ -230,14 +233,17 @@ function App() {
             </RoleRoute>
           }
         />
+
+        {/* 🔁 CHANGED: allow Hospital Manager to open details too */}
         <Route
           path="/vaccinations/:id"
           element={
-            <RoleRoute allowedRoles={["Doctor", "Patient"]}>
+            <RoleRoute allowedRoles={["Doctor", "Patient", "HospitalManager"]}>
               <VaccinationDetail />
             </RoleRoute>
           }
         />
+
         <Route
           path="/vaccinations/home"
           element={
