@@ -582,143 +582,146 @@ export default function DoctorDashboard({ userId: propUserId }) {
 )}
 
 
-        {/* Doctor Appointments by Date */}
-        <Box sx={{ mt: 6, px: "var(--dd-gutter-x)" }}>
-          <Typography
-            variant="h5"
-            fontWeight={800}
-            sx={{ mb: 2, color: "#05284cff", letterSpacing: 1, fontSize: 25 }}
-          >
-            Current Appointments
+        {/* Doctor Appointments by Date (hidden while editing profile) */}
+{!editMode && (
+  <Box sx={{ mt: 6, px: "var(--dd-gutter-x)" }}>
+    <Typography
+      variant="h5"
+      fontWeight={800}
+      sx={{ mb: 2, color: "#05284cff", letterSpacing: 1, fontSize: 25 }}
+    >
+      Current Appointments
+    </Typography>
+
+    <Box sx={{ display: "flex", justifyContent: "center", mb: 3, gap: 2, alignItems: "center" }}>
+      <TextField
+        type="date"
+        label="Select Date"
+        InputLabelProps={{ shrink: true }}
+        inputProps={{ min: todayStr }}
+        value={selectedDate}
+        onChange={(e) => {
+          const val = e.target.value;
+          if (val && val < todayStr) {
+            showAlert("error", "Please pick today or a future date");
+            return;
+          }
+          setSelectedDate(val);
+        }}
+        sx={{ minWidth: 260, background: "#f8fafc", borderRadius: 2 }}
+      />
+      <Button
+        color="error"
+        variant="outlined"
+        onClick={() => setDeleteApptsOpen(true)}
+        disabled={!selectedDate || appointments.length === 0}
+        sx={{ textTransform: "none" }}
+      >
+        Delete Appointments for Date
+      </Button>
+    </Box>
+
+    {loadingAppointments ? (
+      <Typography color="info.main" sx={{ fontWeight: 600, letterSpacing: 1 }}>
+        Loading appointments...
+      </Typography>
+    ) : (
+      <>
+        <Typography variant="subtitle1" sx={{ mb: 2, color: "#1976d2", fontWeight: 700, fontSize: 18 }}>
+          Total Appointments: <span style={{ color: "#1976d2" }}>{appointments.length}</span>
+        </Typography>
+
+        {appointments.length === 0 ? (
+          <Typography color="text.secondary" sx={{ fontStyle: "italic", fontSize: 16 }}>
+            No appointments for this date.
           </Typography>
-
-          <Box sx={{ display: "flex", justifyContent: "center", mb: 3, gap: 2, alignItems: "center" }}>
-            <TextField
-              type="date"
-              label="Select Date"
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ min: todayStr }}
-              value={selectedDate}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val && val < todayStr) {
-                  showAlert("error", "Please pick today or a future date");
-                  return;
-                }
-                setSelectedDate(val);
-              }}
-              sx={{ minWidth: 260, background: "#f8fafc", borderRadius: 2 }}
-            />
-            <Button
-              color="error"
-              variant="outlined"
-              onClick={() => setDeleteApptsOpen(true)}
-              disabled={!selectedDate || appointments.length === 0}
-              sx={{ textTransform: "none" }}
-            >
-              Delete Appointments for Date
-            </Button>
-          </Box>
-
-          {loadingAppointments ? (
-            <Typography color="info.main" sx={{ fontWeight: 600, letterSpacing: 1 }}>
-              Loading appointments...
-            </Typography>
-          ) : (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, color: "#1976d2", fontWeight: 700, fontSize: 18 }}>
-                Total Appointments: <span style={{ color: "#1976d2" }}>{appointments.length}</span>
-              </Typography>
-
-              {appointments.length === 0 ? (
-                <Typography color="text.secondary" sx={{ fontStyle: "italic", fontSize: 16 }}>
-                  No appointments for this date.
-                </Typography>
-              ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {appointments.map((appt, idx) => (
-                    <Card
-                      key={appt._id || idx}
-                      elevation={2}
-                      sx={{
-                        mb: 1,
-                        borderLeft: "6px solid #1976d2",
-                        background: "#f4f8fd",
-                        borderRadius: 2,
-                        p: 2,
-                        boxShadow: "0 2px 8px rgba(25, 118, 210, 0.07)",
-                      }}
-                    >
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                        <Avatar
-                          sx={{
-                            bgcolor: "#1976d2",
-                            color: "#fff",
-                            width: 44,
-                            height: 44,
-                            fontWeight: 700,
-                            fontSize: 22,
-                          }}
-                        >
-                          {appt.patient?.name
-                            ? appt.patient.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .toUpperCase()
-                                .slice(0, 2)
-                            : "?"}
-                        </Avatar>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" sx={{ color: "#000000ff", fontWeight: 700, mb: 0.5 }}>
-                            {appt.patient?.name || "-"}
-                          </Typography>
-                          <Typography sx={{ color: "text.secondary", fontSize: 15 }}>
-                            <EmailIcon sx={{ fontSize: 18, verticalAlign: "middle", mr: 0.5 }} />{" "}
-                            {appt.patient?.email || "-"}
-                            {appt.patient?.phone && (
-                              <span style={{ marginLeft: 12 }}>
-                                <PhoneIphoneIcon sx={{ fontSize: 18, verticalAlign: "middle", mr: 0.5 }} />
-                                {appt.patient.phone}
-                              </span>
-                            )}
-                          </Typography>
-                        </Box>
-                        <Chip
-                          label={appt.status || "-"}
-                          color={
-                            appt.status === "Booked"
-                              ? "primary"
-                              : appt.status === "Completed"
-                              ? "success"
-                              : appt.status === "Cancelled"
-                              ? "error"
-                              : "warning"
-                          }
-                          sx={{ fontWeight: 700, fontSize: 15, px: 1.5, py: 0.5, borderRadius: 1, textTransform: "capitalize" }}
-                        />
-                      </Box>
-                      <Divider sx={{ my: 1.5 }} />
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
-                        <Typography sx={{ color: "#000000ff", fontWeight: 600, fontSize: 16 }}>
-                          🕒 {appt.time ? `${appt.time.start} - ${appt.time.end}` : appt.slotTime || "-"}
-                        </Typography>
-                        {appt.reason && (
-                          <Typography sx={{ color: "text.secondary", fontStyle: "italic", fontSize: 15 }}>
-                            📝 {appt.reason}
-                          </Typography>
-                        )}
-                        <Typography sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}>
-                          Ref: <span style={{ color: "#010101ff", fontWeight: 700 }}>{appt.referenceNo}</span>
-                        </Typography>
-                      </Box>
-                    </Card>
-                  ))}
+        ) : (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {appointments.map((appt, idx) => (
+              <Card
+                key={appt._id || idx}
+                elevation={2}
+                sx={{
+                  mb: 1,
+                  borderLeft: "6px solid #1976d2",
+                  background: "#f4f8fd",
+                  borderRadius: 2,
+                  p: 2,
+                  boxShadow: "0 2px 8px rgba(25, 118, 210, 0.07)",
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <Avatar
+                    sx={{
+                      bgcolor: "#1976d2",
+                      color: "#fff",
+                      width: 44,
+                      height: 44,
+                      fontWeight: 700,
+                      fontSize: 22,
+                    }}
+                  >
+                    {appt.patient?.name
+                      ? appt.patient.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)
+                      : "?"}
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" sx={{ color: "#000000ff", fontWeight: 700, mb: 0.5 }}>
+                      {appt.patient?.name || "-"}
+                    </Typography>
+                    <Typography sx={{ color: "text.secondary", fontSize: 15 }}>
+                      <EmailIcon sx={{ fontSize: 18, verticalAlign: "middle", mr: 0.5 }} />{" "}
+                      {appt.patient?.email || "-"}
+                      {appt.patient?.phone && (
+                        <span style={{ marginLeft: 12 }}>
+                          <PhoneIphoneIcon sx={{ fontSize: 18, verticalAlign: "middle", mr: 0.5 }} />
+                          {appt.patient.phone}
+                        </span>
+                      )}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={appt.status || "-"}
+                    color={
+                      appt.status === "Booked"
+                        ? "primary"
+                        : appt.status === "Completed"
+                        ? "success"
+                        : appt.status === "Cancelled"
+                        ? "error"
+                        : "warning"
+                    }
+                    sx={{ fontWeight: 700, fontSize: 15, px: 1.5, py: 0.5, borderRadius: 1, textTransform: "capitalize" }}
+                  />
                 </Box>
-              )}
-            </>
-          )}
-        </Box>
+                <Divider sx={{ my: 1.5 }} />
+                <Box sx={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
+                  <Typography sx={{ color: "#000000ff", fontWeight: 600, fontSize: 16 }}>
+                    🕒 {appt.time ? `${appt.time.start} - ${appt.time.end}` : appt.slotTime || "-"}
+                  </Typography>
+                  {appt.reason && (
+                    <Typography sx={{ color: "text.secondary", fontStyle: "italic", fontSize: 15 }}>
+                      📝 {appt.reason}
+                    </Typography>
+                  )}
+                  <Typography sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}>
+                    Ref: <span style={{ color: "#010101ff", fontWeight: 700 }}>{appt.referenceNo}</span>
+                  </Typography>
+                </Box>
+              </Card>
+            ))}
+          </Box>
+        )}
+      </>
+    )}
+  </Box>
+)}
+
 
         {/* Snackbar */}
         <Snackbar
