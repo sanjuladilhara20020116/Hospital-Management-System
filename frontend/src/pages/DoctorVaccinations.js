@@ -279,7 +279,7 @@ export default function DoctorVaccinations() {
                   </td>
 
                   <td>
-                    <div className="action-buttons" style={{ marginTop: '1px' }}>
+                    <div className="action-buttons">
                       <button 
                         className="btn-icon" 
                         onClick={() => navigate(`/vaccinations/${r._id}`)}

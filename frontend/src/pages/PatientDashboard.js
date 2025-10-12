@@ -39,9 +39,12 @@ import { useNavigate } from 'react-router-dom';
 import './PatientDashboard.css';
 =======
 import { IconButton } from '@mui/material';
+<<<<<<< HEAD
 import VaccinesIcon from '@mui/icons-material/Vaccines';
 
 >>>>>>> 7a9e2f2e617f3f3952e6b8654829b80c92663337
+=======
+>>>>>>> parent of 7a9e2f2 (Merge pull request #68 from sanjuladilhara20020116/RkinduMain)
 
 export default function PatientDashboard({ userId }) {
   const theme = useTheme();
@@ -885,16 +888,6 @@ export default function PatientDashboard({ userId }) {
                     My Lab Reports
                   </Button>
 
-                  {/* Patient Vaccinations (safe link) */}
-                 <Button                    
-                  size="small"
-                  variant="outlined"
-                  onClick={() => navigate('/vaccinations/mine')}
-                  startIcon={<VaccinesIcon />}
-                  sx={{ borderRadius: 2, px: 2 }}
-                 >
-                   My Vaccinations
-                 </Button>
                   {/* ✅ NEW: Medical Records (patient read-only page) */}
                   <Button
                     size="small"

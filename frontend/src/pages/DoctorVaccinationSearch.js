@@ -59,24 +59,6 @@ import HistoryIcon from "@mui/icons-material/History";
 const BLUE = { main: "#2C69F0", mid: "#4D8DF7", light: "#C7D9FE" };
 const GREEN = { start: "#34D399", end: "#10B981" };
 
-/* ---------- API base + buildPhotoUrl (absolute or /uploads/filename) ---------- */
-const API_BASE =
-  (API && API.defaults && API.defaults.baseURL) ||
-  (typeof window !== "undefined" ? window.location.origin : "http://localhost:5000") ||
-  "http://localhost:5000";
-
-const buildPhotoUrl = (obj) => {
-  if (!obj) return null;
-  const cand = obj.photoUrl || obj.avatarUrl || obj.photo || obj.profilePhoto;
-  if (!cand) return null;
-
-  const s = String(cand);
-  if (/^(?:https?:)?\/\//i.test(s) || s.startsWith("data:")) return s; // absolute/data URL
-  const file = s.replace(/^\.?\/?uploads\/?/, ""); // normalize
-  const root = (API_BASE || "").replace(/\/$/, "");
-  return `${root}/uploads/${file}`;
-};
-
 // -------- Validation & Sanitization --------
 const validateInput = (value, type) => {
   if (!value || typeof value !== "string") return false;
@@ -156,7 +138,7 @@ const GradientButton = ({ children, variant = "primary", ...props }) => {
         color: "#fff",
         "& .MuiSvgIcon-root": { color: "#fff" },
         "&:disabled": { color: "rgba(255,255,255,0.7)" },
-        boxShadow: `0 8px 32px ${alpha(useTheme().palette.primary.main, 0.4)}`,
+        boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.4)}`,
         transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         position: "relative",
         overflow: "hidden",
@@ -173,7 +155,7 @@ const GradientButton = ({ children, variant = "primary", ...props }) => {
         },
         "&:hover": {
           transform: "translateY(-2px)",
-          boxShadow: `0 12px 40px ${alpha(useTheme().palette.primary.main, 0.5)}`,
+          boxShadow: `0 12px 40px ${alpha(theme.palette.primary.main, 0.5)}`,
           "&::before": { left: "100%" },
         },
         "&:active": { transform: "translateY(0px)" },
@@ -274,21 +256,10 @@ export default function DoctorVaccinationSearch() {
 
         if (!data || typeof data !== "object") throw new Error("Invalid response from server");
 
-        // Set initial patient (might not include photo)
         setPatient(data);
         setShowSuccess(true);
 
-        // If photo missing, fetch full user profile (includes `photo`)
-        if (!data.photo && data.userId) {
-          try {
-            const { data: full } = await API.get(`/api/users/${encodeURIComponent(data.userId)}`);
-            if (full && (full.photo || full.photoUrl || full.avatarUrl || full.profilePhoto)) {
-              setPatient((prev) => ({ ...prev, ...full }));
-            }
-          } catch {}
-        }
-
-        // load vaccination history
+        // load vaccination history right away
         loadHistory(data.userId);
       } catch (err) {
         console.error("Search error:", err);
@@ -385,8 +356,6 @@ export default function DoctorVaccinationSearch() {
     if (isNaN(d.getTime())) return "-";
     return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
   };
-
-  const avatarSrc = buildPhotoUrl(patient);
 
   return (
     <>
@@ -718,8 +687,6 @@ export default function DoctorVaccinationSearch() {
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
                   <Avatar
-                    src={avatarSrc || undefined}
-                    alt={`${[patient.firstName, patient.lastName].filter(Boolean).join(" ") || "Patient"} photo`}
                     sx={{
                       background: `linear-gradient(135deg, ${BLUE.main} 0%, ${BLUE.mid} 100%)`,
                       width: 80,
