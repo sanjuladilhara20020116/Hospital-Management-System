@@ -1,875 +1,857 @@
-// frontend/src/pages/DoctorDashboard.js
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Button,
-  TextField,
-  Avatar,
-  Snackbar,
-  Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Divider,
-  Stack,
-  Chip,
-  InputAdornment,
-  Grid,
-  useTheme,
-} from "@mui/material";
-import { Link } from "react-router-dom";
-import axios from "axios";
+  Box, Typography, Card, CardContent, CardActions, Button,
+  TextField, Avatar, Snackbar, Alert, Dialog, DialogTitle,
+  DialogContent, DialogActions, Fab, Grid, Paper,
+  InputAdornment, useTheme, Badge, Container, CircularProgress,
+  Chip, Divider, Stack, IconButton
+} from '@mui/material';
+import {
+  Chat as ChatIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  Cake as CakeIcon,
+  Home as HomeIcon,
+  Wc as GenderIcon,
+  Badge as NicIcon,
+  MedicalServices as MedicalIcon,
+  Upload as UploadIcon,
+  CheckCircle as CheckCircleIcon,
+  LocalHospital as LocalHospitalIcon,
+  CalendarMonth as CalendarMonthIcon,
+  CreditCard as CreditCardIcon,
+  Description as DescriptionIcon,
+  CalendarMonth as AppointmentIcon
+} from '@mui/icons-material';
+import ScienceOutlined from '@mui/icons-material/ScienceOutlined';
+import VaccinesIcon from '@mui/icons-material/Vaccines';
+import axios from 'axios';
+import ChatPopup from './ChatPopup';
+import { useNavigate } from 'react-router-dom';
+import './PatientDashboard.css';
 
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import EmailIcon from "@mui/icons-material/Email";
-import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
-import VaccinesIcon from "@mui/icons-material/Vaccines";
-import PhoneIphoneIcon from "@mui/icons-material/PhoneIphone";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-
-import WcIcon from "@mui/icons-material/Wc";
-import BadgeIcon from "@mui/icons-material/Badge";
-import CakeIcon from "@mui/icons-material/Cake";
-import HomeIcon from "@mui/icons-material/Home";
-
-import ViewPatientCard from "../components/record/ViewPatientCard";
-import "./DoctorDashboard.css"; // UI stylesheet
-
-const API_BASE =
-  import.meta?.env?.VITE_API_BASE_URL || "http://localhost:5000/api";
-const UPLOADS_BASE =
-  import.meta?.env?.VITE_UPLOADS_BASE_URL || "http://localhost:5000/uploads";
-
-/** Small, purely-presentational info tile (keeps logic untouched) */
-function InfoStat({ icon, label, value, md = 4 }) {
-  return (
-    <Grid item xs={12} sm={6} md={md}>
-      <div className="dd-stat">
-        <div className="dd-stat-icon">{icon}</div>
-        <div className="dd-stat-content">
-          <div className="dd-stat-label">{label}</div>
-          <div className="dd-stat-value">{value}</div>
-        </div>
-      </div>
-    </Grid>
-  );
-}
-
-/**
- * Doctor Dashboard — all business logic preserved; UI modernized to match the reference.
- */
-export default function DoctorDashboard({ userId: propUserId }) {
+export default function PatientDashboard({ userId }) {
   const theme = useTheme();
+  const navigate = useNavigate();
 
-  // ---- derived userId
-  const userId =
-    propUserId ||
-    (() => {
-      try {
-        const u = JSON.parse(localStorage.getItem("user"));
-        return u?.userId || u?._id || u?.id || "";
-      } catch {
-        return "";
-      }
-    })();
-
-  // ---- profile state
   const [profile, setProfile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
+  const [alert, setAlert] = useState({ open: false, severity: 'info', message: '' });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
 
-  // ---- alert/snackbar
-  const [alert, setAlert] = useState({
-    open: false,
-    severity: "info",
-    message: "",
-  });
-  const showAlert = (severity, message) =>
-    setAlert({ open: true, severity, message });
-
-  // ---- availability modal state
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const [availOpen, setAvailOpen] = useState(false);
-  const [savingAvailability, setSavingAvailability] = useState(false);
-  const [availabilityForm, setAvailabilityForm] = useState({
-    date: todayStr,
-    startTime: "09:00",
-    endTime: "12:00",
-    slotMinutes: 15,
-    patientLimit: 20,
-    hospital: "Asiri Central - Colombo",
-  });
-
-  // ---- appointments-by-date state
-  const [selectedDate, setSelectedDate] = useState(todayStr);
+  // Appointments
   const [appointments, setAppointments] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
+  const [searchDate, setSearchDate] = useState('');
 
-  // profile delete dialog
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  // Edit / Delete appointment dialogs
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editAppointment, setEditAppointment] = useState(null);
+  const [editSlotDuration, setEditSlotDuration] = useState(0); // minutes
 
-  // delete appointments for selected date dialog
-  const [deleteApptsOpen, setDeleteApptsOpen] = useState(false);
-  const [deletingAppointments, setDeletingAppointments] = useState(false);
+  const [deleteApptDialogOpen, setDeleteApptDialogOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState(null);
 
-  // ---- effects: load profile
+  // Details dialog
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+
+  const showAlert = (severity, message) => setAlert({ open: true, severity, message });
+
+  // Load profile
   useEffect(() => {
-    let active = true;
-
     async function fetchProfile() {
-      if (!userId) {
-        showAlert("warning", "No userId available to load profile.");
-        return;
-      }
       try {
-        const res = await axios.get(
-          `${API_BASE}/users/${encodeURIComponent(userId)}`
-        );
-        if (!active) return;
-
+        const res = await axios.get(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);
         setProfile(res.data);
         setFormData(res.data);
-        if (res.data?.photo) {
-          setImagePreview(`${UPLOADS_BASE}/${res.data.photo}`);
-        } else {
-          setImagePreview(null);
-        }
-      } catch (err) {
-        showAlert(
-          "error",
-          err?.response?.data?.message || "Failed to load profile"
-        );
+        if (res.data.photo) setImagePreview(`http://localhost:5000/uploads/${res.data.photo}`);
+      } catch {
+        showAlert('error', 'Failed to load profile');
       }
     }
-
     fetchProfile();
-    return () => {
-      active = false;
-    };
   }, [userId]);
 
-  // ---- effects: load appointments when date/user changes
-  useEffect(() => {
-    async function loadAppointments() {
-      if (!userId || !selectedDate) return;
-      try {
-        setLoadingAppointments(true);
-        const params = new URLSearchParams({
-          doctorId: userId,
-          date: selectedDate,
-        });
-        const res = await axios.get(
-          `${API_BASE}/appointments/getUserAppointments?${params.toString()}`
-        );
-        const arr = Array.isArray(res.data?.appointments)
-          ? res.data.appointments
-          : [];
-        setAppointments(arr);
-      } catch {
-        setAppointments([]);
-      } finally {
-        setLoadingAppointments(false);
-      }
+  // Load appointments
+  const fetchAppointments = async () => {
+    try {
+      setLoadingAppointments(true);
+      const res = await axios.get(`http://localhost:5000/api/appointments/patients`, {
+        params: { patientId: userId }
+      });
+      const list = Array.isArray(res.data?.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []);
+      setAppointments(list);
+    } catch {
+      // silent if endpoint not ready
+    } finally {
+      setLoadingAppointments(false);
     }
-    loadAppointments();
-  }, [userId, selectedDate]);
+  };
 
-  // ---- profile edit handlers (logic unchanged)
+  useEffect(() => {
+    fetchAppointments();
+  }, [userId]); // eslint disabled earlier in your codebase
+
+  // Profile helpers
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     if (files && files.length > 0) {
-      setFormData((prev) => ({ ...prev, [name]: files[0] }));
+      setFormData(prev => ({ ...prev, [name]: files[0] }));
       setImagePreview(URL.createObjectURL(files[0]));
-      return;
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
     }
-    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSave = async () => {
-    if (!userId) return;
     try {
       const data = new FormData();
-      Object.entries(formData || {}).forEach(([k, v]) => {
-        if (v !== undefined && v !== null) data.append(k, v);
-      });
+      for (let key in formData) {
+        if (formData[key] !== undefined && formData[key] !== null) {
+          data.append(key, formData[key]);
+        }
+      }
 
-      await axios.put(`${API_BASE}/users/${encodeURIComponent(userId)}`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await axios.put(
+        `http://localhost:5000/api/users/${encodeURIComponent(userId)}`,
+        data,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
 
-      showAlert("success", "Profile updated successfully");
+      showAlert('success', 'Profile updated successfully');
       setEditMode(false);
 
-      const res = await axios.get(
-        `${API_BASE}/users/${encodeURIComponent(userId)}`
-      );
+      const res = await axios.get(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);
       setProfile(res.data);
       setFormData(res.data);
-      if (res.data?.photo) {
-        setImagePreview(`${UPLOADS_BASE}/${res.data.photo}`);
-      } else {
-        setImagePreview(null);
-      }
-    } catch (err) {
-      showAlert(
-        "error",
-        err?.response?.data?.message || "Failed to update profile"
-      );
+      if (res.data.photo) setImagePreview(`http://localhost:5000/uploads/${res.data.photo}`);
+    } catch {
+      showAlert('error', 'Failed to update profile');
     }
   };
 
   const handleDelete = async () => {
-    if (!userId || deleting) return;
     try {
-      setDeleting(true);
-      await axios.delete(`${API_BASE}/users/${encodeURIComponent(userId)}`);
-      showAlert("success", "Profile deleted. Logging out...");
+      await axios.delete(`http://localhost:5000/api/users/${encodeURIComponent(userId)}`);
+      showAlert('success', 'Profile deleted. Logging out...');
       setTimeout(() => {
-        localStorage.removeItem("user");
-        window.location.href = "/";
-      }, 1200);
-    } catch (err) {
-      showAlert(
-        "error",
-        err?.response?.data?.message || "Failed to delete profile"
-      );
-    } finally {
-      setDeleting(false);
-      setDeleteDialogOpen(false);
+        localStorage.removeItem('user');
+        window.location.href = '/';
+      }, 2000);
+    } catch {
+      showAlert('error', 'Failed to delete profile');
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    window.location.href = "/";
+  // Appointment flows
+  const handleShowAppointmentDetails = (appointment) => {
+    setSelectedAppointment(appointment);
+    setDetailsDialogOpen(true);
   };
 
-  // ---- availability
-  const handleAvailabilityChange = (e) => {
-    const { name, value } = e.target;
-    if (name === "date") {
-      if (value && value < todayStr) {
-        showAlert("error", "Please pick today or a future date for availability");
-        return;
-      }
-    }
-    setAvailabilityForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const saveAvailability = async () => {
-    if (!userId) {
-      showAlert("warning", "No userId available for availability.");
-      return;
-    }
-    const payload = {
-      doctorId: userId,
-      date: availabilityForm.date,
-      startTime: availabilityForm.startTime,
-      endTime: availabilityForm.endTime,
-      slotMinutes: Number(availabilityForm.slotMinutes),
-      patientLimit: Number(availabilityForm.patientLimit),
-      hospital: availabilityForm.hospital,
-    };
-
+  const handleEditAppointment = async (appointment) => {
+    setEditAppointment(appointment);
+    setEditDialogOpen(true);
     try {
-      setSavingAvailability(true);
-      await axios.post(`${API_BASE}/availability/doctor/day`, payload, {
-        headers: {
-          "X-Role": "Doctor",
-          "X-User-Id": String(userId),
-        },
+      const res = await axios.get('http://localhost:5000/api/appointments/doctors/slots', {
+        params: { doctorId: appointment.doctorId, date: appointment.date }
       });
-      showAlert("success", "Availability saved");
-      setAvailOpen(false);
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message || "Failed to save availability";
-      showAlert("error", msg);
-    } finally {
-      setSavingAvailability(false);
+      setEditSlotDuration(res.data?.durationMinutes || 0);
+    } catch {
+      setEditSlotDuration(0);
     }
   };
 
-  // Delete appointments service for a specific date
-  const deleteAppointmentsForDate = async (date) => {
-    if (!userId || !date) {
-      showAlert("warning", "Doctor ID or date missing");
-      return;
+  const handleEditStartTimeChange = (newStartTime) => {
+    let endTime = '';
+    if (editSlotDuration && /^\d{2}:\d{2}$/.test(newStartTime)) {
+      const [h, m] = newStartTime.split(':').map(Number);
+      const startMin = h * 60 + m;
+      const endMin = startMin + editSlotDuration;
+      const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+      const endM = String(endMin % 60).padStart(2, '0');
+      endTime = `${endH}:${endM}`;
     }
+    setEditAppointment(prev => ({ ...prev, startTime: newStartTime, endTime }));
+  };
+
+  const handleSaveEditAppointment = async () => {
+    if (!editAppointment?._id) return;
     try {
-      setDeletingAppointments(true);
-      const params = new URLSearchParams({ date });
-      const res = await axios.delete(
-        `${API_BASE}/appointments/doctors/${encodeURIComponent(
-          userId
-        )}/delete-by-date?${params.toString()}`,
-        { headers: { "X-Role": "Doctor", "X-User-Id": String(userId) } }
+      await axios.patch(
+        `http://localhost:5000/api/appointments/${editAppointment._id}/edit`,
+        { startTime: editAppointment.startTime }
       );
-      showAlert("success", res.data?.message || "Appointments deleted");
-      setDeleteApptsOpen(false);
-      setLoadingAppointments(true);
-      const p = new URLSearchParams({ doctorId: userId, date });
-      const r2 = await axios.get(
-        `${API_BASE}/appointments/getUserAppointments?${p.toString()}`
-      );
-      setAppointments(
-        Array.isArray(r2.data?.appointments) ? r2.data.appointments : []
-      );
-    } catch (err) {
-      showAlert(
-        "error",
-        err?.response?.data?.message || "Failed to delete appointments"
-      );
-    } finally {
-      setDeletingAppointments(false);
-      setLoadingAppointments(false);
+      showAlert('success', 'Appointment rescheduled');
+      setEditDialogOpen(false);
+      fetchAppointments();
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Failed to reschedule appointment';
+      showAlert('error', msg);
+    }
+  };
+
+  const handleDeleteAppointment = async (appointmentId) => {
+    try {
+      await axios.delete(`http://localhost:5000/api/appointments/${appointmentId}/delete`);
+      showAlert('success', 'Appointment deleted');
+      setDeleteApptDialogOpen(false);
+      setAppointmentToDelete(null);
+      fetchAppointments();
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Failed to delete appointment';
+      showAlert('error', msg);
     }
   };
 
   if (!profile) {
     return (
-      <Typography sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>
-        Loading...
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
+  const filteredAppointments = searchDate
+    ? appointments.filter(a => a.date === searchDate)
+    : appointments;
+
   return (
-    <Box
-      className="doctor-dashboard"
-      sx={{ maxWidth: "100%", mx: "auto", mt: 3, px: 0, pb: 6 }}
-    >
-      {/* Header / Hero */}
-      <Box
-        className="dd-hero"
-        sx={{
-          mb: 3,
-          p: { xs: 2.5, sm: 3 },
-          borderRadius: 3,
-          background: `#2563eb`,
-          border: `1px solid ${theme.palette.divider}`,
-          display: "flex",
-          alignItems: "center",
-          gap: 2,
-          flexWrap: "wrap",
-          mx: "var(--dd-gutter-x)",
-        }}
+    <>
+      <Container
+        maxWidth={false}
+        className="patient-dashboard"
+        sx={{ py: 4, px: { xs: '12px', sm: '2.5vw', lg: '24px' } }}
       >
-        <Box sx={{ position: "relative" }}>
-          <Avatar
-            src={imagePreview || undefined}
-            alt={`${profile.firstName || ""} ${profile.lastName || ""}`}
-            sx={{
-              width: 110,
-              height: 110,
-              border: `4px solid ${theme.palette.common.white}`,
-              boxShadow: "0 10px 30px rgba(2,6,23,.15)",
-            }}
-          />
-          <Box
-            sx={{
-              position: "absolute",
-              right: -4,
-              bottom: -4,
-              width: 18,
-              height: 18,
-              borderRadius: "50%",
-              bgcolor: "success.main",
-              border: `2px solid ${theme.palette.background.paper}`,
-            }}
-          />
-        </Box>
+        <Card elevation={3} sx={{ borderRadius: 3 }}>
+          <CardContent sx={{ p: 0 }}>
+            {/* HERO */}
+            <Paper
+              elevation={0}
+              sx={{
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
+                p: 3,
+                borderTopLeftRadius: 3,
+                borderTopRightRadius: 3
+              }}
+            >
+              <Grid container spacing={3} alignItems="center">
+                <Grid item>
+                  <Avatar
+                    src={imagePreview}
+                    sx={{
+                      width: 100,
+                      height: 100,
+                      border: '3px solid',
+                      borderColor: theme.palette.background.paper
+                    }}
+                  />
+                </Grid>
+                <Grid item xs>
+                  <Typography variant="h4" fontWeight={800}>
+                    {profile.firstName} {profile.lastName}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.95, fontWeight: 600 }}>
+                    Patient ID: {profile.userId}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
 
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h5" fontWeight={800} sx={{ lineHeight: 1.2, color: "#fff" }}>
-            {profile.firstName} {profile.lastName}
-          </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-            <Chip size="small" label={`User ID: ${profile.userId || "-"}`} />
-            <Chip
-              size="small"
-              color="primary"
-              variant="outlined"
-              label={profile.specialty || "General"}
-              icon={<WorkspacePremiumIcon />}
-            />
-            <Chip
-              size="small"
-              variant="outlined"
-              label={profile.email || "-"}
-              icon={<EmailIcon />}
-            />
-          </Stack>
-        </Box>
+            {/* INFO */}
+            <Box sx={{ p: 3 }}>
+              {editMode ? (
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="First Name"
+                      name="firstName"
+                      value={formData.firstName || ''}
+                      onChange={handleChange}
+                      fullWidth
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon color="action" />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Last Name"
+                      name="lastName"
+                      value={formData.lastName || ''}
+                      onChange={handleChange}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Email"
+                      name="email"
+                      value={formData.email || ''}
+                      onChange={handleChange}
+                      fullWidth
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <EmailIcon color="action" />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button variant="outlined" component="label" startIcon={<UploadIcon />} fullWidth>
+                      Upload New Photo
+                      <input hidden type="file" name="photo" accept="image/*" onChange={handleChange} />
+                    </Button>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="NIC Number"
+                      name="nicNumber"
+                      value={formData.nicNumber || ''}
+                      onChange={handleChange}
+                      fullWidth
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <NicIcon color="action" />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Gender"
+                      name="gender"
+                      value={formData.gender || ''}
+                      onChange={handleChange}
+                      fullWidth
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <GenderIcon color="action" />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Age"
+                      name="age"
+                      type="number"
+                      value={formData.age || ''}
+                      onChange={handleChange}
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Contact Number"
+                      name="contactNumber"
+                      value={formData.contactNumber || ''}
+                      onChange={handleChange}
+                      fullWidth
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PhoneIcon color="action" />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Address"
+                      name="address"
+                      value={formData.address || ''}
+                      onChange={handleChange}
+                      fullWidth
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <HomeIcon color="action" />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      label="Date of Birth"
+                      name="dateOfBirth"
+                      type="date"
+                      value={formData.dateOfBirth?.substring(0, 10) || ''}
+                      onChange={handleChange}
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CakeIcon color="action" />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+              ) : (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: '#f5f7fb' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <EmailIcon color="primary" sx={{ mr: 1 }} /> Email
+                      </Typography>
+                      <Typography>{profile.email}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: '#f5f7fb' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <NicIcon color="primary" sx={{ mr: 1 }} /> NIC Number
+                      </Typography>
+                      <Typography>{profile.nicNumber || 'Not provided'}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: '#f5f7fb' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <GenderIcon color="primary" sx={{ mr: 1 }} /> Gender
+                      </Typography>
+                      <Typography>{profile.gender || 'Not provided'}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: '#f5f7fb' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <CakeIcon color="primary" sx={{ mr: 1 }} /> Age
+                      </Typography>
+                      <Typography>{profile.age || 'Not provided'}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: '#f5f7fb' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <PhoneIcon color="primary" sx={{ mr: 1 }} /> Contact Number
+                      </Typography>
+                      <Typography>{profile.contactNumber || 'Not provided'}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: '#f5f7fb' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <CakeIcon color="primary" sx={{ mr: 1 }} /> Date of Birth
+                      </Typography>
+                      <Typography>{profile.dateOfBirth?.substring(0, 10) || 'Not provided'}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, backgroundColor: '#f5f7fb' }}>
+                      <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
+                        <HomeIcon color="primary" sx={{ mr: 1 }} /> Address
+                      </Typography>
+                      <Typography>{profile.address || 'Not provided'}</Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              )}
 
-        {/* Action buttons */}
-        <Stack direction="row" spacing={1}>
-          {editMode ? (
-            <>
-              <Button variant="contained" onClick={handleSave} sx={{ textTransform: "none", fontWeight: 700 }}>
-                Save
-              </Button>
+              {/* View-mode CTAs */}
+              {!editMode && (
+                <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-end', mt: 1 }}>
+                  <Button
+                    variant="contained"
+                    onClick={() => setEditMode(true)}
+                    startIcon={<EditIcon />}
+                    sx={{ borderRadius: 2, px: 2.5 }}
+                  >
+                    Edit Profile
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    startIcon={<DeleteIcon />}
+                    sx={{ borderRadius: 2, px: 2.5 }}
+                  >
+                    Delete Account
+                  </Button>
+                </Box>
+              )}
+            </Box>
+
+            {/* ACTIONS */}
+            {!editMode && (
+              <Box sx={{ px: 3, pb: 1 }}>
+                <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
+                  Actions
+                </Typography>
+
+                <Box className="pd-actions-tiles">
+                  <button className="pd-tile pd-tile--blue" onClick={() => navigate('/my-reports')}>
+                    <span className="pd-tile-icon"><ScienceOutlined /></span>
+                    <span className="pd-tile-text">Lab Reports</span>
+                  </button>
+
+                  <button className="pd-tile pd-tile--yellow" onClick={() => navigate('/patient/medical-records')}>
+                    <span className="pd-tile-icon"><DescriptionIcon /></span>
+                    <span className="pd-tile-text">Medical Reports</span>
+                  </button>
+
+                  <button className="pd-tile pd-tile--green" onClick={() => navigate('/packages')}>
+                    <span className="pd-tile-icon"><MedicalIcon /></span>
+                    <span className="pd-tile-text">Health Pakages</span>
+                  </button>
+
+                  <button className="pd-tile pd-tile--red" onClick={() => navigate('/appointments')}>
+                    <span className="pd-tile-icon"><AppointmentIcon /></span>
+                    <span className="pd-tile-text">Book Appointment</span>
+                  </button>
+
+                  <button className="pd-tile pd-tile--sky" onClick={() => navigate('/vaccinations/mine')}>
+                    <span className="pd-tile-icon"><VaccinesIcon /></span>
+                    <span className="pd-tile-text">Vaccination</span>
+                  </button>
+                </Box>
+              </Box>
+            )}
+
+            {/* APPOINTMENTS */}
+            {!editMode && (
+              <Box sx={{ px: 3, pb: 3 }}>
+                <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
+                  My Appointment
+                </Typography>
+
+                <Box sx={{ mb: 1.5, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1.5 }}>
+                  <TextField
+                    label="Search by Date"
+                    type="date"
+                    value={searchDate}
+                    onChange={e => setSearchDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    size="medium"
+                    sx={{ minWidth: 260, width: 360 }}
+                  />
+                  {searchDate && (
+                    <Button onClick={() => setSearchDate('')} variant="outlined" size="medium">Clear</Button>
+                  )}
+                </Box>
+
+                {loadingAppointments ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : filteredAppointments.length === 0 ? (
+                  <Typography color="text.secondary" sx={{ pl: 0.5 }}>
+                    You have no appointments yet.
+                  </Typography>
+                ) : (
+                  <Grid container spacing={1.5}>
+                    {filteredAppointments.map((a) => (
+                      <Grid item xs={12} key={a._id || a.referenceNo}>
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: 2.5, borderRadius: 2,
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            flexWrap: 'wrap', gap: 2,
+                            width: '100%',
+                            mx: 'auto', cursor: 'pointer', borderColor: '#e6eaf2'
+                          }}
+                          onClick={() => handleShowAppointmentDetails(a)}
+                        >
+                          <Box>
+                            <Typography variant="body1" fontWeight={600}>
+                              Ref: {a.referenceNo}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {a.date} : {a.startTime}{a.endTime ? ` - ${a.endTime}` : ''} • Queue {a.queueNo ?? '-'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Doctor: {a.doctorName || a.doctorId}
+                            </Typography>
+                          </Box>
+
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} onClick={e => e.stopPropagation()}>
+                            <Chip
+                              size="small"
+                              label={a.status || 'Pending'}
+                              color={
+                                a.status === 'Confirmed' ? 'success' :
+                                a.status === 'Cancelled' ? 'default' : 'warning'
+                              }
+                            />
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleEditAppointment(a)}
+                              disabled={a.status === 'Cancelled'}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => {
+                                setAppointmentToDelete(a);
+                                setDeleteApptDialogOpen(true);
+                              }}
+                              disabled={a.status === 'Cancelled'}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Box>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                )}
+              </Box>
+            )}
+          </CardContent>
+
+          {/* FOOTER: single source of truth for edit actions */}
+          <CardActions sx={{ p: 3, pt: 0, justifyContent: 'flex-end', gap: 1.5 }}>
+            {editMode ? (
+              <>
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  startIcon={<SaveIcon />}
+                  sx={{ borderRadius: 2, px: 3 }}
+                >
+                  Save Changes
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => setEditMode(false)}
+                  startIcon={<CancelIcon />}
+                  sx={{ borderRadius: 2, px: 3 }}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
               <Button
                 variant="outlined"
                 color="secondary"
-                onClick={() => setEditMode(false)}
-                sx={{ textTransform: "none", fontWeight: 700 }}
-              >
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<VaccinesIcon />}
-                component={Link}
-                to="/vaccinations/home"
-                sx={{ textTransform: "none", fontWeight: 700 }}
-              >
-                Vaccination
-              </Button>
-              <Button
-                variant="contained"
-                onClick={() => setAvailOpen(true)}
-                sx={{ textTransform: "none", fontWeight: 700 }}
-              >
-                My Appointments
-              </Button>
-              <Button
-                variant="contained"
-                onClick={() => setEditMode(true)}
-                sx={{ textTransform: "none", fontWeight: 700 }}
-              >
-                Edit Profile
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => setDeleteDialogOpen(true)}
-                sx={{ textTransform: "none", fontWeight: 700 }}
-              >
-                Delete
-              </Button>
-              <Button
-                variant="outlined"
-                color="secondary"
-                onClick={handleLogout}
-                sx={{ textTransform: "none", fontWeight: 700 }}
+                onClick={() => { localStorage.removeItem('user'); navigate('/'); }}
+                sx={{ borderRadius: 2, px: 3 }}
               >
                 Logout
               </Button>
-            </>
-          )}
-        </Stack>
-      </Box>
-
-      {/* Profile Details / Stat Cards */}
-      <Box sx={{ px: "var(--dd-gutter-x)" }}>
-        <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-          <CardContent sx={{ pb: 1 }}>
-            <Typography variant="subtitle1" fontWeight={800}>
-              Profile Details
-            </Typography>
-          </CardContent>
-          <Divider sx={{ my: 1 }} />
-          <CardContent sx={{ pt: 0 }}>
-            {editMode ? (
-              <Stack spacing={2}>
-                <TextField
-                  label="First Name"
-                  name="firstName"
-                  value={formData.firstName || ""}
-                  onChange={handleChange}
-                  fullWidth
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonOutlineIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <TextField
-                  label="Last Name"
-                  name="lastName"
-                  value={formData.lastName || ""}
-                  onChange={handleChange}
-                  fullWidth
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonOutlineIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <TextField
-                  label="Email"
-                  name="email"
-                  type="email"
-                  value={formData.email || ""}
-                  onChange={handleChange}
-                  fullWidth
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EmailIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <TextField
-                  label="Specialty"
-                  name="specialty"
-                  value={formData.specialty || ""}
-                  onChange={handleChange}
-                  fullWidth
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <WorkspacePremiumIcon color="action" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <Button variant="outlined" component="label" sx={{ alignSelf: "flex-start" }}>
-                  Upload New Photo
-                  <input hidden type="file" name="photo" accept="image/*" onChange={handleChange} />
-                </Button>
-              </Stack>
-            ) : (
-              <Grid container spacing={2} className="dd-stats-grid">
-                <InfoStat icon={<EmailIcon />} label="Email" value={profile.email || "-"} />
-                <InfoStat icon={<BadgeIcon />} label="NIC Number" value={profile.nicNumber || "-"} />
-                <InfoStat icon={<WcIcon />} label="Gender" value={profile.gender || "-"} />
-                <InfoStat icon={<PersonOutlineIcon />} label="Age" value={profile.age || "-"} />
-                <InfoStat icon={<PhoneIphoneIcon />} label="Contact Number" value={profile.contactNumber || "-"} />
-                <InfoStat icon={<CakeIcon />} label="Date of Birth" value={profile.dateOfBirth?.substring(0, 10) || "-"} />
-                <InfoStat icon={<HomeIcon />} label="Address" value={profile.address || "-"} md={8} />
-                <InfoStat
-                  icon={<WorkspacePremiumIcon />}
-                  label="SLMC Registration #"
-                  value={profile.slmcRegistrationNumber || "-"}
-                />
-              </Grid>
             )}
-          </CardContent>
+          </CardActions>
         </Card>
-      </Box>
+      </Container>
 
-      {/* Actions tiles */}
-      <Box className="dd-actions-wrap" sx={{ px: "var(--dd-gutter-x)" }}>
-        <Typography variant="h6" className="dd-section-title">
-          Actions
-        </Typography>
-        <div className="dd-actions-tiles">
-          <Link to="/vaccinations/home" className="dd-tile dd-tile--green">
-            <span className="dd-tile-icon">
-              <VaccinesIcon />
-            </span>
-            <span className="dd-tile-text">Vaccination</span>
-          </Link>
-
-          <button className="dd-tile dd-tile--red" onClick={() => setAvailOpen(true)}>
-            <span className="dd-tile-icon">
-              <CalendarMonthIcon />
-            </span>
-            <span className="dd-tile-text">Book Appointment</span>
-          </button>
-        </div>
-      </Box>
-
-      {/* Patient quick view */}
-      <Box sx={{ mt: 3, px: "var(--dd-gutter-x)" }}>
-        <ViewPatientCard />
-      </Box>
-
-      {/* Snackbar */}
+      {/* TOAST */}
       <Snackbar
         open={alert.open}
         autoHideDuration={4000}
-        onClose={() => setAlert((a) => ({ ...a, open: false }))}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        onClose={() => setAlert({ ...alert, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert severity={alert.severity} variant="filled" sx={{ width: "100%", borderRadius: 2 }}>
+        <Alert
+          severity={alert.severity}
+          variant="filled"
+          sx={{ width: '100%', borderRadius: 2 }}
+          iconMapping={{ success: <CheckCircleIcon fontSize="inherit" /> }}
+        >
           {alert.message}
         </Alert>
       </Snackbar>
 
-      {/* Confirm Delete */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ fontWeight: 800 }}>Confirm Delete</DialogTitle>
-        <DialogContent sx={{ color: "text.secondary" }}>
-          Are you sure you want to delete your profile? This action cannot be undone.
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting} sx={{ textTransform: "none", fontWeight: 700 }}>
-            Cancel
-          </Button>
-          <Button color="error" onClick={handleDelete} disabled={deleting} sx={{ textTransform: "none", fontWeight: 700 }}>
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Appointments for Selected Date */}
-      <Dialog open={deleteApptsOpen} onClose={() => setDeleteApptsOpen(false)} PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ fontWeight: 800 }}>Delete Appointments</DialogTitle>
-        <DialogContent sx={{ color: "text.secondary" }}>
-          Are you sure you want to delete all appointments for <b>{selectedDate}</b>? This will remove{" "}
-          <b>{appointments.length}</b> appointment(s) and cannot be undone.
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button
-            sx={{ textTransform: "none", fontWeight: 700 }}
-            onClick={() => setDeleteApptsOpen(false)}
-            disabled={deletingAppointments}
-          >
-            Cancel
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            sx={{ textTransform: "none", fontWeight: 700 }}
-            onClick={() => deleteAppointmentsForDate(selectedDate)}
-            disabled={deletingAppointments}
-          >
-            {deletingAppointments ? "Deleting..." : "Delete"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Set Availability / My Appointments */}
-      <Dialog open={availOpen} onClose={() => setAvailOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ fontWeight: 800 }}>Set Availability</DialogTitle>
-        <DialogContent dividers>
-          <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                type="date"
-                label="Date"
-                name="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: todayStr }}
-                value={availabilityForm.date}
-                onChange={handleAvailabilityChange}
-              />
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <TextField
-                type="time"
-                label="Start"
-                name="startTime"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={availabilityForm.startTime}
-                onChange={handleAvailabilityChange}
-              />
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <TextField
-                type="time"
-                label="End"
-                name="endTime"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={availabilityForm.endTime}
-                onChange={handleAvailabilityChange}
-              />
-            </Grid>
-            <Grid item xs={6} sm={4}>
-              <TextField
-                type="number"
-                label="Slot (minutes)"
-                name="slotMinutes"
-                fullWidth
-                inputProps={{ min: 5, max: 120 }}
-                value={availabilityForm.slotMinutes}
-                onChange={handleAvailabilityChange}
-              />
-            </Grid>
-            <Grid item xs={6} sm={4}>
-              <TextField
-                type="number"
-                label="Patient limit"
-                name="patientLimit"
-                fullWidth
-                inputProps={{ min: 1, max: 200 }}
-                value={availabilityForm.patientLimit}
-                onChange={handleAvailabilityChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                label="Hospital"
-                name="hospital"
-                fullWidth
-                value={availabilityForm.hospital}
-                onChange={handleAvailabilityChange}
-              />
-            </Grid>
-          </Grid>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: "block" }}>
-            Patients will see available times and a live booking count. Once the limit is reached, new bookings are
-            blocked automatically.
+      {/* DELETE ACCOUNT */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+          Confirm Account Deletion
+        </DialogTitle>
+        <DialogContent sx={{ py: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Warning: This action is irreversible!
+          </Alert>
+          <Typography>
+            Are you sure you want to permanently delete your account?
+            All your data will be removed from our systems.
           </Typography>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setAvailOpen(false)} sx={{ textTransform: "none", fontWeight: 700 }}>
-            Close
+        <DialogActions sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} sx={{ borderRadius: 2, px: 3 }}>
+            Cancel
           </Button>
-          <Button variant="contained" onClick={saveAvailability} disabled={savingAvailability} sx={{ textTransform: "none", fontWeight: 700 }}>
-            {savingAvailability ? "Saving..." : "Save"}
+          <Button color="error" onClick={handleDelete} variant="contained" sx={{ borderRadius: 2, px: 3 }}>
+            Delete Permanently
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Doctor Appointments by Date */}
-      <Box sx={{ mt: 6, px: "var(--dd-gutter-x)" }}>
-        <Typography
-          variant="h5"
-          fontWeight={800}
-          sx={{ mb: 2, color: "#05284cff", letterSpacing: 1, fontSize: 25 }}
-        >
-          Current Appointments
-        </Typography>
-
-        <Box sx={{ display: "flex", justifyContent: "center", mb: 3, gap: 2, alignItems: "center" }}>
-          <TextField
-            type="date"
-            label="Select Date"
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ min: todayStr }}
-            value={selectedDate}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val && val < todayStr) {
-                showAlert("error", "Please pick today or a future date");
-                return;
-              }
-              setSelectedDate(val);
-            }}
-            sx={{ minWidth: 260, background: "#f8fafc", borderRadius: 2 }}
-          />
-          <Button
-            color="error"
-            variant="outlined"
-            onClick={() => setDeleteApptsOpen(true)}
-            disabled={!selectedDate || appointments.length === 0}
-            sx={{ textTransform: "none" }}
-          >
-            Delete Appointments for Date
-          </Button>
-        </Box>
-
-        {loadingAppointments ? (
-          <Typography color="info.main" sx={{ fontWeight: 600, letterSpacing: 1 }}>
-            Loading appointments...
-          </Typography>
-        ) : (
-          <>
-            <Typography variant="subtitle1" sx={{ mb: 2, color: "#1976d2", fontWeight: 700, fontSize: 18 }}>
-              Total Appointments: <span style={{ color: "#1976d2" }}>{appointments.length}</span>
-            </Typography>
-
-            {appointments.length === 0 ? (
-              <Typography color="text.secondary" sx={{ fontStyle: "italic", fontSize: 16 }}>
-                No appointments for this date.
-              </Typography>
-            ) : (
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                {appointments.map((appt, idx) => (
-                  <Card
-                    key={appt._id || idx}
-                    elevation={2}
-                    sx={{
-                      mb: 1,
-                      borderLeft: "6px solid #1976d2",
-                      background: "#f4f8fd",
-                      borderRadius: 2,
-                      p: 2,
-                      boxShadow: "0 2px 8px rgba(25, 118, 210, 0.07)",
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <Avatar
-                        sx={{
-                          bgcolor: "#1976d2",
-                          color: "#fff",
-                          width: 44,
-                          height: 44,
-                          fontWeight: 700,
-                          fontSize: 22,
-                        }}
-                      >
-                        {appt.patient?.name
-                          ? appt.patient.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .toUpperCase()
-                              .slice(0, 2)
-                          : "?"}
-                      </Avatar>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="h6" sx={{ color: "#000000ff", fontWeight: 700, mb: 0.5 }}>
-                          {appt.patient?.name || "-"}
-                        </Typography>
-                        <Typography sx={{ color: "text.secondary", fontSize: 15 }}>
-                          <EmailIcon sx={{ fontSize: 18, verticalAlign: "middle", mr: 0.5 }} />{" "}
-                          {appt.patient?.email || "-"}
-                          {appt.patient?.phone && (
-                            <span style={{ marginLeft: 12 }}>
-                              <PhoneIphoneIcon sx={{ fontSize: 18, verticalAlign: "middle", mr: 0.5 }} />
-                              {appt.patient.phone}
-                            </span>
-                          )}
-                        </Typography>
-                      </Box>
-                      <Chip
-                        label={appt.status || "-"}
-                        color={
-                          appt.status === "Booked"
-                            ? "primary"
-                            : appt.status === "Completed"
-                            ? "success"
-                            : appt.status === "Cancelled"
-                            ? "error"
-                            : "warning"
-                        }
-                        sx={{ fontWeight: 700, fontSize: 15, px: 1.5, py: 0.5, borderRadius: 1, textTransform: "capitalize" }}
-                      />
-                    </Box>
-                    <Divider sx={{ my: 1.5 }} />
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" }}>
-                      <Typography sx={{ color: "#000000ff", fontWeight: 600, fontSize: 16 }}>
-                        🕒 {appt.time ? `${appt.time.start} - ${appt.time.end}` : appt.slotTime || "-"}
-                      </Typography>
-                      {appt.reason && (
-                        <Typography sx={{ color: "text.secondary", fontStyle: "italic", fontSize: 15 }}>
-                          📝 {appt.reason}
-                        </Typography>
-                      )}
-                      <Typography sx={{ color: "text.disabled", fontSize: 14, ml: "auto" }}>
-                        Ref: <span style={{ color: "#010101ff", fontWeight: 700 }}>{appt.referenceNo}</span>
-                      </Typography>
-                    </Box>
-                  </Card>
-                ))}
+      {/* APPOINTMENT DETAILS */}
+      <Dialog open={detailsDialogOpen} onClose={() => setDetailsDialogOpen(false)} maxWidth="sm" fullWidth>
+        {selectedAppointment && (
+          <Box sx={{ background: 'linear-gradient(120deg, #fdfefe 0%, #f5f7fa 100%)', borderRadius: 2 }}>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, background: '#d6e7f9', color: '#000', borderTopLeftRadius: 8, borderTopRightRadius: 8 }}>
+              <CheckCircleIcon sx={{ color: '#43a047', fontSize: 32, mr: 1 }} />
+              Appointment Details
+            </DialogTitle>
+            <DialogContent dividers sx={{ p: 3 }}>
+              <Stack alignItems="center" spacing={1} mb={2}>
+                <Chip label={`Reference No: ${selectedAppointment.referenceNo}`} color="primary" variant="filled" sx={{ fontWeight: 700, fontSize: 16 }} />
+                <Chip
+                  label={selectedAppointment.status}
+                  color={
+                    selectedAppointment.status === 'Cancelled' ? 'default' :
+                    selectedAppointment.status === 'Confirmed' ? 'success' : 'warning'
+                  }
+                  sx={{ fontWeight: 700, fontSize: 15 }}
+                />
+              </Stack>
+              <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#e3f0ff' }}>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <LocalHospitalIcon sx={{ mr: 1, mb: -0.5 }} />Doctor Details
+                </Typography>
+                <Typography><b>Name:</b> {selectedAppointment.doctorName || selectedAppointment.doctorId}</Typography>
               </Box>
-            )}
-          </>
+              <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#f5f7fa' }}>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <PersonIcon sx={{ mr: 1, mb: -0.5 }} />Patient Details
+                </Typography>
+                <Typography><b>Name:</b> {selectedAppointment.patientName}</Typography>
+                <Typography><b>Email:</b> {selectedAppointment.patientEmail || 'N/A'}</Typography>
+                <Typography><b>Phone:</b> {selectedAppointment.patientPhone}</Typography>
+                <Typography><b>NIC:</b> {selectedAppointment.patientNIC || 'N/A'}</Typography>
+                <Typography><b>Passport:</b> {selectedAppointment.patientPassport || 'N/A'}</Typography>
+              </Box>
+              <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#e3f0ff' }}>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <CalendarMonthIcon sx={{ mr: 1, mb: -0.5 }} />Scheduled Date &amp; Time
+                </Typography>
+                <Typography><b>Date:</b> {selectedAppointment.date}</Typography>
+                <Typography><b>Time:</b> {selectedAppointment.startTime} - {selectedAppointment.endTime}</Typography>
+                <Typography><b>Queue No:</b> {selectedAppointment.queueNo}</Typography>
+                <Typography><b>Reason:</b> {selectedAppointment.reason || 'N/A'}</Typography>
+              </Box>
+              <Box sx={{ mb: 2, p: 2, borderRadius: 2, background: '#f5f7fa' }}>
+                <Typography variant="h6" fontWeight={700} color="primary" sx={{ mb: 1 }}>
+                  <CreditCardIcon sx={{ mr: 1, mb: -0.5 }} />Payment Details
+                </Typography>
+                <Typography><b>Payment Method:</b> {selectedAppointment.paymentMethod}</Typography>
+                <Typography><b>Total Paid:</b> <span style={{ color: '#388e3c', fontWeight: 600 }}>Rs. {selectedAppointment.priceLkr?.toLocaleString()}</span></Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ background: '#f5f7fa', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 }}>
+              <Button onClick={() => setDetailsDialogOpen(false)} variant="contained" color="primary" sx={{ borderRadius: 2, px: 4, fontWeight: 600 }}>
+                Close
+              </Button>
+            </DialogActions>
+          </Box>
         )}
-      </Box>
-    </Box>
+      </Dialog>
+
+      {/* EDIT / RESCHEDULE */}
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Reschedule Appointment</DialogTitle>
+        <DialogContent>
+          {editAppointment && (
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <TextField
+                  label="Date"
+                  type="date"
+                  value={editAppointment.date || ''}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  disabled
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="Start Time"
+                  type="time"
+                  value={editAppointment.startTime || ''}
+                  onChange={e => handleEditStartTimeChange(e.target.value)}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="End Time"
+                  type="time"
+                  value={editAppointment.endTime || ''}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  disabled
+                />
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSaveEditAppointment}>Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* DELETE APPOINTMENT */}
+      <Dialog open={deleteApptDialogOpen} onClose={() => setDeleteApptDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Delete Appointment</DialogTitle>
+        <DialogContent>
+          <Typography>Are you sure you want to delete this appointment?</Typography>
+          {appointmentToDelete && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2">Ref: {appointmentToDelete.referenceNo}</Typography>
+              <Typography variant="body2">
+                Date: {appointmentToDelete.date} {appointmentToDelete.startTime} - {appointmentToDelete.endTime}
+              </Typography>
+              <Typography variant="body2">
+                Doctor: {appointmentToDelete.doctorName || appointmentToDelete.doctorId}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteApptDialogOpen(false)}>Cancel</Button>
+          <Button color="error" variant="contained" onClick={() => handleDeleteAppointment(appointmentToDelete._id)}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* CHAT */}
+      <Badge color="error" variant="dot" invisible={!hasUnreadMessages} overlap="circular">
+        <Fab
+          color="primary"
+          aria-label="chat"
+          onClick={() => { setChatOpen(prev => !prev); setHasUnreadMessages(false); }}
+          sx={{ position: 'fixed', bottom: 32, right: 32, zIndex: 1000, width: 56, height: 56 }}
+        >
+          <ChatIcon />
+        </Fab>
+      </Badge>
+
+      {chatOpen && <ChatPopup onClose={() => setChatOpen(false)} setUnread={setHasUnreadMessages} />}
+    </>
   );
 }
