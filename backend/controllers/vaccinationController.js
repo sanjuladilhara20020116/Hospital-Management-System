@@ -113,8 +113,8 @@ exports.createVaccination = async (req, res) => {
             <p>Dear ${patient.firstName || 'Patient'},</p>
             <p>Your vaccination on ${new Date(record.dateAdministered).toLocaleString('en-LK', { timeZone: 'Asia/Colombo' })} has been recorded.</p>
             <p>Vaccine: <b>${record.vaccineName}</b> (Dose ${record.doseNumber || 1})</p>
-            <p>You can also download it anytime from your patient portal.</p>
-            <p>Regards,<br/>${process.env.HOSPITAL_NAME || 'Hospital'}</p>
+            <p>You can also download the details anytime from your hospital patient portal.</p>
+            <p>Regards,<br/>Medicore Hospital</p>
           `,
           attachments: [
             {

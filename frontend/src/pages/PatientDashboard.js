@@ -33,9 +33,15 @@ import ScienceOutlined from '@mui/icons-material/ScienceOutlined';
 import axios from 'axios';
 import ChatPopup from './ChatPopup';
 import { useNavigate } from 'react-router-dom';
+<<<<<<< HEAD
 
 /* Attach stylesheet with the pd-* classes */
 import './PatientDashboard.css';
+=======
+import { IconButton } from '@mui/material';
+import VaccinesIcon from '@mui/icons-material/Vaccines';
+
+>>>>>>> 7a9e2f2e617f3f3952e6b8654829b80c92663337
 
 export default function PatientDashboard({ userId }) {
   const theme = useTheme();
@@ -766,6 +772,232 @@ export default function PatientDashboard({ userId }) {
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12}>
                 <TextField
+<<<<<<< HEAD
+=======
+                  label="Date"
+                  type="date"
+                  value={editAppointment.date || ''}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="Start Time"
+                  type="time"
+                  value={editAppointment.startTime || ''}
+                  onChange={e => setEditAppointment({ ...editAppointment, startTime: e.target.value })}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="End Time"
+                  type="time"
+                  value={editAppointment.endTime || ''}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
+                  
+                />
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSaveEditAppointment}>Save</Button>
+        </DialogActions>
+      </Dialog>
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+            </Box>
+          </CardContent>
+
+          {/* MERGED ACTIONS */}
+          <CardActions sx={{ p: 3, pt: 0, justifyContent: 'space-between' }}>
+            {editMode ? (
+              <>
+                {/* Friend's Save / Cancel kept intact */}
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  onClick={handleSave}
+                  startIcon={<SaveIcon />}
+                  sx={{ borderRadius: 2, px: 3 }}
+                >
+                  Save Changes
+                </Button>
+                <Button 
+                  variant="outlined" 
+                  onClick={() => setEditMode(false)}
+                  startIcon={<CancelIcon />}
+                  sx={{ borderRadius: 2, px: 3 }}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* LEFT SIDE ACTIONS (your layout) */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                  <Button 
+                    variant="contained" 
+                    onClick={() => setEditMode(true)}
+                    startIcon={<EditIcon />}
+                    sx={{ borderRadius: 2, px: 3 }}
+                  >
+                    Edit Profile
+                  </Button>
+
+                  <Button 
+                    variant="outlined" 
+                    color="error" 
+                    onClick={() => setDeleteDialogOpen(true)}
+                    startIcon={<DeleteIcon />}
+                    sx={{ borderRadius: 2, px: 3 }}
+                  >
+                    Delete Account
+                  </Button>
+                  {/* Logout button (no new function added) */}
+                  <Button
+                    variant="outlined"
+                    color="secondary"
+                    onClick={() => { localStorage.removeItem('user'); navigate('/'); }}
+                    sx={{ borderRadius: 2, px: 3 }}
+                  >
+                    Logout
+                  </Button>
+
+                  {/* NEW: My Lab Reports (existing) */}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => navigate('/my-reports')}
+                    startIcon={<ScienceOutlined />}
+                    sx={{ borderRadius: 2, px: 2 }}
+                  >
+                    My Lab Reports
+                  </Button>
+
+                  {/* Patient Vaccinations (safe link) */}
+                 <Button                    
+                  size="small"
+                  variant="outlined"
+                  onClick={() => navigate('/vaccinations/mine')}
+                  startIcon={<VaccinesIcon />}
+                  sx={{ borderRadius: 2, px: 2 }}
+                 >
+                   My Vaccinations
+                 </Button>
+                  {/* ✅ NEW: Medical Records (patient read-only page) */}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => navigate('/patient/medical-records')}
+                    startIcon={<MedicalIcon />}
+                    sx={{ borderRadius: 2, px: 2 }}
+                  >
+                    Medical Records
+                  </Button>
+                </Box>
+
+                                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => navigate('/appointments')}
+                    startIcon={<CalendarMonthIcon />}
+                    sx={{ borderRadius: 2, px: 3 }}
+                  >
+                    Book Appointments
+                  </Button>
+
+                {/* RIGHT SIDE ACTION (friend's Health Packages) */}
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={() => navigate('/packages')}
+                  startIcon={<MedicalIcon />}
+                  sx={{ borderRadius: 2, px: 3 }}
+                >
+                  Health Packages
+                </Button>
+              </>
+            )}
+          </CardActions>
+        </Card>
+      </Container>
+
+      <Snackbar 
+        open={alert.open} 
+        autoHideDuration={4000} 
+        onClose={() => setAlert({ ...alert, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          severity={alert.severity} 
+          variant="filled" 
+          sx={{ width: '100%', borderRadius: 2 }}
+          iconMapping={{
+            success: <CheckCircleIcon fontSize="inherit" />
+          }}
+        >
+          {alert.message}
+        </Alert>
+      </Snackbar>
+
+      <Dialog 
+        open={deleteDialogOpen} 
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3
+          }
+        }}
+      >
+        <DialogTitle sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+          Confirm Account Deletion
+        </DialogTitle>
+        <DialogContent sx={{ py: 3 }}>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Warning: This action is irreversible!
+          </Alert>
+          <Typography>
+            Are you sure you want to permanently delete your account? 
+            All your data will be removed from our systems.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ borderTop: `1px solid ${theme.palette.divider}`, p: 2 }}>
+          <Button 
+            onClick={() => setDeleteDialogOpen(false)}
+            sx={{ borderRadius: 2, px: 3 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            color="error" 
+            onClick={handleDelete}
+            variant="contained"
+            sx={{ borderRadius: 2, px: 3 }}
+          >
+            Delete Permanently
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Reschedule Appointment</DialogTitle>
+        <DialogContent>
+          {editAppointment && (
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12}>
+                <TextField
+>>>>>>> 7a9e2f2e617f3f3952e6b8654829b80c92663337
                   label="Doctor"
                   value={editAppointment.doctorName || editAppointment.doctorId || ''}
                   fullWidth
