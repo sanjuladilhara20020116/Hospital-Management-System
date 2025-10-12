@@ -112,6 +112,151 @@ function App() {
     <Router>
       <ScrollToTop />
       <Routes>
+        {/* Public */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Registration />} />
+        
+        {/* ✅ NEW: About Us and Contact pages (public routes) */}
+        <Route path="/about" element={<AboutUs />} />
+        <Route path="/contact" element={<Contact />} />
+
+        {/* ✅ Public wellness tool */}
+        <Route path="/bmi" element={<BMICalculator />} />
+
+        {/* Appointment flow (public entry + checkout + success + details) */}
+        <Route path="/appointments" element={<AppointmentSearchPage />} />
+        <Route path="/appointments/checkout" element={<PaymentCheckout />} />
+        <Route path="/appointments/success" element={<PaymentSuccess />} />
+        <Route path="/appointments/details" element={<AppointmentDetails />} />
+
+        {/* Public route for report download */}
+        <Route path="/lab-report" element={<PatientReportDownload />} />
+
+        {/* Unified dashboard route with role guard + switch */}
+        <Route
+          path="/dashboard"
+          element={
+            <RoleRoute
+              allowedRoles={[
+                "Patient",
+                "Doctor",
+                "Pharmacist",
+                "HospitalManager",
+                "LabAdmin",
+              ]}
+            >
+              <DashboardSwitch />
+            </RoleRoute>
+          }
+        />
+
+        {/* Patient-only My Lab Reports */}
+        <Route
+          path="/my-reports"
+          element={
+            <RoleRoute allowedRoles={["Patient"]}>
+              <MyLabReports />
+            </RoleRoute>
+          }
+        />
+
+        {/* ✅ NEW: Patient-only Medical Records (read-only) */}
+        <Route
+          path="/patient/medical-records"
+          element={
+            <RoleRoute allowedRoles={["Patient"]}>
+              <PatientMedicalRecords />
+            </RoleRoute>
+          }
+        />
+
+        {/* Doctor-only Patient Details routes */}
+        <Route
+          path="/doctor/patients"
+          element={
+            <RoleRoute allowedRoles={["Doctor"]}>
+              <PatientDetailsPlaceholder />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="/doctor/patients/:patientId"
+          element={
+            <RoleRoute allowedRoles={["Doctor"]}>
+              <PatientDetails />
+            </RoleRoute>
+          }
+        />
+
+        {/* Manager-only pages */}
+        <Route path="/manager-dashboard" element={<HospitalManagerDashboard />} />
+        <Route path="/wards" element={<WardManagement />} />
+        <Route path="/departments" element={<DepartmentManagement />} />
+        <Route path="/supplier-management" element={<SupplierManagement />} />
+
+        {/* Inventory & Pharmacy */}
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/pharmacy" element={<Pharmacy />} />
+
+        {/* Health Check Packages */}
+        <Route path="/manager-packages" element={<ManagePackages />} />
+        <Route path="/packages" element={<HealthcarePackages />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/my-bookings" element={<MyBookings />} />
+
+        {/* Report analysis */}
+        <Route path="/reports/:id/analysis" element={<ReportAnalysisPage />} />
+        <Route path="/cholesterol/:id" element={<CholesterolDashboard />} />
+        <Route path="/cholesterol-trends/:patientId" element={<CholesterolTrendsPage />} />
+
+        {/* Vaccination routes */}
+        <Route
+          path="/vaccinations/new"
+          element={
+            <RoleRoute allowedRoles={["Doctor"]}>
+              <DoctorVaccinatePage />
+            </RoleRoute>
+          }
+        />
+
+        {/* 🔁 CHANGED: this list page is now for Hospital Managers */}
+        <Route
+          path="/vaccinations/doctor"
+          element={
+            <RoleRoute allowedRoles={["HospitalManager"]}>
+              <DoctorVaccinations />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="/vaccinations/mine"
+          element={
+            <RoleRoute allowedRoles={["Patient"]}>
+              <PatientVaccinations />
+            </RoleRoute>
+          }
+        />
+
+        {/* 🔁 CHANGED: allow Hospital Manager to open details too */}
+        <Route
+          path="/vaccinations/:id"
+          element={
+            <RoleRoute allowedRoles={["Doctor", "Patient", "HospitalManager"]}>
+              <VaccinationDetail />
+            </RoleRoute>
+          }
+        />
+
+        <Route
+          path="/vaccinations/home"
+          element={
+            <RoleRoute allowedRoles={["Doctor"]}>
+              <DoctorVaccinationSearch />
+            </RoleRoute>
+          }
+        />
         {/* SAFE MODE: All routes wrapped with Layout to inject Navbar + Footer without altering page logic */}
         <Route element={<Layout />}>
           {/* Public */}
