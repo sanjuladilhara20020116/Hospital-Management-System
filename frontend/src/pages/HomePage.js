@@ -1,24 +1,26 @@
+// src/pages/Homepage.js
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // ⬅️ add useNavigate
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import './Homepage.css';
 
-// Import components
+// Components
 import Header from '../components/Header';
+import Navbar from '../components/Navbar';   // ⬅️ NEW import
 import Footer from '../components/Footer';
 import ServiceCard from '../components/ServiceCard';
 import DoctorCard from '../components/DoctorCard';
 import Testimonial from '../components/Testimonial';
 import AppointmentModal from '../components/AppointmentModal';
 
-// Import icons
+// Icons
 import { FaClinicMedical, FaAmbulance, FaMicroscope, FaHeartbeat, FaUserMd, FaCalendarAlt } from 'react-icons/fa';
 import { IoMdTime } from 'react-icons/io';
 import { BsArrowRight } from 'react-icons/bs';
 
 const Homepage = () => {
-  const navigate = useNavigate(); // ⬅️ init navigator
+  const navigate = useNavigate();
 
   const [doctors, setDoctors] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
@@ -92,9 +94,13 @@ const Homepage = () => {
 
   return (
     <div className="homepage">
-      {/* Header */}
+      {/* Keep original Header (top bar only now) */}
       <Header />
 
+      {/* ⬇️ New, isolated navigation bar (Homepage-only) */}
+      <Navbar />
+
+      {/* Rest of Homepage remains unchanged */}
       {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-content">
@@ -105,7 +111,6 @@ const Homepage = () => {
             Providing exceptional medical care with cutting-edge technology and compassionate professionals.
           </motion.p>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.4 }} className="hero-buttons">
-            {/* ⬇️ Navigate to Appointment Search page */}
             <button className="primary-btn" onClick={() => navigate('/appointments')}>
               <FaCalendarAlt /> Book Appointment
             </button>
