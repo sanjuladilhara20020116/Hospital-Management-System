@@ -2,9 +2,17 @@
 const express = require("express");
 const router = express.Router();
 const ClinicalRecord = require("../models/ClinicalRecord");
-const { startDoc, addField, finishDoc, line } = require("../utils/pdf");
 
-// Create
+// Pull PDF helpers (keep existing ones; use new ones for the layout)
+const {
+  startDoc,
+  finishDoc,
+  subsection,
+  fieldPair,
+  fieldFull,
+} = require("../utils/pdf");
+
+/* ------------------------------ Create ------------------------------ */
 router.post("/", async (req, res) => {
   try {
     const rec = await ClinicalRecord.create(req.body);
@@ -14,8 +22,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// List by patient (supports optional filters) — most recent first
-// GET /api/clinical-records/patient/:patientUserId?q=&doctor=&dateFrom=&dateTo=
+/* -------- List by patient (filters supported) — most recent first --- */
 router.get("/patient/:patientUserId", async (req, res) => {
   try {
     const { q, doctor, dateFrom, dateTo } = req.query;
@@ -32,11 +39,10 @@ router.get("/patient/:patientUserId", async (req, res) => {
     if (dateFrom || dateTo) {
       where.visitDateTime = {};
       if (dateFrom) where.visitDateTime.$gte = new Date(`${dateFrom}T00:00:00Z`);
-      if (dateTo)   where.visitDateTime.$lte = new Date(`${dateTo}T23:59:59Z`);
+      if (dateTo) where.visitDateTime.$lte = new Date(`${dateTo}T23:59:59Z`);
     }
 
-    const items = await ClinicalRecord
-      .find(where)
+    const items = await ClinicalRecord.find(where)
       .sort({ visitDateTime: -1, createdAt: -1 })
       .lean();
 
@@ -46,8 +52,7 @@ router.get("/patient/:patientUserId", async (req, res) => {
   }
 });
 
-// (Optionally place this before /:id if you prefer specificity first)
-// Download PDF
+/* ---------------------------- Download PDF -------------------------- */
 router.get("/:id/pdf", async (req, res) => {
   try {
     const item = await ClinicalRecord.findById(req.params.id).lean();
@@ -56,23 +61,52 @@ router.get("/:id/pdf", async (req, res) => {
     const filename = `Record_${item.recordId || item._id}.pdf`;
     const doc = startDoc(res, filename, "Clinical Record");
 
-    // Meta
-    addField(doc, "Record ID", item.recordId || item._id);
-    addField(doc, "Date & Time", new Date(item.visitDateTime).toLocaleString());
-    addField(doc, "Patient", `${item.patientName || ""} (${item.patientUserId || ""})`);
-    addField(doc, "Age / Gender", [item.age, item.gender].filter(Boolean).join(" / "));
-    addField(doc, "Doctor", `${item.doctorName || ""} (${item.doctorUserId || ""})`);
+    /* ------- Record Information (two-column grid + one full) ------- */
+    subsection(doc, "Record Information");
+    fieldPair(
+      doc,
+      "Record ID",
+      item.recordId || item._id,
+      "Date & Time",
+      new Date(item.visitDateTime).toLocaleString()
+    );
+    fieldPair(
+      doc,
+      "Patient",
+      `${item.patientName || ""} (${item.patientUserId || ""})`,
+      "Age / Gender",
+      [item.age, item.gender].filter(Boolean).join(" / ")
+    );
+    fieldFull(
+      doc,
+      "Doctor",
+      `${item.doctorName || ""} (${item.doctorUserId || ""})`
+    );
 
-    line(doc);
-
-    // Clinical
-    addField(doc, "Chief complaint / reason for visit", item.chiefComplaint);
-    addField(doc, "Present symptoms", item.presentSymptoms);
-    addField(doc, "Examination / Observation", item.examination);
-    addField(doc, "Assessment / Impression", item.assessment);
-    addField(doc, "Instructions", item.instructions);
-    addField(doc, "Vital signs", item.vitalSigns);
-    addField(doc, "Doctor notes", item.doctorNotes);
+    /* ---------------------- Clinical Details ----------------------- */
+    subsection(doc, "Clinical Details");
+    fieldPair(
+      doc,
+      "Chief complaint / reason for visit",
+      item.chiefComplaint,
+      "Present symptoms",
+      item.presentSymptoms
+    );
+    fieldPair(
+      doc,
+      "Examination / Observation",
+      item.examination,
+      "Assessment / Impression",
+      item.assessment
+    );
+    fieldPair(
+      doc,
+      "Instructions",
+      item.instructions,
+      "Vital signs",
+      item.vitalSigns
+    );
+    fieldFull(doc, "Doctor notes", item.doctorNotes);
 
     finishDoc(doc);
   } catch (e) {
@@ -80,7 +114,7 @@ router.get("/:id/pdf", async (req, res) => {
   }
 });
 
-// Read by Mongo _id
+/* --------------------------- Read / Update / Delete ----------------- */
 router.get("/:id", async (req, res) => {
   try {
     const item = await ClinicalRecord.findById(req.params.id);
@@ -91,7 +125,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// Update
 router.put("/:id", async (req, res) => {
   try {
     const item = await ClinicalRecord.findByIdAndUpdate(
@@ -102,11 +135,12 @@ router.put("/:id", async (req, res) => {
     if (!item) return res.status(404).json({ message: "Record not found" });
     return res.json({ item });
   } catch (e) {
-    return res.status(400).json({ message: e.message || "Unable to update record" });
+    return res
+      .status(400)
+      .json({ message: e.message || "Unable to update record" });
   }
 });
 
-// Delete
 router.delete("/:id", async (req, res) => {
   try {
     const out = await ClinicalRecord.findByIdAndDelete(req.params.id);
