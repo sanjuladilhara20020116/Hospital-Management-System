@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from 'react-icons/fa';
-import './components.css'; 
+import './components.css';
 
 const Footer = () => {
   return (
@@ -18,6 +17,7 @@ const Footer = () => {
             <a href="#"><FaLinkedin /></a>
           </div>
         </div>
+
         <div className="footer-section">
           <h3>Quick Links</h3>
           <ul>
@@ -26,8 +26,11 @@ const Footer = () => {
             <li><Link to="/services">Services</Link></li>
             <li><Link to="/doctors">Doctors</Link></li>
             <li><Link to="/contact">Contact</Link></li>
+            {/* 👉 Added BMI link (public) */}
+            <li><Link to="/bmi">BMI Calculator</Link></li>
           </ul>
         </div>
+
         <div className="footer-section">
           <h3>Departments</h3>
           <ul>
@@ -38,14 +41,16 @@ const Footer = () => {
             <li><Link to="/departments/pediatrics">more...</Link></li>
           </ul>
         </div>
+
         <div className="footer-section">
           <h3>Contact Us</h3>
           <p>2 Alfred Pl</p>
-          <p> Colombo 00300</p>
+          <p>Colombo 00300</p>
           <p>Phone: +1 (555) 123-4567</p>
           <p>Email: info@st.joshephospital.com</p>
         </div>
       </div>
+
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} ST.Joshep Hospital. All Rights Reserved.</p>
       </div>

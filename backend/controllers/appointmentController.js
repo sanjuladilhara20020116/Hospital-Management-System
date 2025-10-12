@@ -4,6 +4,7 @@ const DoctorAvailability = require('../models/DoctorAvailability');
 const User = require('../models/User');
 const genRef = require('../utils/generateApptRef');
 const { stepSlots, toMinutes, rangesOverlap } = require('../utils/slotUtils');
+const emailController = require('./emailController');
 
 const CUT_OFF_MIN = 15; // stop booking within 15 min of session start
 
@@ -577,5 +578,79 @@ exports.getDoctorAppointments = async (req, res) => {
   } catch (error) {
     console.error('getDoctorAppointments error:', error);
     res.status(500).json({ message: 'Server error while fetching appointments' });
+  }
+};
+
+// DELETE: Delete all appointments for a doctor on a given date (Doctor)
+exports.deleteAppointmentsByDate = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ message: 'Missing date' });
+
+    // find doctor
+    const doctor = await User.findOne({ userId: doctorId, role: 'Doctor' }).select('_id userId');
+    if (!doctor) return res.status(404).json({ message: 'Doctor not found' });
+
+    // ensure the requester is the same doctor (if actorDoctor middleware is used)
+    if (req.actorDoctor && String(req.actorDoctor._id) !== String(doctor._id)) {
+      return res.status(403).json({ message: 'Forbidden: cannot delete other doctor appointments' });
+    }
+
+    // fetch appointments to notify
+    const appts = await Appointment.find({ doctorRef: doctor._id, date });
+
+    // send cancellation emails in parallel (best-effort)
+    const sendPromises = appts.map(async (a) => {
+      try {
+        // build minimal appointment payload
+        const apptPayload = {
+          referenceNo: a.referenceNo,
+          date: a.date,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          doctorName: a.doctorName || doctor.userId,
+          patientName: a.patientName || ''
+        };
+        // if patient email available, attempt to send
+        const to = a.patientEmail || '';
+        if (to) {
+          // call emailController.sendCancellationEmail by simulating req/res is brittle; instead create a lightweight transporter here
+          // We'll reuse the same transporter settings as emailController for consistency
+          const nodemailer = require('nodemailer');
+          const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+              user: process.env.EMAIL_USER || 'salemanager516@gmail.com',
+              pass: process.env.EMAIL_PASS || 'vyzl smsi ybtr vuqn',
+            },
+          });
+          const mailOptions = {
+            from: process.env.EMAIL_USER || 'salemanager516@gmail.com',
+            to,
+            subject: 'Booking Cancellation',
+            html: `<h2>Booking Cancelled</h2>
+              <p>Dear ${apptPayload.patientName || 'Patient'},</p>
+              <p>We regret to inform you that your appointment with Dr. ${apptPayload.doctorName} on <b>${apptPayload.date}</b> at <b>${apptPayload.startTime}</b> has been cancelled by the doctor.</p>
+              <p>Reference No: <b>${apptPayload.referenceNo}</b></p>
+              <p>If you would like to reschedule, please visit our booking portal or contact the clinic.</p>
+              <hr />
+              <small>This is an automated message. Please do not reply.</small>`
+          };
+          await transporter.sendMail(mailOptions);
+        }
+      } catch (err) {
+        console.error('Failed to send cancellation email for appointment', a._id, err?.message || err);
+        // continue
+      }
+    });
+
+    await Promise.allSettled(sendPromises);
+
+    const result = await Appointment.deleteMany({ doctorRef: doctor._id, date });
+    res.json({ message: `${result.deletedCount} appointment(s) deleted` });
+  } catch (e) {
+    console.error('deleteAppointmentsByDate error:', e);
+    res.status(500).json({ message: 'Server error deleting appointments' });
   }
 };
