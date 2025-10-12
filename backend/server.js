@@ -129,6 +129,7 @@ app.get('/api/stats', (_req, res) => res.json({ patients: 0, doctors: 0, labs: 0
 app.get('/api/doctors/featured', (_req, res) => res.json([]));
 app.get('/api/testimonials', (_req, res) => res.json([]));
 
+
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {
   res.status(404).json({ message: 'API route not found' });
