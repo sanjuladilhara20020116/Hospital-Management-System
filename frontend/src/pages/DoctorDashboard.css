@@ -1,0 +1,218 @@
+/* ======================= Doctor Dashboard – Visual System ======================= */
+:root {
+  --dd-blue: #2563eb;
+  --dd-blue-600: #1d4ed8;
+  --dd-green: #22c55e;
+  --dd-red: #ef4444;
+  --dd-surface: #ffffff;
+  --dd-subtle: #f5f7fb;
+  --dd-border: #e6eaf2;
+  --dd-text-strong: #111827;
+  --dd-text: #374151;
+  --dd-text-soft: #6b7280;
+  --dd-gutter-x: clamp(12px, 2.5vw, 24px);
+}
+
+/* Page footprint — FULL BLEED. Main margins are owned by .dd-main-card */
+.doctor-dashboard {
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  padding: 24px 0 48px 0 !important;
+  box-sizing: border-box;
+}
+
+/* Main wrapper card: small left/right margin for the whole experience */
+.dd-main-card {
+  margin-left: clamp(12px, 3vw, 24px);
+  margin-right: clamp(12px, 3vw, 24px);
+  border-radius: 18px !important;
+  overflow: hidden;
+  border: 1px solid var(--dd-border) !important;
+  box-shadow: 0 12px 28px rgba(2,6,23,.08) !important;
+  background: var(--dd-surface);
+}
+
+/* Cards: rounded + soft shadow like your patient dashboard */
+.doctor-dashboard .MuiCard-root {
+  border-radius: 16px !important;
+  border: 1px solid var(--dd-border) !important;
+  box-shadow: 0 10px 28px rgba(17,24,39,.08) !important;
+  overflow: hidden;
+}
+.doctor-dashboard .MuiDivider-root { opacity: .9; }
+
+/* -------------------- Hero header -------------------- */
+.dd-hero {
+  position: relative;
+  background: var(--dd-blue) !important;
+  color: #fff !important;
+  border-radius: 0 !important; /* rounding handled by main card */
+  padding: 28px !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+  overflow: hidden;
+}
+.dd-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1200px 300px at -10% -30%, rgba(255,255,255,0.18), transparent 60%),
+    radial-gradient(900px 260px at 120% -40%, rgba(255,255,255,0.14), transparent 60%);
+  pointer-events: none;
+}
+.dd-hero .MuiAvatar-root {
+  width: 110px !important;
+  height: 110px !important;
+  border: 4px solid #fff !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,.15) !important;
+}
+.dd-hero .MuiTypography-h5,
+.dd-hero [class*="MuiTypography-root"] { color: #fff !important; }
+.dd-hero .MuiChip-root {
+  background: rgba(255,255,255,.15) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,.28) !important;
+  font-weight: 700 !important;
+}
+
+/* Header CTA buttons (right side) */
+.dd-hero .MuiButton-root {
+  text-transform: none !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  padding: 8px 14px !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,.12);
+}
+.dd-hero .MuiButton-contained { background: #ffffff !important; color: var(--dd-blue) !important; }
+.dd-hero .MuiButton-contained:hover { background: #f3f7ff !important; }
+.dd-hero .MuiButton-containedSuccess { background: #16a34a !important; color: #fff !important; }
+.dd-hero .MuiButton-outlined { color: #fff !important; border-color: rgba(255,255,255,.6) !important; }
+.dd-hero .MuiButton-outlined:hover { background: rgba(255,255,255,.08) !important; }
+
+/* -------------------- Profile stat tiles -------------------- */
+.dd-stats-grid { margin-top: 4px; }
+.dd-stat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid var(--dd-border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 18px rgba(2,6,23,.06);
+}
+.dd-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #f3f7ff;
+  color: var(--dd-blue);
+  flex: 0 0 auto;
+}
+.dd-stat-label {
+  font-size: 12px;
+  color: var(--dd-text-soft);
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+.dd-stat-value {
+  color: var(--dd-text-strong);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+/* -------------------- Actions tiles -------------------- */
+.dd-actions-wrap { margin-top: 18px; }
+.dd-section-title {
+  font-weight: 800 !important;
+  margin-bottom: 10px !important;
+  color: var(--dd-text-strong);
+}
+.dd-actions-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+.dd-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 18px;
+  color: #fff;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(2,6,23,.14);
+  transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+}
+.dd-tile:hover { transform: translateY(-2px); filter: brightness(1.02); box-shadow: 0 18px 36px rgba(2,6,23,.18); }
+.dd-tile-icon {
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  display: grid; place-items: center;
+  background: rgba(255,255,255,.18);
+}
+.dd-tile-text { font-weight: 800; font-size: 18px; line-height: 1.1; }
+.dd-tile--green { background: var(--dd-green); }
+.dd-tile--red   { background: #e34949; }
+
+/* -------------------- View Patient & Current Appointments -------------------- */
+.doctor-dashboard .dd-section-card {
+  background: #f1f5ff;
+  border: 1px solid var(--dd-border);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+/* Current Appointments header styling */
+/* Use this class only where you want gradient text (e.g., section headings) */
+.dd-gradient-title {
+  letter-spacing: .2px;
+  background: linear-gradient(135deg, var(--dd-blue), var(--dd-blue-600));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+
+/* Date input & delete button row */
+.doctor-dashboard .MuiTextField-root input[type="date"] {
+  background: #f8fafc !important;
+  border-radius: 14px !important;
+  padding-left: 12px;
+}
+.doctor-dashboard .MuiButton-outlined[color="error"] {
+  border-radius: 12px !important;
+  text-transform: none !important;
+  font-weight: 700 !important;
+}
+
+/* Appointment cards */
+.doctor-dashboard .MuiCard-root[style*="border-left"] {
+  border-radius: 16px !important;
+  border-left: 6px solid var(--dd-blue) !important;
+  background: linear-gradient(180deg, #f4f8fd, #ffffff) !important;
+  box-shadow: 0 8px 22px rgba(25,118,210,.08) !important;
+}
+.doctor-dashboard .MuiChip-root {
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+}
+
+/* -------------------- Dialogs & snackbar -------------------- */
+.doctor-dashboard .MuiDialog-paper {
+  border-radius: 16px !important;
+  box-shadow: 0 16px 48px rgba(2,6,23,.25) !important;
+}
+.doctor-dashboard .MuiDialogTitle-root { font-weight: 800 !important; }
+.doctor-dashboard .MuiDialogActions-root .MuiButton-root {
+  border-radius: 12px !important;
+  text-transform: none !important;
+  font-weight: 700 !important;
+}
+.doctor-dashboard .MuiAlert-filled { border-radius: 12px !important; }
+.dd-hero .dd-doctor-name { color: #fff !important; }
