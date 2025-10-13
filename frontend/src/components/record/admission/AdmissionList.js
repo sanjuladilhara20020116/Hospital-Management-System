@@ -34,6 +34,11 @@ export default function AdmissionList({ patientId, isDoctor, createSignal = 0 })
   const [filters, setFilters] = useState({ q: "", doctor: "", from: "", to: "" });
   const onFilterChange = (e) => setFilters((p) => ({ ...p, [e.target.name]: e.target.value }));
 
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+
   const buildUrl = () => {
     const qs = new URLSearchParams();
     if (filters.q.trim()) qs.append("q", filters.q.trim());            // Preliminary Diagnosis (live)
@@ -59,13 +64,37 @@ export default function AdmissionList({ patientId, isDoctor, createSignal = 0 })
     }
   };
 
+  const validateDates = () => {
+    const today = new Date(); today.setHours(0,0,0,0);
+    if (filters.from) {
+      const df = new Date(filters.from); df.setHours(0,0,0,0);
+      if (df > today) return "From date cannot be in the future.";
+    }
+    if (filters.to) {
+      const dt = new Date(filters.to); dt.setHours(0,0,0,0);
+      if (dt > today) return "To date cannot be in the future.";
+    }
+    if (filters.from && filters.to) {
+      if (new Date(filters.from) > new Date(filters.to)) {
+        return "From date cannot be after To date.";
+      }
+    }
+    return "";
+  };
+
+  const doSearch = () => {
+    const msg = validateDates();
+    if (msg) { setErr(msg); return; }
+    load();
+  };
+
   // initial fetch
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
-  // 🔹 Live search on Preliminary Diagnosis (debounced)
+  // Live search on Preliminary Diagnosis (debounced)
   useEffect(() => {
     if (!patientId) return;
     const id = setTimeout(() => { load(); }, 300);
@@ -93,6 +122,7 @@ export default function AdmissionList({ patientId, isDoctor, createSignal = 0 })
 
   const clearFilters = () => {
     setFilters({ q: "", doctor: "", from: "", to: "" });
+    setErr("");
     setTimeout(load, 0);
   };
 
@@ -127,6 +157,7 @@ export default function AdmissionList({ patientId, isDoctor, createSignal = 0 })
           value={filters.from}
           onChange={onFilterChange}
           InputLabelProps={{ shrink: true }}
+          inputProps={{ max: todayStr }}
           sx={{ minWidth: 160 }}
         />
         <TextField
@@ -136,10 +167,11 @@ export default function AdmissionList({ patientId, isDoctor, createSignal = 0 })
           value={filters.to}
           onChange={onFilterChange}
           InputLabelProps={{ shrink: true }}
+          inputProps={{ max: todayStr }}
           sx={{ minWidth: 160 }}
         />
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button variant="contained" onClick={load}>Search</Button>
+          <Button variant="contained" onClick={doSearch}>Search</Button>
           <Button variant="text" onClick={clearFilters}>Clear</Button>
           {loading && <CircularProgress size={20} sx={{ ml: 0.5 }} />}
         </Stack>
