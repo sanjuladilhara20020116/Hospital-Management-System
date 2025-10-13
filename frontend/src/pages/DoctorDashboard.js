@@ -566,7 +566,7 @@ export default function DoctorDashboard({ userId: propUserId }) {
 
       <button className="dd-tile dd-tile--red" onClick={() => setAvailOpen(true)}>
         <span className="dd-tile-icon"><CalendarMonthIcon /></span>
-        <span className="dd-tile-text">Book Appointment</span>
+        <span className="dd-tile-text">Appointment</span>
       </button>
     </div>
   </Box>
