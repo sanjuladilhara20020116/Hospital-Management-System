@@ -177,22 +177,25 @@ export default function AdmissionList({ patientId, isDoctor, createSignal = 0 })
               <Button size="small" startIcon={<VisibilityIcon />} onClick={() => setOpenView(it)}>
                 View
               </Button>
+
+              {/* Download visible to everyone */}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                  downloadFile(
+                    `${API_BASE}/api/admission-notes/${encodeURIComponent(it._id)}/pdf`,
+                    `AdmissionNote_${it.admissionNoteId || it._id}.pdf`
+                  )
+                }
+              >
+                Download PDF
+              </Button>
+
               {isDoctor && (
                 <>
                   <Button size="small" startIcon={<EditIcon />} onClick={() => setEditItem(it)}>
                     Edit
-                  </Button>
-                  <Button
-                    size="small"
-                    startIcon={<PictureAsPdfIcon />}
-                    onClick={() =>
-                      downloadFile(
-                        `${API_BASE}/api/admission-notes/${encodeURIComponent(it._id)}/pdf`,
-                        `AdmissionNote_${it.admissionNoteId || it._id}.pdf`
-                      )
-                    }
-                  >
-                    Download PDF
                   </Button>
                   <IconButton
                     color="error"

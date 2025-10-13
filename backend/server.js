@@ -112,6 +112,12 @@ app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/diagnosis-cards', diagnosisCardRoutes);
 app.use('/api/admission-notes', admissionNoteRoutes);
 
+
+// mount
+app.use('/api/patients', require('./routes/patients'));
+
+
+// TEMP alias to support /api/by-ref/:referenceNo/view
 /* TEMP alias to support /api/by-ref/:referenceNo/view */
 app.get('/api/by-ref/:referenceNo/view', (req, res) => {
   const ref = encodeURIComponent(req.params.referenceNo);
@@ -122,6 +128,7 @@ app.get('/api/by-ref/:referenceNo/view', (req, res) => {
 app.get('/api/stats', (_req, res) => res.json({ patients: 0, doctors: 0, labs: 0 }));
 app.get('/api/doctors/featured', (_req, res) => res.json([]));
 app.get('/api/testimonials', (_req, res) => res.json([]));
+
 
 /* -------------------- 404 for unknown API routes -------------------- */
 app.use('/api', (req, res) => {

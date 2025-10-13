@@ -1,3 +1,4 @@
+// src/components/record/records/RecordList.js
 import React, { useEffect, useState } from "react";
 import {
   Box, Card, CardContent, CardActions, Typography, Button,
@@ -8,7 +9,6 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
-import dayjs from "dayjs";
 import axios from "axios";
 import RecordFormDialog from "./RecordFormDialog";
 import RecordViewDialog from "./RecordViewDialog";
@@ -16,36 +16,40 @@ import { downloadFile } from "../../../utils/download";
 
 const API_BASE = "http://localhost:5000";
 
+// small util to avoid dayjs
+const pad = (n) => (n < 10 ? `0${n}` : `${n}`);
+const fmtDate = (v) => {
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+};
+
 export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
   const [openForm, setOpenForm] = useState(false);
-  const [openView, setOpenView] = useState(null);
+  const [openView, setOpenView] = useState(null); // item or null
   const [editItem, setEditItem] = useState(null);
-  const [confirm, setConfirm] = useState(null);
+  const [confirm, setConfirm] = useState(null); // id to delete
 
-  // Filters
-  const [filters, setFilters] = useState({
-    q: "",        // chief complaint (live)
-    doctor: "",   // manual
-    from: "",     // manual
-    to: "",       // manual
-  });
-
-  const onFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters((p) => ({ ...p, [name]: value }));
-  };
+  // filters
+  const [filters, setFilters] = useState({ q: "", doctor: "", from: "", to: "" });
+  const onFilterChange = (e) =>
+    setFilters((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const buildUrl = () => {
     const qs = new URLSearchParams();
-    if (filters.q.trim()) qs.append("q", filters.q.trim());
+    if (filters.q.trim()) qs.append("q", filters.q.trim()); // chief complaint (live)
     if (filters.doctor.trim()) qs.append("doctor", filters.doctor.trim());
     if (filters.from) qs.append("dateFrom", filters.from);
     if (filters.to) qs.append("dateTo", filters.to);
-    const base = `${API_BASE}/api/clinical-records/patient/${encodeURIComponent(patientId)}`;
+    const base = `${API_BASE}/api/clinical-records/patient/${encodeURIComponent(
+      patientId
+    )}`;
     const s = qs.toString();
     return s ? `${base}?${s}` : base;
   };
@@ -65,26 +69,37 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
   };
 
   // initial fetch
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [patientId]);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
 
-  // Live search: debounce on chief complaint
+  // 🔹 Debounced live search on chief complaint (q) — matches DiagnosisList behavior
   useEffect(() => {
     if (!patientId) return;
-    const id = setTimeout(() => { load(); }, 400);
+    const id = setTimeout(() => {
+      load();
+    }, 300);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.q, patientId]);
 
-  // open form when hub signals "Add"
-  useEffect(() => { if (createSignal > 0) setOpenForm(true); }, [createSignal]);
+  // open form when parent triggers create
+  useEffect(() => {
+    if (createSignal > 0) setOpenForm(true);
+  }, [createSignal]);
 
   const handleCreated = (item) => setItems((prev) => [item, ...prev]);
   const handleUpdated = (item) =>
-    setItems((prev) => prev.map((r) => (String(r._id) === String(item._id) ? item : r)));
+    setItems((prev) =>
+      prev.map((r) => (String(r._id) === String(item._id) ? item : r))
+    );
 
   const onDelete = async (id) => {
     try {
-      await axios.delete(`${API_BASE}/api/clinical-records/${encodeURIComponent(id)}`);
+      await axios.delete(
+        `${API_BASE}/api/clinical-records/${encodeURIComponent(id)}`
+      );
       setItems((prev) => prev.filter((r) => String(r._id) !== String(id)));
     } catch (e) {
       setErr(e?.response?.data?.message || "Unable to delete record");
@@ -102,8 +117,12 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
 
   return (
     <Box>
-      {/* Filter bar */}
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2, alignItems: "flex-end" }}>
+      {/* Filter bar (kept mounted during loading) */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        sx={{ mb: 2, alignItems: "flex-end" }}
+      >
         <TextField
           label="Chief complaint"
           name="q"
@@ -137,7 +156,7 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
           sx={{ minWidth: 160 }}
         />
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button variant="contained" onClick={load} sx={{ whiteSpace: "nowrap" }}>
+          <Button variant="contained" onClick={load}>
             Search
           </Button>
           <Button variant="text" onClick={clearFilters}>
@@ -147,12 +166,21 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
         </Stack>
       </Stack>
 
-      {err && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{err}</Alert>}
+      {err && (
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+          {err}
+        </Alert>
+      )}
+
       {nothingFound && (
         <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-          {filters.q.trim()
-            ? <>No records match "<strong>{filters.q}</strong>"</>
-            : "No records found"}
+          {filters.q.trim() ? (
+            <>
+              No records match "<strong>{filters.q}</strong>"
+            </>
+          ) : (
+            "No records found"
+          )}
         </Alert>
       )}
 
@@ -163,38 +191,66 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
               <Typography variant="subtitle1" fontWeight={800}>
                 {it.chiefComplaint || "—"}
               </Typography>
-              <Stack direction="row" spacing={2} sx={{ mt: 0.5 }} flexWrap="wrap">
-                <Typography variant="body2" color="text.secondary"><strong>Record ID:</strong> {it.recordId}</Typography>
-                <Typography variant="body2" color="text.secondary"><strong>Doctor:</strong> {it.doctorName}</Typography>
+
+              <Stack
+                direction="row"
+                spacing={2}
+                sx={{ mt: 0.5 }}
+                flexWrap="wrap"
+              >
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Date & Time:</strong> {dayjs(it.visitDateTime).format("YYYY-MM-DD HH:mm")}
+                  <strong>Record ID:</strong> {it.recordId || it._id}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Doctor:</strong> {it.doctorName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Date & Time:</strong> {fmtDate(it.visitDateTime)}
                 </Typography>
               </Stack>
             </CardContent>
 
             <CardActions sx={{ pt: 0.5, pb: 1.5, px: 2 }}>
-              <Button size="small" startIcon={<VisibilityIcon />} onClick={() => setOpenView(it)}>
+              <Button
+                size="small"
+                startIcon={<VisibilityIcon />}
+                onClick={() => setOpenView(it)}
+              >
                 View
               </Button>
 
+              {/* Download visible to everyone */}
+              <Button
+                size="small"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={() =>
+                  downloadFile(
+                    `${API_BASE}/api/clinical-records/${encodeURIComponent(
+                      it._id
+                    )}/pdf`,
+                    `Record_${it.recordId || it._id}.pdf`
+                  )
+                }
+              >
+                Download PDF
+              </Button>
+
+              {/* Edit/Delete only for doctors */}
               {isDoctor && (
                 <>
-                  <Button size="small" startIcon={<EditIcon />} onClick={() => setEditItem(it)}>
-                    Edit
-                  </Button>
                   <Button
                     size="small"
-                    startIcon={<PictureAsPdfIcon />}
-                    onClick={() =>
-                      downloadFile(
-                        `${API_BASE}/api/clinical-records/${encodeURIComponent(it._id)}/pdf`,
-                        `Record_${it.recordId || it._id}.pdf`
-                      )
-                    }
+                    startIcon={<EditIcon />}
+                    onClick={() => setEditItem(it)}
                   >
-                    Download PDF
+                    Edit
                   </Button>
-                  <IconButton color="error" onClick={() => setConfirm(it._id)} sx={{ ml: "auto" }} title="Delete">
+                  <IconButton
+                    color="error"
+                    onClick={() => setConfirm(it._id)}
+                    sx={{ ml: "auto" }}
+                    title="Delete"
+                  >
                     <DeleteIcon />
                   </IconButton>
                 </>
@@ -209,7 +265,10 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
         open={openForm}
         onClose={() => setOpenForm(false)}
         patientUserId={patientId}
-        onCreated={(item) => { setOpenForm(false); handleCreated(item); }}
+        onCreated={(item) => {
+          setOpenForm(false);
+          handleCreated(item);
+        }}
       />
 
       {/* Edit */}
@@ -219,12 +278,17 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
           onClose={() => setEditItem(null)}
           patientUserId={patientId}
           initialItem={editItem}
-          onUpdated={(item) => { setEditItem(null); handleUpdated(item); }}
+          onUpdated={(item) => {
+            setEditItem(null);
+            handleUpdated(item);
+          }}
         />
       )}
 
       {/* View */}
-      {openView && <RecordViewDialog item={openView} onClose={() => setOpenView(null)} />}
+      {openView && (
+        <RecordViewDialog item={openView} onClose={() => setOpenView(null)} />
+      )}
 
       {/* Confirm delete */}
       <Dialog open={!!confirm} onClose={() => setConfirm(null)}>
@@ -232,7 +296,9 @@ export default function RecordList({ patientId, isDoctor, createSignal = 0 }) {
         <DialogContent>Action cannot be undone.</DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirm(null)}>Cancel</Button>
-          <Button color="error" onClick={() => onDelete(confirm)}>Delete</Button>
+          <Button color="error" onClick={() => onDelete(confirm)}>
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

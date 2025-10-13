@@ -1,9 +1,9 @@
 // src/components/record/MedicalRecordsHub.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import PrescriptionList from "./prescriptions/PrescriptionList";
 import DiagnosisList from "./diagnosis/DiagnosisList";
 import AdmissionList from "./admission/AdmissionList";
-
+import LabReportList from "./lab/LabReportList";
 import {
   Box,
   Paper,
@@ -25,16 +25,23 @@ const SUBPARTS = [
 ];
 
 export default function MedicalRecordsHub({
-  patientId,
+  patientId,          // human code (P2025/..). Used by records/prescriptions/etc AND for lab *files* list.
+  patientRefId,       // Mongo ObjectId. Used by LAB time-series endpoints.
   isDoctor = true,
-  onAdd, // optional callback: onAdd(activeKey)
+  onAdd,              // optional callback: onAdd(activeKey)
+  hideLab = false,    // hide LAB Reports tab entirely
 }) {
   const [section, setSection] = useState("med"); // "med" | "lab"
   const [active, setActive] = useState("record");
-  const [createSignal, setCreateSignal] = useState(0);         // Record
+  const [createSignal, setCreateSignal] = useState(0); // Record
   const [createSignalPresc, setCreateSignalPresc] = useState(0); // Prescription
-  const [createSignalDiag, setCreateSignalDiag] = useState(0);   // Diagnosis
-  const [createSignalAdm, setCreateSignalAdm] = useState(0);     // Admission
+  const [createSignalDiag, setCreateSignalDiag] = useState(0); // Diagnosis
+  const [createSignalAdm, setCreateSignalAdm] = useState(0); // Admission
+
+  // If LAB is hidden and section somehow isn't "med", snap back to "med"
+  useEffect(() => {
+    if (hideLab && section !== "med") setSection("med");
+  }, [hideLab, section]);
 
   const activeLabel = useMemo(() => {
     const found = SUBPARTS.find((s) => s.key === active);
@@ -43,6 +50,7 @@ export default function MedicalRecordsHub({
 
   // Clear create signals when switching sections
   const goSection = (value) => {
+    if (hideLab && value === "lab") return; // block when hidden
     setSection(value);
     if (value !== "med") {
       setCreateSignal(0);
@@ -115,13 +123,13 @@ export default function MedicalRecordsHub({
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
+            gridTemplateColumns: hideLab ? "1fr" : "1fr 1fr",
             borderBottom: (t) => `1px solid ${t.palette.divider}`,
             bgcolor: "background.paper",
           }}
         >
           <Segment value="med">Medical Records</Segment>
-          <Segment value="lab">LAB Reports</Segment>
+          {!hideLab && <Segment value="lab">LAB Reports</Segment>}
         </Box>
 
         {/* MEDICAL RECORDS TABS */}
@@ -149,9 +157,8 @@ export default function MedicalRecordsHub({
                   px: 2.25,
                   borderRadius: 999,
                   border: (t) => `1px solid ${t.palette.divider}`,
-                  color: "text.primary", // unselected label color
+                  color: "text.primary",
                 },
-                // selected pill (kept consistent with your current styling)
                 "& .MuiTab-root.Mui-selected": {
                   bgcolor: "primary.main",
                   borderColor: "primary.main",
@@ -212,25 +219,25 @@ export default function MedicalRecordsHub({
                 <RecordList
                   patientId={patientId}
                   isDoctor={isDoctor}
-                  createSignal={createSignal} // only changes on Add click
+                  createSignal={createSignal}
                 />
               ) : active === "prescription" ? (
                 <PrescriptionList
                   patientId={patientId}
                   isDoctor={isDoctor}
-                  createSignal={createSignalPresc} // only changes on Add click
+                  createSignal={createSignalPresc}
                 />
               ) : active === "diagnosis" ? (
                 <DiagnosisList
                   patientId={patientId}
                   isDoctor={isDoctor}
-                  createSignal={createSignalDiag} // only changes on Add click
+                  createSignal={createSignalDiag}
                 />
               ) : active === "admission" ? (
                 <AdmissionList
                   patientId={patientId}
                   isDoctor={isDoctor}
-                  createSignal={createSignalAdm} // only changes on Add click
+                  createSignal={createSignalAdm}
                 />
               ) : (
                 <Typography variant="body2" color="text.secondary">
@@ -238,8 +245,13 @@ export default function MedicalRecordsHub({
                 </Typography>
               )
             ) : (
-              // LAB REPORTS: selectable, intentionally blank
-              <Stack sx={{ flex: 1 }} />
+              /* LAB REPORTS (now actually rendered) */
+              <LabReportList
+                // For “Files” list & downloads (userReportRoutes)
+                patientUserId={patientId}
+                // For time-series (/api/reports/patients/:id/series)
+                patientRefId={patientRefId}
+              />
             )}
           </Paper>
         </Box>
