@@ -85,7 +85,13 @@ class FileManager {
       absolutePath: path.join(this.certDir, fileName),
     };
   }
-  // Resolve logo path (several fallbacks)
+  // Resolve logo path:
+  // 1) HOSPITAL_LOGO_PATH
+  // 2) frontend/public/medicore.png
+  // 3) public/medicore.png
+  // 4) ../frontend/public/medicore.png
+  // 5) ../public/medicore.png
+  // 6) uploads/logo.png
   resolveLogoPath() {
     const candidates = [
       process.env.HOSPITAL_LOGO_PATH,
@@ -106,40 +112,6 @@ class FileManager {
 // FORMATTERS
 // ===========================
 class Formatter {
-  static toDateSafe(v) {
-    if (!v && v !== 0) return null;
-    if (v instanceof Date && !isNaN(v.getTime())) return v;
-
-    // timestamps
-    if (typeof v === "number") {
-      const d = new Date(v);
-      return isNaN(d.getTime()) ? null : d;
-    }
-
-    if (typeof v === "string") {
-      const s = v.trim();
-
-      // YYYY-MM-DD or YYYY/MM/DD
-      let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-      if (m) {
-        const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-        return isNaN(d.getTime()) ? null : d;
-      }
-
-      // DD-MM-YYYY or DD/MM/YYYY
-      m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-      if (m) {
-        const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
-        return isNaN(d.getTime()) ? null : d;
-      }
-
-      // Fallback to Date parse
-      const d = new Date(s);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    return null;
-  }
-
   static date(d, opts = {}) {
     const o = { timeZone: "Asia/Colombo", ...opts };
     const dt = d instanceof Date ? d : new Date(d);
@@ -200,17 +172,13 @@ class Sections {
 
   header(record, hospitalName, logoPath) {
     const yTop = CONFIG.spacing.yHeader;
-
     // gradient block
     const g = this.d.linearGradient(this.margin, yTop, this.margin + this.innerW, yTop);
     g.stop(0, CONFIG.colors.primary).stop(1, CONFIG.colors.primaryLight);
     this.d.save().roundedRect(this.margin, yTop, this.innerW, CONFIG.spacing.headerBlockH, CONFIG.spacing.headerRadius).fill(g).restore();
 
-    // ---- FIX 1: center logo vertically inside the blue header
-    const logoSize = 70;
-    const logoX = this.margin + 18;
-    const logoY = yTop + Math.round((CONFIG.spacing.headerBlockH - logoSize) / 2);
-    this.draw.logo(logoX, logoY, logoSize, logoPath);
+    // logo
+    this.draw.logo(this.margin + 18, yTop + 18, 70, logoPath);
 
     // cert pill (measure first)
     const certText = record.certificateNumber ? `Cert ID: ${record.certificateNumber}` : "Cert ID: —";
@@ -221,19 +189,12 @@ class Sections {
     this.draw.pill(pillX, pillY, certW, 28, CONFIG.colors.white, 0.22);
     this.d.fillColor(CONFIG.colors.white).text(certText, pillX, pillY + 7, { width: certW, align: "center" });
 
-    // ---- FIX 2: prevent subtitle overlapping title by measuring title height
+    // title/subtitle within remaining width
     const textX = this.margin + 110;
     const textW = pillX - textX - 16;
-    const title = "Vaccination Certificate";
     this.d.save().fillColor(CONFIG.colors.white);
-
-    this.d.font(CONFIG.fonts.bold).fontSize(CONFIG.sizes.title);
-    const titleH = this.d.heightOfString(title, { width: textW });
-    this.d.text(title, textX, yTop + 18, { width: textW });
-
-    this.d.font(CONFIG.fonts.regular).fontSize(CONFIG.sizes.subtitle).opacity(0.9)
-      .text("Official Immunization Record", textX, yTop + 18 + titleH + 2, { width: textW });
-
+    this.d.font(CONFIG.fonts.bold).fontSize(CONFIG.sizes.title).text("Vaccination Certificate", textX, yTop + 18, { width: textW });
+    this.d.font(CONFIG.fonts.regular).fontSize(CONFIG.sizes.subtitle).opacity(0.9).text("Official Immunization Record", textX, yTop + 44, { width: textW });
     this.d.restore();
 
     return yTop + CONFIG.spacing.headerBlockH + CONFIG.spacing.yAfterHeader;
@@ -287,8 +248,7 @@ class Sections {
     const h = CONFIG.spacing.cardH;
     const left = this.card(this.margin, y, w, h, "Patient Information", patientInfo);
     const right = this.card(this.margin + w + gap, y, w, h, "Vaccination Details", vaccInfo);
-    // ---- FIX 4: add a touch more space under the cards
-    return Math.max(left, right) + CONFIG.spacing.sectionGap + 8;
+    return Math.max(left, right) + CONFIG.spacing.sectionGap;
   }
 
   tableHeader(cols, x, y, widths, h = CONFIG.spacing.tableHeaderH) {
@@ -335,25 +295,12 @@ class Sections {
 // DATA
 // ===========================
 class DataProcessor {
-  static extractDOB(patient, record) {
-    const p = patient || record?.patient || {};
-    const candidates = [
-      p.dob, p.dateOfBirth, p.birthDate,
-      record?.patientDob, record?.dob, record?.dateOfBirth,
-    ];
-    for (const c of candidates) {
-      const d = Formatter.toDateSafe(c);
-      if (d) return Formatter.date(d);
-    }
-    return "-";
-  }
-
   static patient(patient, record) {
     const p = patient || record?.patient || {};
     return {
       name: Formatter.fullName(p.firstName, p.lastName),
       id: Formatter.val(p.userId || p._id),
-      dob: DataProcessor.extractDOB(patient, record), // ---- FIX 3: better DOB
+      dob: p.dob ? Formatter.date(p.dob) : "-",
       contact: Formatter.val(p.email),
     };
   }
@@ -446,7 +393,7 @@ class VaccinationCertificateGenerator {
     );
     y = ty + 18;
 
-    // Additional Information
+    // Additional Information (always render)
     y = sec.sectionTitle("Additional Information", y);
     const addPerc = [0.18, 0.20, 0.20, 0.24, 0.18];
     const aw = sec.widthsFromPerc(addPerc);
@@ -462,6 +409,7 @@ class VaccinationCertificateGenerator {
 
     await PDFWriter.write(doc, paths.absolutePath);
 
+    // Return NEW + BACK-COMPAT fields
     return {
       success: true,
       data: {

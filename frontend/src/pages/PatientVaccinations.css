@@ -14,7 +14,6 @@
   margin: 0 auto;
   min-height: 100vh;
   position: relative;
-  z-index: 1;
 }
 
 /* Background */
@@ -25,12 +24,10 @@
   right: 0;
   bottom: 0;
   z-index: -2;
-  pointer-events: none;
 }
 
 .background-pattern {
-  z-index: 0;
-
+  z-index: -1;
 }
 
 /* Header */
