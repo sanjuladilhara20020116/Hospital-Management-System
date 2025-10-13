@@ -399,6 +399,8 @@ export default function DoctorVaccinationSearch() {
           right: 0,
           bottom: 0,
           background: `linear-gradient(135deg, ${BLUE.main} 0%, ${BLUE.mid} 100%)`,
+          pointerEvents:"none",
+          zIndex :0,
           "&::before": {
             content: '""',
             position: "absolute",
