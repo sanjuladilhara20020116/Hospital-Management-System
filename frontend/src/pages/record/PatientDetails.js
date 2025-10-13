@@ -19,8 +19,11 @@ import AllergiesCard from "../../components/record/AllergiesCard";
 import MedicalRecordsHub from "../../components/record/MedicalRecordsHub";
 
 const API_BASE = "http://localhost:5000";
+const BLUE = "#1565C0";
+const BLUE_SOFT = "#E3F2FD";
 
-/* ---- helpers ---- */
+// ─────────────────────────────────────────────────────────────────────────────
+// helpers (unchanged)
 function getCurrentUser() {
   try {
     const raw = localStorage.getItem("user");
@@ -30,12 +33,8 @@ function getCurrentUser() {
   }
 }
 
-const BLUE = "#1565C0";
-const LIGHT_BLUE = "#E9F3FF";
-
-/* ======================= Component ======================= */
 export default function PatientDetails() {
-  const { patientId } = useParams();
+  const { patientId } = useParams(); // route param (can be userId or _id in your app)
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
@@ -49,7 +48,7 @@ export default function PatientDetails() {
   const viewer = getCurrentUser();
   const isDoctor = viewer?.role === "Doctor";
 
-  /* ---------- fetch patient ----------- */
+  // fetch patient info (expects :patientId to be userId code)
   useEffect(() => {
     (async () => {
       try {
@@ -66,7 +65,7 @@ export default function PatientDetails() {
     })();
   }, [patientId]);
 
-  /* ---------- fetch allergies ----------- */
+  // fetch allergies (these APIs use userId code)
   useEffect(() => {
     if (!data?.userId) return;
     (async () => {
@@ -90,7 +89,7 @@ export default function PatientDetails() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  /* ---------- Allergies CRUD (unchanged behavior) ----------- */
+  // ---- Allergies CRUD (unchanged) ----
   const onAllergyCreate = async (payload) => {
     try {
       const res = await axios.post(
@@ -131,14 +130,19 @@ export default function PatientDetails() {
     }
   };
 
-  /* ---------- early returns ----------- */
+  // ─────────────────────────────────────────────────────────────────────────────
+  // early returns
   if (err) {
     return (
       <Box sx={{ p: 3, maxWidth: 1100, mx: "auto" }}>
         <Alert severity="error" sx={{ borderRadius: 2 }}>
           {err}
         </Alert>
-        <Button sx={{ mt: 2 }} onClick={() => navigate(-1)}>
+        <Button
+          sx={{ mt: 2, color: BLUE }}
+          onClick={() => navigate(-1)}
+          variant="text"
+        >
           Back
         </Button>
       </Box>
@@ -147,94 +151,125 @@ export default function PatientDetails() {
 
   if (!data) {
     return (
-      <Typography sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>
+      <Typography
+        sx={{ p: 4, textAlign: "center", color: "text.secondary" }}
+      >
         Loading…
       </Typography>
     );
   }
 
-  /* ---------- styles (internal CSS) ----------- */
-  const styles = {
-    page: { p: 3, maxWidth: 1100, mx: "auto" },
-    headerCard: {
-      position: "relative",
-      borderRadius: 3,
-      overflow: "hidden",
-      bgcolor: "#fff",
-      border: (t) => `1px solid ${t.palette.divider}`,
-      /* blue top bar */
-      "&:before": {
-        content: '""',
-        position: "absolute",
-        left: 0,
-        top: 0,
-        width: "100%",
-        height: 8,
-        background: BLUE,
-      },
-    },
-    avatar: {
-      width: 88,
-      height: 88,
-      bgcolor: LIGHT_BLUE,
-      border: "3px solid #E3F2FD",
-      boxShadow: "0 0 0 4px #F5F9FF inset",
-    },
-    idChip: {
-      px: 1.25,
-      fontWeight: 700,
-      bgcolor: LIGHT_BLUE,
-      color: BLUE,
-      borderColor: BLUE,
-    },
-    outlineChip: {
-      px: 1.1,
-      color: BLUE,
-      borderColor: BLUE,
-    },
-    backBtn: {
-      borderColor: BLUE,
-      color: BLUE,
-      fontWeight: 700,
-      px: 2.5,
-      "&:hover": { borderColor: BLUE, backgroundColor: LIGHT_BLUE },
-    },
-  };
-
-  /* ---------- render ----------- */
+  // ─────────────────────────────────────────────────────────────────────────────
+  // UI (primary white, secondary blue)
   return (
-    <Box sx={styles.page}>
+    <Box
+      sx={{
+        p: { xs: 2, md: 3 },
+        maxWidth: 1100,
+        mx: "auto",
+        bgcolor: "#fff",
+      }}
+    >
       {/* Header */}
-      <Card elevation={0} sx={styles.headerCard}>
-        <CardContent sx={{ pt: 3 }}>
-          <Stack direction="row" spacing={2} alignItems="center">
+      <Card
+        elevation={0}
+        sx={{
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: 3,
+          border: "1px solid",
+          borderColor: "divider",
+          bgcolor: "#fff",
+        }}
+      >
+        {/* thin blue top bar */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            bgcolor: BLUE,
+          }}
+        />
+        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack direction="row" spacing={2.5} alignItems="center">
             <Avatar
               src={data.photo ? `${API_BASE}/uploads/${data.photo}` : undefined}
-              sx={styles.avatar}
+              sx={{
+                width: 80,
+                height: 80,
+                bgcolor: BLUE_SOFT,
+                border: "2px solid #fff",
+                boxShadow: `0 0 0 3px ${BLUE_SOFT}`,
+              }}
             />
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="h5" fontWeight={800} sx={{ lineHeight: 1.2 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography
+                variant="h5"
+                fontWeight={800}
+                sx={{ lineHeight: 1.15, color: "#0F172A" }}
+                noWrap
+              >
                 {data.firstName} {data.lastName}
               </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-                <Chip size="small" sx={styles.idChip} label={data.userId} />
+
+              <Stack
+                direction="row"
+                spacing={1}
+                flexWrap="wrap"
+                sx={{ mt: 1 }}
+                useFlexGap
+              >
+                <Chip
+                  size="small"
+                  label={data.userId}
+                  sx={{
+                    bgcolor: BLUE_SOFT,
+                    color: BLUE,
+                    fontWeight: 700,
+                    border: `1px solid ${BLUE}26`,
+                  }}
+                />
                 {data.age != null && (
-                  <Chip size="small" variant="outlined" sx={styles.outlineChip} label={`${data.age} yr`} />
+                  <Chip
+                    size="small"
+                    label={`${data.age} yr`}
+                    variant="outlined"
+                    sx={{ borderColor: BLUE, color: BLUE }}
+                  />
                 )}
                 {data.gender && (
-                  <Chip size="small" variant="outlined" sx={styles.outlineChip} label={data.gender} />
+                  <Chip
+                    size="small"
+                    label={data.gender}
+                    variant="outlined"
+                    sx={{ borderColor: BLUE, color: BLUE }}
+                  />
                 )}
               </Stack>
             </Box>
-            <Button variant="outlined" onClick={() => navigate(-1)} sx={styles.backBtn}>
-              BACK
+
+            <Button
+              onClick={() => navigate(-1)}
+              variant="outlined"
+              sx={{
+                borderColor: BLUE,
+                color: BLUE,
+                px: 2.25,
+                "&:hover": { borderColor: BLUE, bgcolor: BLUE_SOFT },
+              }}
+            >
+              Back
             </Button>
           </Stack>
         </CardContent>
       </Card>
 
-      {/* Allergies (doctor editable) */}
+      {/* Allergies section */}
       <Box sx={{ mt: 3 }}>
+        <SectionTitle title="Allergies" />
         {allergyErr && (
           <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
             {allergyErr}
@@ -259,16 +294,46 @@ export default function PatientDetails() {
 
       <Divider sx={{ my: 4 }} />
 
-      {/* Medical Records hub */}
-      <MedicalRecordsHub
-        patientId={data.userId}  // human code, e.g. P2025/...
-        patientRefId={data._id}  // Mongo _id
-        isDoctor={isDoctor}
-        onAdd={(activeKey) => {
-          // keep same behavior (no functional changes)
-          console.log("Add clicked for:", activeKey);
+      {/* Records hub */}
+      <Box>
+        <SectionTitle title="Medical Records" />
+        <MedicalRecordsHub
+          patientId={data.userId} // human code, e.g. P2025/...
+          patientRefId={data._id} // Mongo _id
+          isDoctor={isDoctor}
+          onAdd={(activeKey) => {
+            console.log("Add clicked for:", activeKey);
+          }}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+/** Small internal section header with white/blue styling */
+function SectionTitle({ title }) {
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      spacing={1.5}
+      sx={{ mb: 1.5 }}
+    >
+      <Box
+        sx={{
+          width: 6,
+          height: 24,
+          borderRadius: 999,
+          bgcolor: BLUE,
         }}
       />
-    </Box>
+      <Typography
+        variant="subtitle1"
+        fontWeight={800}
+        sx={{ color: "#0F172A" }}
+      >
+        {title}
+      </Typography>
+    </Stack>
   );
 }
