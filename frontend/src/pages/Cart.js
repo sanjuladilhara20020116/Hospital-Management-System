@@ -143,11 +143,27 @@ export default function Cart() {
     return cardBrand;
   }, [cardNumber, cardBrand]);
 
+  // --- NEW: Prevent past-date selection (both UI min + validation) ---
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const minDateTime = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }, []);
+
   // Inline field validation
   const validateFields = () => {
     const e = {};
     if (!patientEmail) e.patientEmail = 'Email is required';
     if (!appointmentDate) e.appointmentDate = 'Choose date & time';
+
+    // Past-date hard block
+    if (appointmentDate) {
+      const selected = new Date(appointmentDate);
+      const now = new Date();
+      if (selected.getTime() < now.getTime()) {
+        e.appointmentDate = 'Date/time cannot be in the past';
+      }
+    }
 
     // Patient name: optional, but if provided must be letters and spaces ONLY
     if (patientName && !isLettersAndSpaces(patientName)) {
@@ -561,12 +577,32 @@ export default function Cart() {
                   label="Appointment Date & Time"
                   type="datetime-local"
                   value={appointmentDate}
-                  onChange={e => setAppointmentDate(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setAppointmentDate(val);
+                    // live guard: mark error if user types a past date/time
+                    setErrors(prev => {
+                      const next = { ...prev };
+                      if (!val) {
+                        next.appointmentDate = 'Choose date & time';
+                      } else {
+                        const selected = new Date(val);
+                        const now = new Date();
+                        if (selected.getTime() < now.getTime()) {
+                          next.appointmentDate = 'Date/time cannot be in the past';
+                        } else {
+                          delete next.appointmentDate;
+                        }
+                      }
+                      return next;
+                    });
+                  }}
                   InputLabelProps={{ shrink: true }}
                   fullWidth
                   required
                   error={!!errors.appointmentDate}
                   helperText={errors.appointmentDate || 'Select a convenient time for your visit'}
+                  inputProps={{ min: minDateTime }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
