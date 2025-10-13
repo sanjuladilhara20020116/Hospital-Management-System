@@ -10,10 +10,36 @@ const API_BASE = "http://localhost:5000";
 
 export default function ViewPatientCard() {
   const [patientId, setPatientId] = useState("");
+  const [idErr, setIdErr] = useState("");        // ⬅ inline validation for the field
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const navigate = useNavigate();
+
+  // sanitize + validate input as user types
+  const onChangePatientId = (e) => {
+    const raw = (e.target.value || "").toUpperCase();
+
+    if (!raw) {
+      setPatientId("");
+      setIdErr("");
+      return;
+    }
+
+    // keep only digits and "/" after the first char
+    const after = raw.slice(1).replace(/[^0-9/]/g, "");
+    // always enforce leading "P" when there is content
+    let sanitized = "P" + after;
+
+    // cap length to 14
+    if (sanitized.length > 14) sanitized = sanitized.slice(0, 14);
+
+    // validate against pattern: P followed by up to 13 of [0-9/]
+    const valid = /^P[0-9/]{0,13}$/.test(sanitized);
+    setIdErr(valid ? "" : 'ID must start with "P" and contain only numbers or "/".');
+
+    setPatientId(sanitized);
+  };
 
   const handleSearch = async () => {
     setError("");
@@ -21,6 +47,11 @@ export default function ViewPatientCard() {
 
     const id = patientId.trim();
     if (!id) return setError("Please enter a valid Patient ID");
+
+    // final guard before calling API
+    if (!/^P[0-9/]{0,13}$/.test(id)) {
+      return setError('Patient ID must start with "P" and contain only numbers or "/". Max 14 characters.');
+    }
 
     try {
       setLoading(true);
@@ -55,12 +86,25 @@ export default function ViewPatientCard() {
         <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
           <TextField
             fullWidth
-            placeholder="Enter Patient ID"
+            placeholder="Enter Patient ID (e.g., P2025/12345)"
             value={patientId}
-            onChange={(e) => setPatientId(e.target.value)}
+            onChange={onChangePatientId}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            error={!!idErr}
+            helperText={idErr || `${patientId.length}/14`}
+            inputProps={{
+              maxLength: 14,               // hard cap
+              inputMode: "text",
+              pattern: "P[0-9/]{0,13}",    // browser-level hint (not relied upon)
+              spellCheck: "false",
+            }}
           />
-          <Button variant="contained" onClick={handleSearch} disabled={loading} sx={{ px: 3 }}>
+          <Button
+            variant="contained"
+            onClick={handleSearch}
+            disabled={loading || !!idErr}
+            sx={{ px: 3 }}
+          >
             {loading ? <CircularProgress size={22} /> : "Search"}
           </Button>
         </Stack>
