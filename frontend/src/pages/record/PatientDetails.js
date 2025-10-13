@@ -10,7 +10,6 @@ import axios from "axios";
 import AllergiesCard from "../../components/record/AllergiesCard";
 import MedicalRecordsHub from "../../components/record/MedicalRecordsHub";
 
-
 const API_BASE = "http://localhost:5000";
 
 function getCurrentUser() {
@@ -23,7 +22,7 @@ function getCurrentUser() {
 }
 
 export default function PatientDetails() {
-  const { patientId } = useParams();
+  const { patientId } = useParams(); // route param (can be userId or _id in your app)
   const navigate = useNavigate();
 
   const [data, setData] = useState(null);
@@ -37,13 +36,16 @@ export default function PatientDetails() {
   const viewer = getCurrentUser();
   const isDoctor = viewer?.role === "Doctor";
 
-  // fetch patient info
+  // fetch patient info (expects :patientId to be userId code)
   useEffect(() => {
     (async () => {
       try {
         setErr("");
-        const res = await axios.get(`${API_BASE}/api/users/${encodeURIComponent(patientId)}`);
-        if (!res?.data || res.data.role !== "Patient") throw new Error("Patient not found");
+        const res = await axios.get(
+          `${API_BASE}/api/users/${encodeURIComponent(patientId)}`
+        );
+        if (!res?.data || res.data.role !== "Patient")
+          throw new Error("Patient not found");
         setData(res.data);
       } catch (e) {
         setErr(e?.response?.data?.message || "Patient not found");
@@ -51,7 +53,7 @@ export default function PatientDetails() {
     })();
   }, [patientId]);
 
-  // fetch allergies
+  // fetch allergies (these APIs use userId code)
   useEffect(() => {
     if (!data?.userId) return;
     (async () => {
@@ -59,11 +61,15 @@ export default function PatientDetails() {
         setAllergyErr("");
         setAllergyLoading(true);
         const res = await axios.get(
-          `${API_BASE}/api/patients/${encodeURIComponent(data.userId)}/allergies`
+          `${API_BASE}/api/patients/${encodeURIComponent(
+            data.userId
+          )}/allergies`
         );
         setAllergies(Array.isArray(res.data?.items) ? res.data.items : []);
       } catch (e) {
-        setAllergyErr(e?.response?.data?.message || "Failed to load allergies");
+        setAllergyErr(
+          e?.response?.data?.message || "Failed to load allergies"
+        );
       } finally {
         setAllergyLoading(false);
       }
@@ -106,9 +112,10 @@ export default function PatientDetails() {
 
   const onAllergyDelete = async (id) => {
     try {
-      await axios.delete(`${API_BASE}/api/allergies/${encodeURIComponent(id)}`, {
-        headers: { ...authHeaders() },
-      });
+      await axios.delete(
+        `${API_BASE}/api/allergies/${encodeURIComponent(id)}`,
+        { headers: { ...authHeaders() } }
+      );
       setAllergies((prev) => prev.filter((a) => String(a._id) !== String(id)));
     } catch (e) {
       setAllergyErr(e?.response?.data?.message || "Unable to delete allergy");
@@ -119,8 +126,12 @@ export default function PatientDetails() {
   if (err) {
     return (
       <Box sx={{ p: 3, maxWidth: 1000, mx: "auto" }}>
-        <Alert severity="error" sx={{ borderRadius: 2 }}>{err}</Alert>
-        <Button sx={{ mt: 2 }} onClick={() => navigate(-1)}>Back</Button>
+        <Alert severity="error" sx={{ borderRadius: 2 }}>
+          {err}
+        </Alert>
+        <Button sx={{ mt: 2 }} onClick={() => navigate(-1)}>
+          Back
+        </Button>
       </Box>
     );
   }
@@ -152,11 +163,15 @@ export default function PatientDetails() {
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
                 <Chip size="small" label={data.userId} />
-                {data.age != null && <Chip size="small" label={`${data.age} yr`} />}
+                {data.age != null && (
+                  <Chip size="small" label={`${data.age} yr`} />
+                )}
                 {data.gender && <Chip size="small" label={data.gender} />}
               </Stack>
             </Box>
-            <Button variant="outlined" onClick={() => navigate(-1)}>Back</Button>
+            <Button variant="outlined" onClick={() => navigate(-1)}>
+              Back
+            </Button>
           </Stack>
         </CardContent>
       </Card>
@@ -186,14 +201,16 @@ export default function PatientDetails() {
       </Box>
 
       <Divider sx={{ my: 4 }} />
-      {/* Medical Records hub (UI-only) */}
+
+      {/* Medical Records hub */}
       <MedicalRecordsHub
-        patientId={data.userId}
+        // For legacy “records/prescriptions/etc.” APIs
+        patientId={data.userId}          // human code, e.g. P2025/...
+        // For LAB time-series APIs (they expect Mongo ObjectId)
+        patientRefId={data._id}          // Mongo _id
         isDoctor={isDoctor}
         onAdd={(activeKey) => {
-        // Optional: wire up navigation later
-        // e.g., navigate(`/doctor/patients/${encodeURIComponent(data.userId)}/records/${activeKey}/new`);
-        console.log("Add clicked for:", activeKey);
+          console.log("Add clicked for:", activeKey);
         }}
       />
     </Box>

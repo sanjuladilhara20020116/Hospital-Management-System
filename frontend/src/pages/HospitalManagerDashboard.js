@@ -211,6 +211,43 @@ export default function HospitalManagerDashboard() {
                 </Button>
               </Paper>
             </Grid>
+
+            {/* ✅ NEW: Vaccination Management (Doctor Vaccinations list, for Managers) */}
+            <Grid item xs={12} md={6}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 3,
+                  borderRadius: 3,
+                  border: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: theme.palette.background.paper,
+                  boxShadow: '0 10px 30px rgba(2,6,23,.06)',
+                  transition: 'transform .18s ease, box-shadow .18s ease, border-color .18s ease',
+                  '&:hover': {
+                    transform: 'translateY(-3px)',
+                    boxShadow: '0 16px 34px rgba(2,6,23,.10)',
+                    borderColor: theme.palette.info.main
+                  }
+                }}
+              >
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography variant="overline" color="text.secondary">Clinical</Typography>
+                  <Typography variant="h6" fontWeight={700}>Vaccination Management</Typography>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="body2" color="text.secondary">
+                  Review vaccination records, open certificates, and resend emails.
+                </Typography>
+                <Button
+                  variant="contained"
+                  color="info"
+                  onClick={() => navigate('/vaccinations/doctor')}
+                  sx={{ mt: 2, borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                >
+                  Open Vaccination Records
+                </Button>
+              </Paper>
+            </Grid>
           </Grid>
         </Container>
       </Box>
