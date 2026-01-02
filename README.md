@@ -83,7 +83,7 @@ This project was built as a collaborative university group solution. All team me
 
 | Team Member | Ownership Areas |
 |------------|------------------|
-| **Sanjula Dilhara** | User Management, Healthcare Packages, Utility Tools |
+| **Sanjula Dilhara** | User Management, Healthcare Packages, AI catbot |
 | **Chenath Perera** | Lab Report Management, AI-based Report Analysis |
 | **Rakindu Rajapaksha** | Vaccination Portal, BMI Calculator |
 | **Thushan Shamendra** | Medical Record Management |
