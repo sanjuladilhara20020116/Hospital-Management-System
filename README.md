@@ -56,6 +56,7 @@ Our delivery approach follows a **modular architecture**: each healthcare domain
 - **Healthcare Packages & Utility Tools**
   - Package listing, CRUD, enrollment flows
   - BMI calculator and supportive patient utilities
+  - AI powered chatbot
 
 ---
 
